@@ -14,7 +14,8 @@ export interface ColDef {
 
 interface Saved { widths: Record<string, number>; hidden: string[]; order?: string[] }
 
-const GRIP = 14, CHECK = 20, MENU = 24, GAP = 2;
+// The trailing column used to hold a ⋯ menu; row actions now live on right-click, so it's just a hairline gutter.
+const GRIP = 14, CHECK = 20, MENU = 4, GAP = 2;
 
 /**
  * Every column (including the name) has its own fixed pixel width that stays exactly where you drag it.

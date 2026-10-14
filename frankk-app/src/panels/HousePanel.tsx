@@ -72,27 +72,8 @@ function BillRow({ o, cols }: { o: Occurrence; cols: Columns }) {
   return (
     <div className={`task bill${o.paid ? ' is-done' : ''}`} data-bill={`${o.bill.id}:${o.month}`}>
       <div className="trow" style={{ gridTemplateColumns: cols.template }} role="row">
-        <span />
-        <label className="check no-drag">
-          <input type="checkbox" checked={o.paid} aria-label={`${o.paid ? 'Mark unpaid' : 'Mark paid'}: ${label}`}
-            onChange={() => { dispatch({ type: 'bill/pay', billId: o.bill.id, month: o.month, paid: !o.paid }); say(`${label} marked ${o.paid ? 'unpaid' : 'paid'}. Other months are unchanged.`); }} />
-          <span className="box" />
-        </label>
-        {cols.visible.map((c) => {
-          if (c.id === 'title') return (
-            <div key={c.id} className="cell title-cell col" data-col={c.id}>
-              <span className="bill-name"><Editable className="task-title" label="Bill name" value={o.bill.title} onSave={(v) => dispatch({ type: 'bill/patch', billId: o.bill.id, patch: { title: v } })} />{o.month !== monthKey(today) && <em className="muted">· {monthName(o.month)}</em>}</span>
-              <span className="sub" title={`Monthly · reminder ${o.bill.reminderDays === 0 ? 'on the day' : `${o.bill.reminderDays} days before`}`}><Icon name="bell" size={10} />{o.bill.reminderDays === 0 ? 'on the day' : `${o.bill.reminderDays}d before`} · monthly</span>
-            </div>
-          );
-          if (c.id === 'progress') return <div key={c.id} className="cell" data-col={c.id}><span className={`pill ${status}`}>{o.paid ? '✓ Paid' : o.missed ? 'Missed' : 'Unpaid'}</span></div>;
-          if (c.id === 'notes') return <div key={c.id} className="cell" data-col={c.id}><Editable className="cell-desc" label={`Payment note for ${label}`} value={o.note ?? ''} allowEmpty placeholder="+ payment note" onSave={(v) => dispatch({ type: 'bill/update', billId: o.bill.id, patch: { note: { month: o.month, text: v.trim() } } })} /></div>;
-          if (c.id === 'due') return <div key={c.id} className="cell" data-col={c.id}><span className={`date-static${o.missed ? ' overdue' : ''}`} title={shortDate(o.due, today)}>{relLabel(o.due, today)}</span></div>;
-          return <div key={c.id} className="cell" data-col={c.id} />;
-        })}
-        <span />
-        <Popover align="right" trigger={({ toggle, ref }) => (
-          <button ref={ref} className="icon-btn tiny" aria-label={`Bill options for ${label}`} aria-haspopup="menu" onClick={toggle}><Icon name="more" size={14} /></button>
+        <Popover trigger={({ toggle, ref }) => (
+          <button ref={ref} className="icon-btn tiny row-opts" aria-label={`Bill options for ${label}`} title="Bill settings" aria-haspopup="menu" onClick={toggle}><Icon name="settings" size={12} /></button>
         )}>
           {(close) => (
             <div className="pop-form">
@@ -115,6 +96,25 @@ function BillRow({ o, cols }: { o: Occurrence; cols: Columns }) {
             </div>
           )}
         </Popover>
+        <label className="check no-drag">
+          <input type="checkbox" checked={o.paid} aria-label={`${o.paid ? 'Mark unpaid' : 'Mark paid'}: ${label}`}
+            onChange={() => { dispatch({ type: 'bill/pay', billId: o.bill.id, month: o.month, paid: !o.paid }); say(`${label} marked ${o.paid ? 'unpaid' : 'paid'}. Other months are unchanged.`); }} />
+          <span className="box" />
+        </label>
+        {cols.visible.map((c) => {
+          if (c.id === 'title') return (
+            <div key={c.id} className="cell title-cell col" data-col={c.id}>
+              <span className="bill-name"><Editable className="task-title" label="Bill name" value={o.bill.title} onSave={(v) => dispatch({ type: 'bill/patch', billId: o.bill.id, patch: { title: v } })} />{o.month !== monthKey(today) && <em className="muted">· {monthName(o.month)}</em>}</span>
+              <span className="sub" title={`Monthly · reminder ${o.bill.reminderDays === 0 ? 'on the day' : `${o.bill.reminderDays} days before`}`}><Icon name="bell" size={10} />{o.bill.reminderDays === 0 ? 'on the day' : `${o.bill.reminderDays}d before`} · monthly</span>
+            </div>
+          );
+          if (c.id === 'progress') return <div key={c.id} className="cell" data-col={c.id}><span className={`pill ${status}`}>{o.paid ? '✓ Paid' : o.missed ? 'Missed' : 'Unpaid'}</span></div>;
+          if (c.id === 'notes') return <div key={c.id} className="cell" data-col={c.id}><Editable className="cell-desc" label={`Payment note for ${label}`} value={o.note ?? ''} allowEmpty placeholder="+ payment note" onSave={(v) => dispatch({ type: 'bill/update', billId: o.bill.id, patch: { note: { month: o.month, text: v.trim() } } })} /></div>;
+          if (c.id === 'due') return <div key={c.id} className="cell" data-col={c.id}><span className={`date-static${o.missed ? ' overdue' : ''}`} title={shortDate(o.due, today)}>{relLabel(o.due, today)}</span></div>;
+          return <div key={c.id} className="cell" data-col={c.id} />;
+        })}
+        <span />
+        <span />
       </div>
     </div>
   );

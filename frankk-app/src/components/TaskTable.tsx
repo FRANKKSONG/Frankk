@@ -5,7 +5,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { Icon } from './Icons';
 import { DateCell } from './DateCell';
 import { ProgressCell } from './ProgressBar';
-import { Popover } from './Popover';
 import { Editable, MiniSelect } from './Editable';
 import { TagChips, TagPicker } from './Tags';
 import { SortableList } from './SortableList';
@@ -207,8 +206,11 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
       <div className="trow" style={{ gridTemplateColumns: cols.template }} role="row" onContextMenu={(e) => menu(e, [
         { label: task.done ? 'Reopen' : 'Complete', icon: 'check', onClick: () => dispatch({ type: 'task/toggle', id: task.id }) },
         { label: 'Open details', icon: 'pencil', onClick: () => openTask(task.id) },
+        ...(task.mode === 'progress' ? [{ label: open ? 'Hide steps' : 'Show steps', icon: 'steps' as const, onClick: onToggleOpen }] : []),
         { label: task.mode === 'simple' ? 'Turn into checklist with progress' : 'Turn into simple to-do', icon: task.mode === 'simple' ? 'steps' : 'check', onClick: () => update({ mode: task.mode === 'simple' ? 'progress' : 'simple' }) },
         { label: 'Open in Obsidian', icon: 'external', onClick: () => openNote(task.notePath) },
+        { label: 'Move up', icon: 'up', sep: true, disabled: !manual || first, onClick: () => onNudge(task.id, -1) },
+        { label: 'Move down', icon: 'down', disabled: !manual || last, onClick: () => onNudge(task.id, 1) },
         { label: 'Delete task', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'task/remove', id: task.id }); say(`Deleted “${task.title}”.`, true); } },
       ])}>
         <button className={`row-grip${manual ? '' : ' off'}`} aria-label={`Reorder ${task.title}. Space to pick up, arrows to move, or Alt+Up and Alt+Down`}
@@ -227,23 +229,7 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
         </label>
         {cols.visible.map((c) => cell(c.id))}
         <span />
-        <Popover align="right" trigger={({ toggle, ref }) => (
-          <button ref={ref} className="icon-btn tiny" aria-label={`Actions for ${task.title}`} aria-haspopup="menu" onClick={toggle}><Icon name="more" size={14} /></button>
-        )}>
-          {(close) => (
-            <>
-              <button role="menuitem" onClick={() => { close(); openTask(task.id); }}>Open details</button>
-              {task.mode === 'progress' && <button role="menuitem" onClick={() => { close(); onToggleOpen(); }}>{open ? 'Hide steps' : 'Show steps'}</button>}
-              <button role="menuitem" onClick={() => { close(); update({ mode: task.mode === 'simple' ? 'progress' : 'simple' }); }}>
-                <Icon name={task.mode === 'simple' ? 'steps' : 'check'} size={13} /> {task.mode === 'simple' ? 'Turn into checklist with progress' : 'Turn into simple to-do'}
-              </button>
-              <button role="menuitem" onClick={() => { close(); openNote(task.notePath); }}><Icon name="external" size={13} /> Open in Obsidian</button>
-              <button role="menuitem" disabled={!manual || first} onClick={() => { close(); onNudge(task.id, -1); }}><Icon name="up" size={13} /> Move up</button>
-              <button role="menuitem" disabled={!manual || last} onClick={() => { close(); onNudge(task.id, 1); }}><Icon name="down" size={13} /> Move down</button>
-              {!manual && <p className="menu-note">Moving needs “Manual order” sort.</p>}
-            </>
-          )}
-        </Popover>
+        <span />
       </div>
       {open && task.mode === 'progress' && <Steps task={task} />}
     </div>

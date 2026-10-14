@@ -1674,3 +1674,11 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .st-done-mark { color: var(--ok); font-weight: 700; }
 /* Step bar line: each link blends from one stage's rank colour into the next (green → blue → violet → amber → red → gold) */
 .stepper li .bar b, .stepper li.done .bar b, .stepper li.active .bar b { background: linear-gradient(90deg, var(--tone), var(--tone-next, var(--tone))) !important; background-size: var(--bar-span, 100%) 100% !important; }
+/* Bill settings sit at the front of the row, quiet until you hover it */
+.row-opts { width: 14px; height: 20px; color: var(--faint); opacity: 0; }
+.task:hover .row-opts, .row-opts:focus-visible, .row-opts[aria-expanded='true'] { opacity: 1; }
+/* rows scrolled into view stop below the sticky column header */
+.panel-body .task, .panel-body .group-label, .panel-body .group-head { scroll-margin-top: 36px; }
+.row-opts { position: relative; z-index: 3; }
+.task.bill .check input { inset: 0 !important; left: 0 !important; }
+.row-opts { width: 14px !important; min-width: 0 !important; padding: 0 !important; overflow: hidden; }
