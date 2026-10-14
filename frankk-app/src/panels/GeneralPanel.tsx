@@ -14,7 +14,7 @@ export const GENERAL_COLS: ColDef[] = [
   { id: 'title', label: 'To-do', width: 112, min: 60, focusHidden: false, focusWidth: 280 },
   { id: 'notes', label: 'Description', width: 240, min: 80, flex: true, defaultHidden: true, focusHidden: false },
   { id: 'progress', label: 'Progress', width: 62, min: 40, focusWidth: 96 },
-  { id: 'plan', label: 'Plan', width: 68, min: 44, focusWidth: 88 },
+  { id: 'plan', label: 'Plan', width: 68, min: 44, defaultHidden: true, focusHidden: false, focusWidth: 88 },
   { id: 'due', label: 'Due', width: 70, min: 44, focusWidth: 88 },
   { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true, focusHidden: false, focusWidth: 88 },
   { id: 'list', label: 'List', width: 80, min: 40, defaultHidden: true, focusHidden: false },

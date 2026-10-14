@@ -1590,8 +1590,11 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .overlay-thumb.on { opacity: 1; pointer-events: auto; cursor: default; }
 .overlay-thumb.v.on:hover, .overlay-thumb.v.on:active { width: 8px; margin-left: -3px; background: color-mix(in srgb, var(--text, #eee) 50%, transparent); }
 .overlay-thumb.h.on:hover, .overlay-thumb.h.on:active { height: 8px; margin-top: -3px; background: color-mix(in srgb, var(--text, #eee) 50%, transparent); }
-/* The scroll indicator never catches clicks, so it can't get in the way of anything underneath */
+/* The thumb only catches the mouse while the pointer is right on it (.grab), so it never blocks what's underneath */
 .overlay-thumb.on { pointer-events: none !important; }
+.overlay-thumb.on.grab { pointer-events: auto !important; cursor: grab; width: 8px; margin-left: -3px; background: color-mix(in srgb, var(--text, #eee) 50%, transparent); }
+.overlay-thumb.h.on.grab { width: auto; height: 8px; margin-left: 0; margin-top: -3px; }
+.overlay-thumb.on.grab:active { cursor: grabbing; }
 /* Task tables: drag a header to move its column */
 .thead .th-btn[draggable='true'] { cursor: grab; }
 .thead .th.col-dragging { opacity: .45; }
@@ -1682,3 +1685,35 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .row-opts { position: relative; z-index: 3; }
 .task.bill .check input { inset: 0 !important; left: 0 !important; }
 .row-opts { width: 14px !important; min-width: 0 !important; padding: 0 !important; overflow: hidden; }
+
+/* Table header above the rows, not over them: only the rows scroll, so nothing passes under the header. */
+.panel-body:has(> .table-frame) { overflow: hidden; display: flex; flex-direction: column; }
+.table-frame { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.table-head-scroll { flex: none; overflow: hidden; }
+.table-body-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.table-frame .thead { position: relative; top: auto; }
+:is([data-style='gilded'], [data-style='modern']) .panel-body .table-frame .thead { background: transparent; }
+.panel-body .table-frame .task, .panel-body .table-frame .group-label, .panel-body .table-frame .group-head { scroll-margin-top: 0; }
+.panel-body > .hint { flex: none; }
+/* the stage list header inside a project scrolls with its stages rather than floating over them */
+.st-head { position: relative; top: auto; background: transparent; }
+
+/* Board panels are the compact version of their full pages: names, state and dates only. Tags, sub-lines and
+   detail live on the page itself (open it with the panel's ⛶ button, or click a release). */
+.board-scroll .panel .task .tag-chips,
+.board-scroll .panel .task .title-cell .sub,
+.board-scroll .panel .task.bill .sub { display: none; }
+.board-scroll .panel .trow:not(.thead) { min-height: 28px !important; }
+.rel-board.compact { gap: 6px; padding: 4px 2px 6px; }
+.rel-board.compact .rel-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.rel-board.compact .rel-card { padding: 10px 12px; gap: 7px; border-radius: 10px; }
+.rel-board.compact .rel-name h5 { font-size: 18px; }
+.rel-board.compact .rel-name span { font-size: 11.5px; }
+.rel-board.compact .rel-dot { margin-top: 6px; width: 8px; height: 8px; }
+.rel-board.compact .rel-count b { font-size: 16px; }
+.rel-board.compact .rel-count small { font-size: 10.5px; }
+.rel-board.compact .rel-seg :is(em, small) { display: none !important; }
+.rel-board.compact .rel-seg i { height: 6px; }
+.rel-board.compact .rel-now { font-size: 12px; } .rel-board.compact .rel-now strong { font-size: 13px; }
+/* the full step bar only where there is room for it; narrow windows rely on the row's compact stage bar */
+@container (max-width: 560px) { .project-detail .stepper { display: none; } }

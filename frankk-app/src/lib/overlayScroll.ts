@@ -2,6 +2,8 @@
  * Scrollbars as an overlay, not part of any box: native scrollbars are hidden (they take no space),
  * and a thin thumb floats over the edge of whatever is scrolling. It appears while scrolling,
  * can be dragged while it is showing, and fades out again, so it never sits on top of other controls.
+ * Moving the mouse up to the edge of a scrolling area shows its thumb; the thumb only catches the mouse
+ * when the pointer is right on it, so resize handles and buttons next to it keep working.
  */
 interface Bars { el: Element; v: HTMLDivElement; h: HTMLDivElement; timer?: number; dragging?: boolean }
 
@@ -28,7 +30,7 @@ function makeThumb(axis: 'v' | 'h', b: () => Bars) {
       const d = (axis === 'v' ? ev.clientY : ev.clientX) - start;
       if (axis === 'v') el.scrollTop = startScroll + d * ratio; else el.scrollLeft = startScroll + d * ratio;
     };
-    const up = () => { s.dragging = false; t.removeEventListener('pointermove', move); t.removeEventListener('pointerup', up); t.removeEventListener('pointercancel', up); hideLater(s); };
+    const up = () => { s.dragging = false; t.classList.remove('grab'); t.removeEventListener('pointermove', move); t.removeEventListener('pointerup', up); t.removeEventListener('pointercancel', up); hideLater(s); };
     t.addEventListener('pointermove', move);
     t.addEventListener('pointerup', up);
     t.addEventListener('pointercancel', up);
@@ -87,4 +89,43 @@ export function installOverlayScrollbars() {
     show(barsFor(el));
   }, { capture: true, passive: true });
   window.addEventListener('resize', () => bars.forEach(place));
+  let queued = false;
+  document.addEventListener('pointermove', (e) => {
+    if (queued || e.buttons) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; nearEdge(e.clientX, e.clientY, e.target); });
+  }, { passive: true });
+}
+
+const EDGE = 12;
+const scrollerOf = (n: EventTarget | null) => {
+  for (let el = n instanceof Element ? n : null; el; el = el.parentElement) {
+    if (el.classList.contains('overlay-thumb')) return null;
+    const o = getComputedStyle(el);
+    if ((/(auto|scroll)/.test(o.overflowY) && el.scrollHeight > el.clientHeight + 1) || (/(auto|scroll)/.test(o.overflowX) && el.scrollWidth > el.clientWidth + 1)) return el;
+  }
+  return null;
+};
+const inside = (t: HTMLElement, x: number, y: number, pad: number) => {
+  if (!t.classList.contains('on') || t.style.display === 'none') return false;
+  const r = t.getBoundingClientRect();
+  return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+};
+
+/** Show a scroll area's thumb when the pointer comes near its edge, and let it be grabbed when the pointer is on it. */
+function nearEdge(x: number, y: number, target: EventTarget | null) {
+  const el = scrollerOf(target);
+  if (el) {
+    const r = rectOf(el);
+    const nearV = el.scrollHeight > el.clientHeight + 1 && x >= r.right - EDGE && x <= r.right;
+    const nearH = el.scrollWidth > el.clientWidth + 1 && y >= r.bottom - EDGE && y <= r.bottom;
+    if (nearV || nearH) show(barsFor(el));
+  }
+  bars.forEach((s) => {
+    for (const t of [s.v, s.h]) {
+      const on = inside(t, x, y, 3);
+      t.classList.toggle('grab', on);
+      if (on) window.clearTimeout(s.timer);
+    }
+  });
 }

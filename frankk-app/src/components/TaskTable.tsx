@@ -29,10 +29,19 @@ export function nextSort(cur: SortState | null, key: string): SortState | null {
 }
 
 export function Table({ cols, label, children, sort, onSort, sortable }: { cols: Columns; label: string; children: ReactNode; sort?: SortState | null; onSort?: (key: string) => void; sortable?: string[] }) {
+  // The header sits above the scrolling rows instead of floating over them, so rows never show through it.
+  // Only sideways scrolling is shared: the header follows the rows left and right.
+  const head = useRef<HTMLDivElement | null>(null);
   return (
-    <div className="table" role="table" aria-label={label} style={{ minWidth: cols.minWidth }}>
-      <TableHeader cols={cols} sort={sort} onSort={onSort} sortable={sortable} />
-      {children}
+    <div className="table-frame" role="table" aria-label={label}>
+      <div className="table-head-scroll" ref={head}>
+        <div className="table" role="rowgroup" style={{ minWidth: cols.minWidth }}>
+          <TableHeader cols={cols} sort={sort} onSort={onSort} sortable={sortable} />
+        </div>
+      </div>
+      <div className="table-body-scroll" onScroll={(e) => { if (head.current) head.current.scrollLeft = e.currentTarget.scrollLeft; }}>
+        <div className="table" role="rowgroup" style={{ minWidth: cols.minWidth }}>{children}</div>
+      </div>
     </div>
   );
 }
@@ -68,7 +77,7 @@ export function TableHeader({ cols, sort, onSort, sortable }: { cols: Columns; s
                 onDragEnd={() => { setDrag(null); setOver(null); }}>{c.label}</span>}
             <ResizeHandle label={c.label} value={cols.width(c.id)} onChange={(w) => cols.setWidth(c.id, w)}
               onFit={(el) => {
-                const table = el.closest('.table');
+                const table = el.closest('.table-frame');
                 const cells = table ? [...table.querySelectorAll<HTMLElement>(`.task > .trow > [data-col="${c.id}"]`)] : [];
                 const widest = Math.max(c.label.length * 7.5 + 40, ...cells.map((x) => x.scrollWidth + 10));
                 cols.setWidth(c.id, Math.min(widest, 480));

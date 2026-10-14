@@ -24,6 +24,8 @@ const titles = async () => (await general.locator('.task .task-title').allTextCo
 const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.data.v4')));
 const box = async (loc) => (await loc.boundingBox());
 const reload = async () => { await page.reload(); await page.waitForSelector('.homepage'); await page.getByRole('button', { name: 'Tasks', exact: true }).click(); await page.waitForSelector('section[aria-label="General"]'); await page.waitForTimeout(900); };
+const focus = async (area) => { await page.getByRole('button', { name: `Focus ${area}` }).click(); await page.waitForSelector('.focus > .panel'); await page.waitForTimeout(300); };
+const unfocus = async () => { await page.getByRole('button', { name: 'Back to Home' }).click(); await page.waitForSelector('.react-grid-item'); await page.waitForTimeout(400); };
 const reloadHome = async () => { await page.reload(); await page.waitForSelector('.homepage'); await page.waitForTimeout(700); };
 
 await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitForTimeout(900);
@@ -198,7 +200,7 @@ const handle = await box(th.locator('.col-resizer'));
 await page.mouse.move(handle.x + 4, handle.y + 8); await page.mouse.down(); await page.mouse.move(handle.x + 34, handle.y + 8, { steps: 6 }); await page.mouse.up();
 const w1 = (await box(general.locator('.thead .th').nth(1))).width;
 check('Columns: drag resizes Progress independently', w1 > w0 + 15, `${w0} → ${w1}`);
-const dueW = (await box(general.locator('.thead .th').nth(3))).width;
+const dueW = (await box(general.locator('.thead .th').nth(2))).width;
 await reload();
 const w2 = (await box(general.locator('.thead .th').nth(1))).width;
 check('Columns: width persists after restart', Math.abs(w2 - w1) < 3, `${w1} vs ${w2}`);
@@ -211,7 +213,8 @@ await progTh.locator('.col-resizer').dblclick();
 await page.waitForTimeout(100);
 check('Columns: double-click a divider fits the column to its content', (await box(general.locator('.thead .th').nth(1))).width >= 60);
 
-/* ---------- drag music stages ---------- */
+/* ---------- drag music stages (on the Music page: the board shows a compact summary) ---------- */
+await focus('Music');
 const single0 = music.locator('[data-project="p-single"]');
 const stageNames = async () => (await single0.locator('.project-detail > .sortable-row .stage-name').allTextContents());
 const recGrip = single0.locator('.project-detail > .sortable-row').filter({ has: page.locator('.stage-name', { hasText: /^Record$/ }) }).locator('.drag-grip').first();
@@ -222,6 +225,7 @@ await page.keyboard.press('ArrowUp'); await page.waitForTimeout(150);
 await page.keyboard.press('Space'); await page.waitForTimeout(300);
 const order = (await store()).projects.find((x) => x.id === 'p-single').stages.map((x) => x.name);
 check('Music: stages reorder by drag handle (keyboard: Space, arrows, Space)', order.indexOf('Record') < order.indexOf('Produce'), order.join(' > '));
+await unfocus();
 
 /* ---------- panel move & resize ---------- */
 const gridItem = (n) => page.locator('.react-grid-item').nth(n);
@@ -294,6 +298,9 @@ await page.keyboard.press('Control+z');
 check('Ctrl+Z undoes the brand rename', (await store()).brands.includes('Eli Lao Origin'));
 
 /* ---------- Music ---------- */
+check('Board Music is compact: no inline project detail, no tags', await music.locator('.project-detail').count() === 0 && await music.locator('.rel-board.compact').count() === 1);
+await music.getByRole('button', { name: /Open on the Music page: FRANKK/ }).click(); await page.waitForSelector('.focus > .panel');
+check('Board: clicking a release opens it on the Music page', await page.locator('.focus section[aria-label="Music"] [data-project="p-single"] .project-detail').count() === 1);
 check('Music: separate tabs for my releases and artist jobs', await music.getByRole('tab', { name: /My releases/ }).getAttribute('aria-selected') === 'true' && await music.locator('[data-project="p-jzero"]').count() === 0);
 await music.getByRole('tab', { name: /Artist jobs/ }).click();
 const jz = music.locator('[data-project="p-jzero"]');
@@ -322,6 +329,7 @@ await page.locator('.stage-pick').filter({ has: page.getByText('Mix', { exact: t
 await page.getByRole('button', { name: 'Create', exact: true }).click();
 const nok = (await store()).projects.find((p) => p.artist === 'Nok');
 check('Music: new artist job with only chosen stage in scope', nok && nok.stages.filter((s) => s.inScope).map((s) => s.name).join() === 'Mix' && nok.kind === 'artist-job');
+await unfocus();
 
 /* ---------- Seround ---------- */
 check('Seround: brand groups use exact spelling', (await seround.locator('.group-head').allTextContents()).join('|').includes('Reva Gem Cosmentics'));
@@ -357,6 +365,8 @@ check('Tags: "#tag" in quick capture tags the task and creates new tags', bank &
   check('Quick capture: one task per line, into the chosen category', tap?.area === 'house' && bulbs?.area === 'house' && bulbs.tags.includes('home'), JSON.stringify([tap?.area, bulbs?.tags]));
   await qc.getByRole('radio', { name: 'General' }).click();
 }
+check('Board rows are compact: tags only on the full page', !(await general.locator('.tag-chip').first().isVisible()));
+await focus('General');
 await general.locator('.tag-chip', { hasText: '#money' }).first().click();
 const filtered = await titles();
 check('Tags: clicking a tag filters the board', filtered.length > 0 && filtered.every((t) => ['Review budget', 'Call bank'].includes(t)), filtered.join('|'));
@@ -367,6 +377,7 @@ await page.getByLabel('Tag name', { exact: true }).fill('Weekend');
 await page.keyboard.press('Enter');
 await page.keyboard.press('Escape');
 check('Tags: add a new tag to a row from its tag button', (await store()).tasks.find((t) => t.id === 't-dentist').tags.includes('weekend'));
+await unfocus();
 
 /* ---------- House: bills ---------- */
 const elec = house.locator('[data-bill="b-elec:2026-10"]');
@@ -427,6 +438,7 @@ await page.keyboard.press('Escape');
 
 /* ---------- release steps: Explorer-style header + right-click ---------- */
 {
+  await focus('Music');
   const mp = page.locator('section[aria-label="Music"]');
   await mp.getByRole('tab', { name: /My releases/ }).click();
   const head = mp.locator('.st-head').first();
@@ -449,6 +461,7 @@ await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Undo' }).click();
   const restored = (await store()).projects.find((x) => x.id === 'p-single').stages.length;
   check('Right-click a stage → Delete stage, and Undo restores it', after === before - 1 && restored === before, `${before} ${after} ${restored}`);
+  await unfocus();
 }
 
 {
@@ -477,7 +490,10 @@ await page.keyboard.press('Escape');
   await g.locator('.thead .th', { hasText: 'Due' }).locator('.th-btn').dragTo(g.locator('.thead .th', { hasText: 'Prog' }));
   const hs = (await g.locator('.thead .th').allTextContents()).map((t) => t.replace(/[▲▼↕]/g, '').trim());
   check('Task tables: drag a header to move its column; To-do stays first', hs[0] === 'To-do' && hs.indexOf('Due') < hs.indexOf('Progress'), hs.join('|'));
-  await page.locator('.knight').click();
+  // he walks about, so click where he is right now (and again if he stepped away mid-click)
+  for (let i = 0; i < 4 && !(await page.locator('.knight-bubble').count()); i++) {
+    const kb0 = await page.locator('.knight').boundingBox(); await page.mouse.click(kb0.x + kb0.width / 2, kb0.y + kb0.height / 2); await page.waitForTimeout(200);
+  }
   await page.getByLabel('Ask the knight').last().fill('vocals'); await page.keyboard.press('Enter');
   check('Knight: click opens a speech bubble that searches your data (and says AI is not connected)', await page.locator('.kb-hit').count() > 0 && (await page.locator('.knight-bubble').textContent()).includes('not connected'));
   await page.keyboard.press('Escape');
@@ -491,6 +507,35 @@ await page.keyboard.press('Escape');
   const seen = new Set(); const t0 = Date.now();
   while (Date.now() - t0 < 5000) { const m = (await k.getAttribute('class')).match(/m-(\w+)/)[1]; seen.add(m); if (m === 'patrol' && seen.has('brush')) break; await page.waitForTimeout(40); }
   check('Knight: drag him up; dropped from high he falls, is hurt, lies down, gets up, brushes off, resumes patrol', held && ['fall', 'hurt', 'down', 'getup', 'brush', 'patrol'].every((m) => seen.has(m)), [...seen].join(' → '));
+}
+
+/* ---------- table header & overlay scrollbar ---------- */
+{
+  // use whichever task table has the most to scroll
+  const idx = await page.evaluate(() => { const l = [...document.querySelectorAll('.table-body-scroll')]; const r = l.map((e) => e.scrollHeight - e.clientHeight); return r.indexOf(Math.max(...r)); });
+  const body = page.locator('.table-body-scroll').nth(idx);
+  const frame = page.locator('.table-frame').nth(idx);
+  const h0 = await box(frame.locator('.thead'));
+  await body.evaluate((e) => { e.scrollTop = 40; });
+  await page.waitForTimeout(150);
+  const h1 = await box(frame.locator('.thead'));
+  const rows = await box(body);
+  check('Table header sits above the rows, which scroll below it (nothing passes under it)', Math.abs(h0.y - h1.y) < 1 && await frame.locator('.table-head-scroll .thead').count() === 1 && rows.y >= h1.y + h1.height - 1, `${h0.y} ${h1.y} ${rows.y}`);
+  await body.evaluate((e) => { e.scrollTop = 0; });
+  await page.waitForTimeout(1200);
+  const bb = await box(body);
+  await page.mouse.move(bb.x + bb.width - 3, bb.y + 20); await page.waitForTimeout(120);
+  await page.mouse.move(bb.x + bb.width - 4, bb.y + 22); await page.waitForTimeout(120);
+  const thumb = page.locator('.overlay-thumb.v.on.grab');
+  const tb = (await thumb.count()) ? await thumb.first().boundingBox() : null;
+  let after = 0;
+  if (tb) {
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + 4); await page.mouse.down();
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + 40, { steps: 6 }); await page.mouse.up();
+    after = await body.evaluate((e) => e.scrollTop);
+  }
+  check('Scrollbar: move to the edge to show it, then drag the thumb to scroll', !!tb && after > 0, `thumb ${!!tb} scrollTop ${after}`);
+  await body.evaluate((e) => { e.scrollTop = 0; });
 }
 
 /* ---------- focus mode & narrow ---------- */

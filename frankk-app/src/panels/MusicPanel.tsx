@@ -46,7 +46,9 @@ type PatchP = Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label'
 
 export function MusicPanel({ focused }: { focused: boolean }) {
   const { data } = useStore();
-  const { setProjectDialog, reveal, tagFilter } = useUi();
+  const { setProjectDialog, reveal, tagFilter, setFocusArea, revealRow } = useUi();
+  // On the board Music is a compact summary: clicking a release or job opens it on the Music page.
+  const compact = !focused;
   const relCols = useColumns('music.rel', REL_COLS, focused);
   const jobCols = useColumns('music.job', JOB_COLS, focused);
   const allCols = useColumns('music', MUSIC_COLS, focused);
@@ -57,7 +59,7 @@ export function MusicPanel({ focused }: { focused: boolean }) {
   const defs = tab === 'own-release' ? REL_COLS : tab === 'artist-job' ? JOB_COLS : MUSIC_COLS;
 
   useEffect(() => {
-    if (reveal?.kind === 'project') {
+    if (reveal?.kind === 'project' && !compact) {
       const p = data.projects.find((x) => x.id === reveal.id);
       if (p && tab !== 'all' && p.kind !== tab) setPrefs((s) => ({ ...s, tab: p.kind }));
       setOpen((s) => new Set(s).add(reveal.id));
@@ -85,7 +87,10 @@ export function MusicPanel({ focused }: { focused: boolean }) {
     return [...map.entries()].map(([k, l]) => [k, sortList(l)] as [string, MusicProject[]]);
   }, [visible, tab, prefs.sort]);
 
-  const toggle = (id: string) => setOpen((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
+  const toggle = (id: string) => (compact
+    ? (setFocusArea('music'), revealRow('project', id))
+    : setOpen((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; }));
+  const shown = compact ? new Set<string>() : open;
   const newKind = tab === 'artist-job' ? 'artist-job' : 'own-release';
   const newLabel = tab === 'artist-job' ? 'New artist job' : tab === 'own-release' ? 'New release' : 'New project or artist job';
   const TABS: { id: Tab; label: string; icon: 'music' | 'person' | 'list'; n: number; hint: string }[] = [
@@ -108,12 +113,12 @@ export function MusicPanel({ focused }: { focused: boolean }) {
       }
       footer={<button className="foot-add" onClick={() => setProjectDialog(newKind)}><Icon name="plus" size={13} /> {tab === 'artist-job' ? 'Artist job' : tab === 'own-release' ? 'Release' : 'Project or artist job'}</button>}>
       {tab === 'own-release' ? (
-        <ReleaseBoard list={visible.filter((p) => p.kind === 'own-release')} open={open} onToggle={toggle} />
+        <ReleaseBoard list={visible.filter((p) => p.kind === 'own-release')} open={shown} onToggle={toggle} compact={compact} />
       ) : (<>
-      <div className="music-bar">
+      {!compact && <div className="music-bar">
         <p className="music-hint">{TABS.find((t) => t.id === tab)!.hint}</p>
         <button className="btn primary small" onClick={() => setProjectDialog(newKind)}><Icon name="plus" size={13} /> {newLabel}</button>
-      </div>
+      </div>}
       <Table cols={cols} label="Music projects" sort={prefs.sort} onSort={(col) => setPrefs((p) => ({ ...p, sort: nextSort(p.sort, col) }))}>
         {groups.length === 0 && (
           <div className="empty">
@@ -124,7 +129,7 @@ export function MusicPanel({ focused }: { focused: boolean }) {
         {groups.map(([name, list]) => (
           <div className="group" key={name}>
             <div className="group-label">{name} <span className="muted">· {list.length}</span></div>
-            {list.map((p) => <ProjectRow key={p.id} p={p} cols={cols} open={open.has(p.id)} onToggle={() => toggle(p.id)} />)}
+            {list.map((p) => <ProjectRow key={p.id} p={p} cols={cols} open={shown.has(p.id)} onToggle={() => toggle(p.id)} compact={compact} />)}
           </div>
         ))}
       </Table>
@@ -135,7 +140,7 @@ export function MusicPanel({ focused }: { focused: boolean }) {
 
 /* ---------- My releases: a dashboard of what's coming out and where each one stands ---------- */
 
-function ReleaseBoard({ list, open, onToggle }: { list: MusicProject[]; open: Set<string>; onToggle: (id: string) => void }) {
+function ReleaseBoard({ list, open, onToggle, compact }: { list: MusicProject[]; open: Set<string>; onToggle: (id: string) => void; compact?: boolean }) {
   const { today, dispatch } = useStore();
   const { setProjectDialog, say } = useUi();
   const [order, setOrder] = usePersistentState<'date' | 'mine'>('music.releaseOrder', 'date');
@@ -150,8 +155,8 @@ function ReleaseBoard({ list, open, onToggle }: { list: MusicProject[]; open: Se
     if (order === 'date') { setOrder('mine'); say('Releases are now in your own order.'); }
   };
   return (
-    <div className="rel-board">
-      <div className="rel-top">
+    <div className={`rel-board${compact ? ' compact' : ''}`}>
+      {!compact && <div className="rel-top">
         <div>
           <h4>Upcoming releases</h4>
           <p className="muted">{upcoming.length ? `${upcoming.length} in progress${done.length ? ` · ${done.length} finished` : ''}` : 'Nothing in progress.'}</p>
@@ -160,18 +165,18 @@ function ReleaseBoard({ list, open, onToggle }: { list: MusicProject[]; open: Se
           <MiniSelect label="Order releases" value={order} options={[{ id: 'date', label: 'By release date' }, { id: 'mine', label: 'My order (drag)' }]} onChange={(v) => setOrder(v)} />
           <button className="btn primary" onClick={() => setProjectDialog('own-release')}><Icon name="plus" size={14} /> New release</button>
         </span>
-      </div>
+      </div>}
       {list.length === 0 && (
         <button className="rel-empty" onClick={() => setProjectDialog('own-release')}><Icon name="music" size={22} /><b>Start your first release</b><span>Single, EP or album: it gets a step bar from Concept to Art.</span></button>
       )}
       <SortableList grid className="rel-grid" items={[...upcoming, ...done]} label={(p) => p.title} onMove={(_i, _o, ids) => move(ids)}>
-        {(p, grip) => <ReleaseCard p={p} today={today} open={open.has(p.id)} onToggle={() => onToggle(p.id)} finished={finished(p)} grip={grip} />}
+        {(p, grip) => <ReleaseCard p={p} today={today} open={open.has(p.id)} onToggle={() => onToggle(p.id)} finished={finished(p)} grip={grip} compact={compact} />}
       </SortableList>
     </div>
   );
 }
 
-function ReleaseCard({ p, today, open, onToggle, finished, grip }: { p: MusicProject; today: string; open: boolean; onToggle: () => void; finished: boolean; grip: React.ReactNode }) {
+function ReleaseCard({ p, today, open, onToggle, finished, grip, compact }: { p: MusicProject; today: string; open: boolean; onToggle: () => void; finished: boolean; grip: React.ReactNode; compact?: boolean }) {
   const { dispatch } = useStore();
   const { openNote, say } = useUi();
   const menu = useContextMenu();
@@ -187,11 +192,11 @@ function ReleaseCard({ p, today, open, onToggle, finished, grip }: { p: MusicPro
     <div className="rel-wrap" data-project={p.id}>
       <article className={`rel-card${open ? ' open' : ''}${finished ? ' finished' : ''}`} style={{ '--row': p.color ?? 'var(--music)' } as React.CSSProperties}
         onContextMenu={(e) => menu(e, [
-          { label: open ? 'Close' : 'Open', icon: 'chevronR', onClick: onToggle },
+          { label: compact ? 'Open on the Music page' : open ? 'Close' : 'Open', icon: 'chevronR', onClick: onToggle },
           { label: 'Open in Obsidian', icon: 'external', onClick: () => openNote(p.notePath) },
           { label: 'Delete release', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'project/remove', projectId: p.id }); say(`Deleted “${p.title}”.`, true); } },
         ])}>
-        <button className="rel-hit" aria-expanded={open} aria-label={`${open ? 'Close' : 'Open'} ${p.artist} ${p.title}`} onClick={onToggle} />
+        <button className="rel-hit" aria-expanded={compact ? undefined : open} aria-label={`${compact ? 'Open on the Music page:' : open ? 'Close' : 'Open'} ${p.artist} ${p.title}`} onClick={onToggle} />
         <span className="rel-grip">{grip}</span>
         <header className="rel-head">
           <span className="rel-dot" />
@@ -227,8 +232,8 @@ function ReleaseCard({ p, today, open, onToggle, finished, grip }: { p: MusicPro
             </>
           ) : <span className="muted">All release steps done.</span>}
         </div>
-        {then && <div className="rel-then"><span className="rel-label">Then</span><StageBadge index={idx + 1} size={18} />{then.name}{then.end && <span className="muted"> · {relLabel(then.end, today)}</span>}</div>}
-        {(p.notes || p.roles.length > 0 || p.tags.length > 0) && (
+        {then && !compact && <div className="rel-then"><span className="rel-label">Then</span><StageBadge index={idx + 1} size={18} />{then.name}{then.end && <span className="muted"> · {relLabel(then.end, today)}</span>}</div>}
+        {!compact && (p.notes || p.roles.length > 0 || p.tags.length > 0) && (
           <div className="rel-extra">
             {p.notes && <p className="rel-notes">{p.notes}</p>}
             <div className="rel-meta">
@@ -243,7 +248,7 @@ function ReleaseCard({ p, today, open, onToggle, finished, grip }: { p: MusicPro
   );
 }
 
-function ProjectRow({ p, cols, open, onToggle }: { p: MusicProject; cols: ReturnType<typeof useColumns>; open: boolean; onToggle: () => void }) {
+function ProjectRow({ p, cols, open, onToggle, compact }: { p: MusicProject; cols: ReturnType<typeof useColumns>; open: boolean; onToggle: () => void; compact?: boolean }) {
   const { today, dispatch } = useStore();
   const { openNote, say } = useUi();
   const menu = useContextMenu();
@@ -253,12 +258,12 @@ function ProjectRow({ p, cols, open, onToggle }: { p: MusicProject; cols: Return
   return (
     <div className={`task project ${job ? 'job' : 'release'}`} data-project={p.id} style={{ '--row': p.color ?? 'var(--music)' } as React.CSSProperties}>
       <div className="trow" style={{ gridTemplateColumns: cols.template }} role="row" onContextMenu={(e) => menu(e, [
-        { label: open ? 'Collapse' : 'Expand', icon: 'chevronR', onClick: onToggle },
+        { label: compact ? 'Open on the Music page' : open ? 'Collapse' : 'Expand', icon: 'chevronR', onClick: onToggle },
         { label: 'Open in Obsidian', icon: 'external', onClick: () => openNote(p.notePath) },
         { label: job ? 'Delete artist job' : 'Delete release', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'project/remove', projectId: p.id }); say(`Deleted “${p.title}”.`, true); } },
       ])}>
         <span />
-        <button className={`chev${open ? ' open' : ''}`} aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} ${p.artist} ${p.title}`} onClick={onToggle}><Icon name="chevronR" size={12} /></button>
+        <button className={`chev${open ? ' open' : ''}`} aria-expanded={compact ? undefined : open} aria-label={`${compact ? 'Open on the Music page:' : open ? 'Collapse' : 'Expand'} ${p.artist} ${p.title}`} onClick={onToggle}><Icon name="chevronR" size={12} /></button>
         {cols.visible.map((c) => {
           switch (c.id) {
             case 'title': return (

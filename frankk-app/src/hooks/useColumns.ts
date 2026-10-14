@@ -24,7 +24,8 @@ const GRIP = 14, CHECK = 20, MENU = 4, GAP = 2;
  */
 export function useColumns(tableId: string, defs: ColDef[], focused = false) {
   const hiddenByDefault = (d: ColDef) => (focused ? d.focusHidden ?? false : !!d.defaultHidden);
-  const [saved, setSaved] = usePersistentState<Saved>(`cols.${tableId}${focused ? '.focus' : ''}`, {
+  // The board keeps a compact set of columns (v2: fewer by default); the full page has its own set.
+  const [saved, setSaved] = usePersistentState<Saved>(`cols.${tableId}${focused ? '.focus' : '.v2'}`, {
     widths: {},
     hidden: defs.filter(hiddenByDefault).map((d) => d.id),
   });
