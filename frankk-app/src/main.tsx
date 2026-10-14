@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { StoreProvider } from './data/store';
 import { UiProvider } from './ui';
+import { ContextMenuProvider } from './components/ContextMenu';
 import './styles.css';
 
 // Scrollbars stay hidden until something actually scrolls, then fade away again.
@@ -18,7 +19,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <StoreProvider>
       <UiProvider>
-        <App />
+        <ContextMenuProvider>
+          <App />
+        </ContextMenuProvider>
       </UiProvider>
     </StoreProvider>
   </StrictMode>,

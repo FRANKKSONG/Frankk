@@ -22,6 +22,9 @@ export type Action =
   | { type: 'project/tags'; projectId: string; tags: string[] }
   | { type: 'project/patch'; projectId: string; patch: Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label' | 'roles' | 'targetRelease' | 'start' | 'color' | 'notes' | 'releaseType'>> }
   | { type: 'item/remove'; projectId: string; stageId: string; itemId: string }
+  | { type: 'task/remove'; id: string }
+  | { type: 'project/remove'; projectId: string }
+  | { type: 'stage/remove'; projectId: string; stageId: string }
   | { type: 'stage/reorder'; projectId: string; id: string; overId: string }
   | { type: 'item/reorder'; projectId: string; stageId: string; id: string; overId: string }
   | { type: 'step/reorder'; taskId: string; id: string; overId: string }
@@ -317,6 +320,12 @@ export function reducer(state: AppData, a: Action): AppData {
       return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, items: moveById(st.items, a.id, a.overId) }));
     case 'step/reorder':
       return mapTask(state, a.taskId, (t) => ({ ...t, steps: moveById(t.steps, a.id, a.overId) }));
+    case 'task/remove':
+      return { ...state, tasks: state.tasks.filter((t) => t.id !== a.id) };
+    case 'project/remove':
+      return { ...state, projects: state.projects.filter((p) => p.id !== a.projectId) };
+    case 'stage/remove':
+      return { ...state, projects: state.projects.map((p) => (p.id === a.projectId ? { ...p, stages: p.stages.filter((st) => st.id !== a.stageId) } : p)) };
     case 'item/remove':
       return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, items: st.items.filter((i) => i.id !== a.itemId) }));
     case 'stage/patch':

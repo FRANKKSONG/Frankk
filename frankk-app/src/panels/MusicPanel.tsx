@@ -11,6 +11,7 @@ import { Table, nextSort, type SortState } from '../components/TaskTable';
 import { Editable, MiniSelect } from '../components/Editable';
 import { ReleaseStepper } from '../components/Stepper';
 import { SortableList } from '../components/SortableList';
+import { useContextMenu } from '../components/ContextMenu';
 import { TagChips, TagPicker } from '../components/Tags';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
@@ -84,14 +85,20 @@ export function MusicPanel({ focused }: { focused: boolean }) {
 }
 
 function ProjectRow({ p, cols, open, onToggle }: { p: MusicProject; cols: ReturnType<typeof useColumns>; open: boolean; onToggle: () => void }) {
-  const { today } = useStore();
+  const { today, dispatch } = useStore();
+  const { openNote, say } = useUi();
+  const menu = useContextMenu();
   const prog = projectProgress(p);
   const next = nextProjectDate(p);
   const job = p.kind === 'artist-job';
   const scoped = p.stages.filter((s) => s.inScope && s.track !== 'side');
   return (
     <div className={`task project ${job ? 'job' : 'release'}`} data-project={p.id} style={{ '--row': p.color ?? 'var(--music)' } as React.CSSProperties}>
-      <div className="trow" style={{ gridTemplateColumns: cols.template }} role="row">
+      <div className="trow" style={{ gridTemplateColumns: cols.template }} role="row" onContextMenu={(e) => menu(e, [
+        { label: open ? 'Collapse' : 'Expand', icon: 'chevronR', onClick: onToggle },
+        { label: 'Open in Obsidian', icon: 'external', onClick: () => openNote(p.notePath) },
+        { label: job ? 'Delete artist job' : 'Delete release', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'project/remove', projectId: p.id }); say(`Deleted “${p.title}”.`, true); } },
+      ])}>
         <span />
         <button className={`chev${open ? ' open' : ''}`} aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} ${p.artist} ${p.title}`} onClick={onToggle}><Icon name="chevronR" size={12} /></button>
         {cols.visible.map((c) => {
@@ -135,6 +142,7 @@ function ProjectDetail({ p }: { p: MusicProject }) {
   const [showOutside, setShowOutside] = useState(false);
   const available = STAGE_LIBRARY.filter((n) => !p.stages.some((s) => s.name === n));
   const patchP = (patch: PatchP) => dispatch({ type: 'project/patch', projectId: p.id, patch });
+  const [stageSort, setStageSort] = usePersistentState<SortState | null>('prefs.stageSort', null);
 
   return (
     <div className="project-detail">
@@ -160,8 +168,9 @@ function ProjectDetail({ p }: { p: MusicProject }) {
       </div>
 
       {main.length === 0 && <p className="steps-empty">No stages yet. Add one below.</p>}
-      <SortableList items={main} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
-        {(st, grip) => <StageRow p={p} st={st} grip={grip} />}
+      {main.length > 0 && <StageHeader sort={stageSort} onSort={(k) => setStageSort((cur) => nextSort(cur, k))} />}
+      <SortableList items={sortStages(main, stageSort)} disabled={!!stageSort} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
+        {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} />}
       </SortableList>
 
       <div className="stage-add">
@@ -175,8 +184,8 @@ function ProjectDetail({ p }: { p: MusicProject }) {
       {!job && (
         <div className="side-track">
           <div className="sub-label"><Icon name="sparkle" size={11} /> Separate tracks <span className="muted">· not part of release progress</span></div>
-          <SortableList items={side} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
-            {(st, grip) => <StageRow p={p} st={st} grip={grip} />}
+          <SortableList items={sortStages(side, stageSort)} disabled={!!stageSort} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
+            {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} />}
           </SortableList>
           <div className="stage-add">
             <Icon name="plus" size={12} />
@@ -209,9 +218,54 @@ function ProjectDetail({ p }: { p: MusicProject }) {
   );
 }
 
-function StageRow({ p, st, grip }: { p: MusicProject; st: Stage; grip: React.ReactNode }) {
+/* ---------- stage list: Explorer-style columns (Name · Progress · Date), sortable, right-click for actions ---------- */
+
+const STAGE_COLS: { id: string; label: string }[] = [{ id: 'name', label: 'Name' }, { id: 'progress', label: 'Progress' }, { id: 'date', label: 'Date' }];
+
+/** Sort by one column. Empty values always go last, like Explorer and Finder. */
+function sortBy<T>(list: T[], get: (x: T) => string | number | undefined, sort: SortState | null): T[] {
+  if (!sort) return list;
+  return [...list].sort((x, y) => {
+    const a = get(x), b = get(y);
+    if (a === undefined || a === '') return b === undefined || b === '' ? 0 : 1;
+    if (b === undefined || b === '') return -1;
+    const c = typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+    return sort.dir === 'asc' ? c : -c;
+  });
+}
+
+const stageValue = (st: Stage, key: string) => {
+  if (key === 'name') return st.name;
+  if (key === 'date') return st.end;
+  const u = stageUnits(st);
+  return stageComplete(st) ? 1 : u.total ? u.done / u.total : 0;
+};
+const sortStages = (list: Stage[], sort: SortState | null) => sortBy(list, (st) => stageValue(st, sort?.key ?? ''), sort);
+
+function StageHeader({ sort, onSort }: { sort: SortState | null; onSort: (key: string) => void }) {
+  return (
+    <div className="st-grid st-head" role="row">
+      <span /><span />
+      {STAGE_COLS.map((c) => {
+        const active = sort?.key === c.id;
+        return (
+          <span key={c.id} className={`th st-${c.id}${active ? ' sorted' : ''}`} role="columnheader" aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+            <button type="button" className="th-btn" onClick={() => onSort(c.id)}
+              title={!active ? `Sort by ${c.label}` : sort!.dir === 'asc' ? `Sorted by ${c.label}, ascending. Click for descending.` : 'Click to go back to manual (drag) order.'}>
+              <span className="th-label">{c.label}</span>
+              <span className="sort-ind" aria-hidden="true">{active ? (sort!.dir === 'asc' ? '▲' : '▼') : ''}</span>
+            </button>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function StageRow({ p, st, grip, sort }: { p: MusicProject; st: Stage; grip: React.ReactNode; sort: SortState | null }) {
   const { dispatch, today } = useStore();
   const { say } = useUi();
+  const menu = useContextMenu();
   const [text, setText] = useState('');
   const [adding, setAdding] = useState(false);
   const u = stageUnits(st);
@@ -219,13 +273,23 @@ function StageRow({ p, st, grip }: { p: MusicProject; st: Stage; grip: React.Rea
   const patch = (pt: Partial<Stage>) => dispatch({ type: 'stage/patch', projectId: p.id, stageId: st.id, patch: pt });
   const addItem = () => { if (text.trim()) { dispatch({ type: 'item/add', projectId: p.id, stageId: st.id, text }); setText(''); } };
   const own = p.kind === 'own-release';
+  const complete = stageComplete(st);
+  const items = sortBy(st.items, (i) => (sort?.key === 'name' ? i.text : sort?.key === 'date' ? i.date : i.done ? 1 : 0), sort);
+
+  const stageMenu = (e: React.MouseEvent) => menu(e, [
+    ...(!hasItems ? [{ label: st.done ? 'Mark not done' : 'Mark done', icon: 'check' as const, onClick: () => patch({ done: !st.done }) }] : []),
+    { label: 'Break down into items', icon: 'plus', onClick: () => setAdding(true) },
+    ...(own ? [{ label: st.track === 'side' ? 'Move into release steps' : 'Move to separate tracks', icon: 'steps' as const, onClick: () => patch({ track: st.track === 'side' ? 'main' : 'side' }) }] : []),
+    { label: own ? 'Skip this stage' : 'Move outside my scope', icon: 'close', onClick: () => { patch({ inScope: false }); say(`“${st.name}” ${own ? 'skipped' : 'moved outside your scope'}.`, true); } },
+    { label: 'Delete stage', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'stage/remove', projectId: p.id, stageId: st.id }); say(`Deleted “${st.name}”.`, true); } },
+  ]);
 
   return (
-    <div className={`stage${stageComplete(st) ? ' done' : ''}`}>
-      <div className="stage-head">
+    <div className={`stage${complete ? ' done' : ''}`}>
+      <div className="st-grid stage-head" onContextMenu={stageMenu}>
         {grip}
         {hasItems
-          ? <span className="stage-frac" title="Checked items in this stage">{u.done}/{u.total}</span>
+          ? <span />
           : (
             <label className="check no-drag">
               <input type="checkbox" checked={st.done} aria-label={`${st.name} done`} onChange={() => patch({ done: !st.done })} />
@@ -233,33 +297,34 @@ function StageRow({ p, st, grip }: { p: MusicProject; st: Stage; grip: React.Rea
             </label>
           )}
         <Editable className="stage-name" label="Stage name" value={st.name} onSave={(v) => patch({ name: v })} />
-        <span className="stage-actions">
-          <DateCell label={`${st.name} end date`} value={st.end} onChange={(v) => patch({ end: v })} done={stageComplete(st)} />
-          {own && (
-            <button className="icon-btn tiny hover-only" title={st.track === 'side' ? 'Move into release steps' : 'Move to separate tracks'} aria-label={`Move ${st.name} ${st.track === 'side' ? 'into release steps' : 'to separate tracks'}`}
-              onClick={() => patch({ track: st.track === 'side' ? 'main' : 'side' })}><Icon name="steps" size={12} /></button>
-          )}
-          <button className="icon-btn tiny hover-only" aria-label={`Mark ${st.name} ${own ? 'skipped' : 'outside my scope'}`} title={own ? 'Skip this stage' : 'Move outside my scope'} onClick={() => patch({ inScope: false })}><Icon name="close" size={11} /></button>
+        <span className="st-progress">
+          {hasItems
+            ? <><span className="st-bar" aria-hidden="true"><i style={{ width: `${(u.done / u.total) * 100}%` }} /></span><span className="stage-frac" title="Checked items in this stage">{u.done}/{u.total}</span></>
+            : complete ? <span className="muted">Done</span> : null}
         </span>
+        <span className="st-date"><DateCell label={`${st.name} end date`} value={st.end} onChange={(v) => patch({ end: v })} done={complete} /></span>
       </div>
-      <SortableList items={st.items} label={(i) => i.text} onMove={(id, overId) => dispatch({ type: 'item/reorder', projectId: p.id, stageId: st.id, id, overId })}>
+      <SortableList items={items} disabled={!!sort} label={(i) => i.text} onMove={(id, overId) => dispatch({ type: 'item/reorder', projectId: p.id, stageId: st.id, id, overId })}>
         {(i, itemGrip) => (
-        <div className={`step${i.done ? ' done' : ''}`}>
+        <div className={`st-grid step st-item${i.done ? ' done' : ''}`} onContextMenu={(e) => menu(e, [
+          { label: i.done ? 'Mark not done' : 'Mark done', icon: 'check', onClick: () => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { done: !i.done } }) },
+          { label: 'Delete item', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'item/remove', projectId: p.id, stageId: st.id, itemId: i.id }); say(`Deleted “${i.text}”.`, true); } },
+        ])}>
           {itemGrip}
+          <span />
           <label className="check no-drag">
             <input type="checkbox" checked={i.done} aria-label={i.text}
               onChange={() => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { done: !i.done } })} />
             <span className="box" />
           </label>
           <Editable className="step-text" label="Item" value={i.text} onSave={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { text: v } })} />
-          <button className="icon-btn tiny hover-only" aria-label={`Remove ${i.text}`} title="Remove item"
-            onClick={() => { dispatch({ type: 'item/remove', projectId: p.id, stageId: st.id, itemId: i.id }); say(`Removed “${i.text}”.`, true); }}><Icon name="close" size={11} /></button>
-          <DateCell label={`${i.text} date`} value={i.date} done={i.done} onChange={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { date: v } })} />
+          <span />
+          <span className="st-date"><DateCell label={`${i.text} date`} value={i.date} done={i.done} onChange={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { date: v } })} /></span>
         </div>
         )}
       </SortableList>
       {adding ? (
-        <div className="step add">
+        <div className="step add indent2">
           <Icon name="plus" size={12} />
           <input autoFocus className="step-input" placeholder={`Add item to ${st.name}`} aria-label={`Add item to ${st.name}`} value={text} onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') addItem(); if (e.key === 'Escape') setAdding(false); }} onBlur={() => { if (!text.trim()) setAdding(false); }} />
@@ -267,7 +332,7 @@ function StageRow({ p, st, grip }: { p: MusicProject; st: Stage; grip: React.Rea
       ) : (
         <button className="link-btn indent" onClick={() => setAdding(true)}>+ Break down</button>
       )}
-      {st.end && !stageComplete(st) && st.end < today && <span className="late">Stage date passed</span>}
+      {st.end && !complete && st.end < today && <span className="late">Stage date passed</span>}
     </div>
   );
 }

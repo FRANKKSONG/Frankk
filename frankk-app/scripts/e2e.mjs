@@ -268,9 +268,10 @@ await page.locator('[data-task="t-food"]').getByRole('button', { name: /^Step: E
 await page.locator('[data-task="t-food"]').getByLabel('Step', { exact: true }).fill('Empty the box');
 await page.keyboard.press('Enter');
 check('Edit: step text editable with one click', (await store()).tasks.find((t) => t.id === 't-food').steps.some((x) => x.text === 'Empty the box'));
-await page.locator('[data-task="t-food"] .step').first().hover();
-await page.locator('[data-task="t-food"]').getByRole('button', { name: 'Remove step Empty the box' }).click();
-check('Edit: step can be removed', !(await store()).tasks.find((t) => t.id === 't-food').steps.some((x) => x.text === 'Empty the box'));
+check('No on-row remove buttons: deleting lives in the right-click menu', await page.locator('[data-task="t-food"]').getByRole('button', { name: /^Remove step/ }).count() === 0);
+await page.locator('[data-task="t-food"] .step').first().click({ button: 'right' });
+await page.locator('.context-menu').getByRole('menuitem', { name: 'Delete step' }).click();
+check('Edit: step can be removed via right-click', !(await store()).tasks.find((t) => t.id === 't-food').steps.some((x) => x.text === 'Empty the box'));
 await page.getByRole('button', { name: 'Undo' }).click();
 check('Undo brings the removed step back', (await store()).tasks.find((t) => t.id === 't-food').steps.some((x) => x.text === 'Empty the box'));
 await general.getByRole('button', { name: /General panel name/ }).click();
@@ -399,6 +400,31 @@ check('Appearance: plain colour background, panel translucency and highlight col
 await page.getByRole('button', { name: 'Reset window' }).click();
 await page.getByRole('button', { name: 'Reset colours' }).click();
 await page.keyboard.press('Escape');
+
+/* ---------- release steps: Explorer-style header + right-click ---------- */
+{
+  const mp = page.locator('section[aria-label="Music"]');
+  const head = mp.locator('.st-head').first();
+  check('Release steps have column headers (Name, Progress, Date)', await head.isVisible() && (await head.textContent()).includes('Progress'));
+  const names = async () => mp.locator('.project-detail').first().locator('.stage-head .stage-name').allTextContents();
+  const manual = await names();
+  await head.getByRole('button', { name: 'Name' }).click();
+  const asc = await names();
+  await head.getByRole('button', { name: 'Name' }).click();
+  const desc = await names();
+  await head.getByRole('button', { name: 'Name' }).click();
+  const back = await names();
+  const main = manual.length - 2; // the two separate tracks sort on their own
+  const sorted = manual.slice(0, main).sort((a, b) => a.localeCompare(b));
+  check('Click a header to sort A→Z, again for Z→A, again for manual order', JSON.stringify(asc.slice(0, sorted.length)) === JSON.stringify(sorted) && JSON.stringify(desc.slice(0, main)) === JSON.stringify([...sorted].reverse()) && JSON.stringify(back) === JSON.stringify(manual), JSON.stringify({ manual, asc, desc, back }));
+  const before = (await store()).projects.find((x) => x.id === 'p-single').stages.length;
+  await mp.locator('.stage-head', { hasText: 'Art (Design)' }).first().click({ button: 'right' });
+  await page.locator('.context-menu').getByRole('menuitem', { name: 'Delete stage' }).click();
+  const after = (await store()).projects.find((x) => x.id === 'p-single').stages.length;
+  await page.getByRole('button', { name: 'Undo' }).click();
+  const restored = (await store()).projects.find((x) => x.id === 'p-single').stages.length;
+  check('Right-click a stage → Delete stage, and Undo restores it', after === before - 1 && restored === before, `${before} ${after} ${restored}`);
+}
 
 /* ---------- focus mode & narrow ---------- */
 await general.getByRole('button', { name: 'Focus General' }).click();

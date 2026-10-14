@@ -9,6 +9,7 @@ import { Popover } from './Popover';
 import { Editable, MiniSelect } from './Editable';
 import { TagChips, TagPicker } from './Tags';
 import { SortableList } from './SortableList';
+import { useContextMenu } from './ContextMenu';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { checklistProgress } from '../lib/progress';
@@ -152,7 +153,8 @@ interface RowProps {
 
 function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last }: RowProps) {
   const { dispatch, data } = useStore();
-  const { openTask, openNote } = useUi();
+  const { openTask, openNote, say } = useUi();
+  const menu = useContextMenu();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !manual });
   const prog = checklistProgress(task.steps);
   const update = (patch: Partial<Task>) => dispatch({ type: 'task/update', id: task.id, patch });
@@ -188,7 +190,13 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
   return (
     <div ref={setNodeRef} className={`task prio-${task.priority}${isDragging ? ' dragging' : ''}${task.done ? ' is-done' : ''}${open ? ' is-open' : ''}`} data-task={task.id}
       style={{ transform: CSS.Transform.toString(transform), transition }}>
-      <div className="trow" style={{ gridTemplateColumns: cols.template }} role="row">
+      <div className="trow" style={{ gridTemplateColumns: cols.template }} role="row" onContextMenu={(e) => menu(e, [
+        { label: task.done ? 'Reopen' : 'Complete', icon: 'check', onClick: () => dispatch({ type: 'task/toggle', id: task.id }) },
+        { label: 'Open details', icon: 'pencil', onClick: () => openTask(task.id) },
+        { label: task.mode === 'simple' ? 'Turn into checklist with progress' : 'Turn into simple to-do', icon: task.mode === 'simple' ? 'steps' : 'check', onClick: () => update({ mode: task.mode === 'simple' ? 'progress' : 'simple' }) },
+        { label: 'Open in Obsidian', icon: 'external', onClick: () => openNote(task.notePath) },
+        { label: 'Delete task', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'task/remove', id: task.id }); say(`Deleted “${task.title}”.`, true); } },
+      ])}>
         <button className={`row-grip${manual ? '' : ' off'}`} aria-label={`Reorder ${task.title}. Space to pick up, arrows to move, or Alt+Up and Alt+Down`}
           title={manual ? 'Drag to reorder' : 'Switch sort to “Manual order” to drag rows'}
           {...(manual ? attributes : {})} {...(manual ? listeners : {})}
@@ -231,6 +239,7 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
 function Steps({ task }: { task: Task }) {
   const { dispatch } = useStore();
   const { openTask, say } = useUi();
+  const menu = useContextMenu();
   const [text, setText] = useState('');
   const add = () => { if (text.trim()) { dispatch({ type: 'step/add', taskId: task.id, text }); setText(''); } };
   return (
@@ -238,17 +247,16 @@ function Steps({ task }: { task: Task }) {
       {task.steps.length === 0 && <p className="steps-empty">No steps yet. Add the first one below.</p>}
       <SortableList items={task.steps} label={(s) => s.text} onMove={(id, overId) => dispatch({ type: 'step/reorder', taskId: task.id, id, overId })}>
         {(s, grip) => (
-        <div className={`step${s.done ? ' done' : ''}`}>
+        <div className={`step${s.done ? ' done' : ''}`} onContextMenu={(e) => menu(e, [
+          { label: s.done ? 'Mark not done' : 'Mark done', icon: 'check', onClick: () => dispatch({ type: 'step/toggle', taskId: task.id, stepId: s.id }) },
+          { label: 'Delete step', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'step/remove', taskId: task.id, stepId: s.id }); say(`Deleted “${s.text}”.`, true); } },
+        ])}>
           {grip}
           <label className="check no-drag">
             <input type="checkbox" checked={s.done} aria-label={s.text} onChange={() => dispatch({ type: 'step/toggle', taskId: task.id, stepId: s.id })} />
             <span className="box" />
           </label>
           <Editable className="step-text" label="Step" value={s.text} onSave={(v) => dispatch({ type: 'step/rename', taskId: task.id, stepId: s.id, text: v })} />
-          <button className="icon-btn tiny hover-only" aria-label={`Remove step ${s.text}`} title="Remove step"
-            onClick={() => { dispatch({ type: 'step/remove', taskId: task.id, stepId: s.id }); say(`Removed “${s.text}”.`, true); }}>
-            <Icon name="close" size={11} />
-          </button>
         </div>
         )}
       </SortableList>

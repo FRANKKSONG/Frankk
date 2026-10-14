@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Icon } from './Icons';
 import { Editable } from './Editable';
+import { useContextMenu } from './ContextMenu';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { fieldKey, inferKind, KIND_ICON, KIND_LABEL, type FieldKind, type TypeDef } from '../data/schema';
@@ -11,6 +11,7 @@ const KINDS = Object.keys(KIND_LABEL) as FieldKind[];
 export function FieldsPanel({ type }: { type: TypeDef }) {
   const { dispatch, data } = useStore();
   const { say } = useUi();
+  const menu = useContextMenu();
   const [name, setName] = useState('');
   const [sample, setSample] = useState('');
   const [kind, setKind] = useState<FieldKind | null>(null);
@@ -29,7 +30,9 @@ export function FieldsPanel({ type }: { type: TypeDef }) {
     <div className="fields-panel">
       <ul className="field-list">
         {type.fields.map((f) => (
-          <li key={f.key}>
+          <li key={f.key} title={f.builtin ? undefined : 'Right-click for more'} onContextMenu={(e) => { if (!f.builtin) menu(e, [
+            { label: 'Delete field (values stay in your notes)', icon: 'trash', danger: true, onClick: () => { dispatch({ type: 'field/remove', typeId: type.id, key: f.key }); say(`Field “${f.name}” removed. Values already in notes are kept.`, true); } },
+          ]); }}>
             <span className="kind-ico big">{KIND_ICON[f.kind]}</span>
             <Editable label="Field name" value={f.name} onSave={(v) => dispatch({ type: 'field/update', typeId: type.id, key: f.key, patch: { name: v.trim() } })} />
             <code className="fkey">{f.key}</code>
@@ -45,7 +48,6 @@ export function FieldsPanel({ type }: { type: TypeDef }) {
                 {data.types.map((t) => <option key={t.id} value={t.id}>→ {t.plural}</option>)}
               </select>
             )}
-            {!f.builtin && <button className="icon-btn tiny" aria-label={`Remove field ${f.name}`} title="Remove field (values stay in your notes)" onClick={() => { dispatch({ type: 'field/remove', typeId: type.id, key: f.key }); say(`Field “${f.name}” removed. Values already in notes are kept.`, true); }}><Icon name="close" size={11} /></button>}
           </li>
         ))}
       </ul>
