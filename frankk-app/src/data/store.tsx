@@ -3,11 +3,13 @@ import { FixtureRepository } from './repository';
 import { reducer, type Action } from './reducer';
 import type { AppData } from './types';
 import { todayISO } from '../lib/dates';
+import { hasUiUndo, lastUiAt, popUi } from '../lib/undo';
 
 interface Store {
   data: AppData;
   dispatch: Dispatch<Action>;
   today: string;
+  /** Undo the most recent change: data, or a layout change (see lib/undo). */
   undo: () => void;
   canUndo: boolean;
   resetSampleData: () => void;
@@ -38,11 +40,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     repo.save(h.data);
   }, [h.data]);
 
+  // When each data change happened, so Ctrl+Z can pick between data and layout undo.
+  const times = useRef<number[]>([]);
+  const prevLen = useRef(0);
+  useEffect(() => {
+    const n = h.past.length;
+    if (n > prevLen.current) times.current.push(Date.now());
+    else if (n === prevLen.current && n === HISTORY) { times.current.shift(); times.current.push(Date.now()); }
+    else if (n < prevLen.current) times.current.length = n;
+    prevLen.current = n;
+  }, [h]);
+
   const dispatch = useCallback((a: Action) => dispatchH(a), []);
-  const undo = useCallback(() => dispatchH({ type: 'undo' }), []);
+  const undo = useCallback(() => {
+    const dataAt = times.current[times.current.length - 1] ?? 0;
+    if (hasUiUndo() && lastUiAt() >= dataAt) { popUi()?.undo(); return; }
+    dispatchH({ type: 'undo' });
+  }, []);
 
   const value = useMemo<Store>(() => ({
-    data: h.data, dispatch, today, undo, canUndo: h.past.length > 0,
+    data: h.data, dispatch, today, undo, canUndo: h.past.length > 0 || hasUiUndo(),
     resetSampleData: () => dispatchH({ type: 'replace', data: repo.reset() }),
   }), [h, dispatch, today, undo]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

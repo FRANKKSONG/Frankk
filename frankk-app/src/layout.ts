@@ -1,11 +1,11 @@
 import type { LayoutItem } from 'react-grid-layout';
 
 export const COLS = 48;
-export const MARGIN: [number, number] = [14, 14];
+export const MARGIN: [number, number] = [12, 10];
 /** Below this container width the board keeps its proportions and scrolls sideways instead of squashing text. */
 export const MIN_BOARD_WIDTH = 960;
 /** Rows in the default layout; the row height is sized so these fill the window. */
-export const DEFAULT_ROWS = 28;
+export const DEFAULT_ROWS = 20;
 
 export type WidgetId = 'today' | 'general' | 'music' | 'seround' | 'house' | 'capture' | 'coming' | 'calendar';
 export const WIDGETS: { id: WidgetId; label: string; secondary: boolean }[] = [
@@ -19,15 +19,19 @@ export const WIDGETS: { id: WidgetId; label: string; secondary: boolean }[] = [
   { id: 'calendar', label: 'Calendar', secondary: true },
 ];
 
+/**
+ * Everything on one screen: the four areas in a 2×2 grid wide enough to show their columns,
+ * with the calendar, coming-up list and quick capture stacked down the right.
+ */
 export const DEFAULT_LAYOUT: LayoutItem[] = [
-  { i: 'today', x: 0, y: 0, w: 48, h: 3, minW: 16, minH: 2, maxH: 14 },
-  { i: 'general', x: 0, y: 3, w: 13, h: 17, minW: 8, minH: 9 },
-  { i: 'music', x: 13, y: 3, w: 14, h: 17, minW: 10, minH: 9 },
-  { i: 'seround', x: 27, y: 3, w: 11, h: 17, minW: 8, minH: 9 },
-  { i: 'house', x: 38, y: 3, w: 10, h: 17, minW: 7, minH: 9 },
-  { i: 'capture', x: 0, y: 20, w: 20, h: 8, minW: 10, minH: 8 },
-  { i: 'coming', x: 20, y: 20, w: 15, h: 8, minW: 9, minH: 7 },
-  { i: 'calendar', x: 35, y: 20, w: 13, h: 8, minW: 10, minH: 8 },
+  { i: 'today', x: 0, y: 0, w: 48, h: 2, minW: 16, minH: 2, maxH: 10 },
+  { i: 'general', x: 0, y: 2, w: 17, h: 9, minW: 8, minH: 5 },
+  { i: 'music', x: 17, y: 2, w: 18, h: 9, minW: 10, minH: 5 },
+  { i: 'seround', x: 0, y: 11, w: 17, h: 9, minW: 8, minH: 5 },
+  { i: 'house', x: 17, y: 11, w: 18, h: 9, minW: 7, minH: 5 },
+  { i: 'calendar', x: 35, y: 2, w: 13, h: 7, minW: 10, minH: 5 },
+  { i: 'coming', x: 35, y: 9, w: 13, h: 5, minW: 9, minH: 4 },
+  { i: 'capture', x: 35, y: 14, w: 13, h: 6, minW: 10, minH: 5 },
 ];
 
 export const defaultItem = (id: string): LayoutItem => ({ ...(DEFAULT_LAYOUT.find((l) => l.i === id) as LayoutItem) });

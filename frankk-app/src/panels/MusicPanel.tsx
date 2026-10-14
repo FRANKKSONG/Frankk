@@ -8,7 +8,7 @@ import { Modal } from '../components/Modal';
 import { ColumnsMenu } from '../components/ColumnsMenu';
 import { Table, ResizeHandle, nextSort, type SortState } from '../components/TaskTable';
 import { Editable, MiniSelect } from '../components/Editable';
-import { ReleaseStepper, mainSteps } from '../components/Stepper';
+import { ReleaseStepper, StageBadge, mainSteps, stageTone } from '../components/Stepper';
 import { SortableList } from '../components/SortableList';
 import { useContextMenu } from '../components/ContextMenu';
 import { TagChips, TagPicker } from '../components/Tags';
@@ -199,19 +199,34 @@ function ReleaseCard({ p, today, open, onToggle, finished }: { p: MusicProject; 
           {steps.map((s, i) => {
             const u = stageUnits(s);
             const fill = stageComplete(s) ? 1 : u.total ? u.done / u.total : 0;
-            return <i key={s.id} title={s.name} className={stageComplete(s) ? 'done' : i === idx ? 'now' : ''}><b style={{ width: `${fill * 100}%` }} /></i>;
+            return (
+              <span key={s.id} className={`rel-seg${stageComplete(s) ? ' done' : i === idx ? ' now' : ''}`} title={s.name} style={{ '--tone': stageTone(i) } as React.CSSProperties}>
+                <i><b style={{ width: `${fill * 100}%` }} /></i>
+                <em><StageBadge index={i} state={stageComplete(s) ? 'done' : i === idx ? 'current' : 'todo'} size={18} /> {s.name}</em>
+                {s.end && <small>{relLabel(s.end, today)}</small>}
+              </span>
+            );
           })}
         </div>
         <div className="rel-now">
           {now ? (
             <>
-              <span className="rel-label">Now</span><strong>{now.name}</strong>
+              <span className="rel-label">Now</span><StageBadge index={idx} state="current" size={26} /><strong>{now.name}</strong>
               {now.end && <span className={late ? 'late' : 'muted'}>{late ? 'was due' : 'due'} {relLabel(now.end, today)}</span>}
               <span className="rel-of">{doneN}/{steps.length}</span>
             </>
           ) : <span className="muted">All release steps done.</span>}
         </div>
-        {then && <div className="rel-then"><span className="rel-label">Then</span>{then.name}{then.end && <span className="muted"> · {relLabel(then.end, today)}</span>}</div>}
+        {then && <div className="rel-then"><span className="rel-label">Then</span><StageBadge index={idx + 1} size={18} />{then.name}{then.end && <span className="muted"> · {relLabel(then.end, today)}</span>}</div>}
+        {(p.notes || p.roles.length > 0 || p.tags.length > 0) && (
+          <div className="rel-extra">
+            {p.notes && <p className="rel-notes">{p.notes}</p>}
+            <div className="rel-meta">
+              {p.roles.length > 0 && <span><span className="rel-label">Roles</span>{p.roles.join(', ')}</span>}
+              {p.tags.length > 0 && <TagChips names={p.tags} small />}
+            </div>
+          </div>
+        )}
       </article>
       {open && <div className="rel-detail"><ProjectDetail p={p} /></div>}
     </div>
@@ -440,6 +455,10 @@ function StageRow({ p, st, grip, sort }: { p: MusicProject; st: Stage; grip: Rea
   const addItem = () => { if (text.trim()) { dispatch({ type: 'item/add', projectId: p.id, stageId: st.id, text }); setText(''); } };
   const own = p.kind === 'own-release';
   const complete = stageComplete(st);
+  // Position in the project's own order (release steps, or my stages for a job); separate tracks get no numeral.
+  const ordered = mainSteps(p);
+  const pos = st.track === 'side' ? -1 : ordered.findIndex((x) => x.id === st.id);
+  const isNow = pos >= 0 && ordered.findIndex((x) => !stageComplete(x)) === pos;
   const items = sortBy(st.items, (i) => (sort?.key === 'name' ? i.text : sort?.key === 'date' ? i.date : sort?.key === 'desc' ? i.description : i.done ? 1 : 0), sort);
 
   const stageMenu = (e: React.MouseEvent) => menu(e, [
@@ -462,7 +481,10 @@ function StageRow({ p, st, grip, sort }: { p: MusicProject; st: Stage; grip: Rea
               <span className="box" />
             </label>
           )}
-        <Editable className="stage-name" label="Stage name" value={st.name} onSave={(v) => patch({ name: v })} />
+        <span className="stage-name-wrap">
+          {pos >= 0 && <StageBadge index={pos} state={complete ? 'done' : isNow ? 'current' : 'todo'} size={20} />}
+          <Editable className="stage-name" label="Stage name" value={st.name} onSave={(v) => patch({ name: v })} />
+        </span>
         <Editable className="st-desc" label={`${st.name} description`} value={st.description ?? ''} allowEmpty placeholder="+ description" onSave={(v) => patch({ description: v.trim() || undefined })} />
         <span className="st-progress">
           {hasItems

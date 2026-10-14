@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Icon } from './Icons';
 import { useStore } from '../data/store';
 import { datedMarkers } from '../lib/agenda';
-import { addMonths, dateInMonth, daysInMonth, monthKey, monthTitle, parseISO } from '../lib/dates';
+import { addDays, addMonths, daysInMonth, monthKey, monthTitle, parseISO } from '../lib/dates';
 
 export function MiniCalendar({ day, onDay }: { day: string | null; onDay: (d: string | null) => void }) {
   const { data, today } = useStore();
@@ -11,8 +11,10 @@ export function MiniCalendar({ day, onDay }: { day: string | null; onDay: (d: st
 
   const first = parseISO(`${month}-01`).getDay(); // 0 = Sunday
   const lead = (first + 6) % 7; // Monday-first
-  const cells: (string | null)[] = [...Array(lead).fill(null), ...Array.from({ length: daysInMonth(month) }, (_, i) => dateInMonth(month, i + 1))];
-  while (cells.length % 7) cells.push(null);
+  // Leading and trailing days from the neighbouring months fill the grid, greyed out.
+  const start = addDays(`${month}-01`, -lead);
+  const total = Math.ceil((lead + daysInMonth(month)) / 7) * 7;
+  const cells = Array.from({ length: total }, (_, i) => addDays(start, i));
 
   return (
     <section className="minical" aria-label="Calendar" title="Date overview only. Not connected to Google Calendar.">
@@ -26,12 +28,12 @@ export function MiniCalendar({ day, onDay }: { day: string | null; onDay: (d: st
       </header>
       <div className="cal-grid" role="grid">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <span key={d} className="dow" role="columnheader">{d}</span>)}
-        {cells.map((c, i) => c ? (
-          <button key={c} role="gridcell" className={`day${c === today ? ' today' : ''}${c === day ? ' picked' : ''}`} aria-label={`${c}${markers.get(c) ? `, has ${[...markers.get(c)!].join(', ')} items` : ''}`}
+        {cells.map((c) => (
+          <button key={c} role="gridcell" className={`day${c === today ? ' today' : ''}${c === day ? ' picked' : ''}${monthKey(c) !== month ? ' other' : ''}`} aria-label={`${c}${markers.get(c) ? `, has ${[...markers.get(c)!].join(', ')} items` : ''}`}
             aria-pressed={c === day} onClick={() => onDay(c === day ? null : c)}>
             {Number(c.slice(8))}{markers.has(c) && <span className="marks">{[...markers.get(c)!].map((a) => <i key={a} className={`area-${a}`} />)}</span>}
           </button>
-        ) : <span key={`e${i}`} />)}
+        ))}
       </div>
       
     </section>

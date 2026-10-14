@@ -3,7 +3,7 @@ import { Icon } from '../components/Icons';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { buildAgenda } from '../lib/agenda';
-import { addMonths, dateInMonth, daysInMonth, monthKey, monthTitle, parseISO } from '../lib/dates';
+import { addDays, addMonths, daysInMonth, monthKey, monthTitle, parseISO } from '../lib/dates';
 import { recordsOf } from '../lib/records';
 
 /** Everything with a date, across every space and type, on one month. */
@@ -17,8 +17,8 @@ export function CalendarPage() {
     return recordsOf(data, t.id, today).flatMap((r) => dateFields.map((f) => ({ key: `${r.id}${f.key}`, date: String(r.get(f.key) ?? ''), title: `${r.title} · ${f.name}`, color: t.color })));
   }).filter((x) => x.date), [data, today]);
   const lead = (parseISO(`${month}-01`).getDay() + 6) % 7;
-  const cells: (string | null)[] = [...Array(lead).fill(null), ...Array.from({ length: daysInMonth(month) }, (_, i) => dateInMonth(month, i + 1))];
-  while (cells.length % 7) cells.push(null);
+  const start = addDays(`${month}-01`, -lead);
+  const cells = Array.from({ length: Math.ceil((lead + daysInMonth(month)) / 7) * 7 }, (_, i) => addDays(start, i));
   return (
     <div className="page-wide calendar-page">
       <header className="cal-head">
@@ -32,8 +32,8 @@ export function CalendarPage() {
       </header>
       <div className="big-cal">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <span key={d} className="dow">{d}</span>)}
-        {cells.map((c, i) => c ? (
-          <div key={c} className={`big-day${c === today ? ' is-today' : ''}`}>
+        {cells.map((c) => (
+          <div key={c} className={`big-day${c === today ? ' is-today' : ''}${monthKey(c) !== month ? ' other' : ''}`}>
             <span className="n">{Number(c.slice(8))}</span>
             {agenda.filter((a) => a.date === c).map((a) => (
               <button key={a.key} className={`big-chip area-${a.area}${a.overdue ? ' overdue' : ''}`} title={a.title}
@@ -41,7 +41,7 @@ export function CalendarPage() {
             ))}
             {extra.filter((x) => x.date === c).map((x) => <span key={x.key} className="big-chip" style={{ '--area': x.color } as React.CSSProperties}>{x.title}</span>)}
           </div>
-        ) : <span key={`e${i}`} />)}
+        ))}
       </div>
     </div>
   );

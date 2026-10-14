@@ -26,6 +26,7 @@ import { MusicPanel, ProjectDialog } from './panels/MusicPanel';
 import { SeroundPanel } from './panels/SeroundPanel';
 import { HousePanel } from './panels/HousePanel';
 import { useUi } from './ui';
+import { pushUiUndo } from './lib/undo';
 import { useStore } from './data/store';
 import { usePersistentState } from './hooks/usePersistentState';
 import { COLS, DEFAULT_LAYOUT, DEFAULT_ROWS, MARGIN, MIN_BOARD_WIDTH, WIDGETS, defaultItem, swapOnDrop, type WidgetId } from './layout';
@@ -95,15 +96,24 @@ const floatingCompactor: Compactor = { ...verticalCompactor, allowOverlap: true,
 
 /** The Tasks page: the bento board of every area at a glance. */
 function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
-  const { focusArea, setPalette, tagFilter, setTagFilter } = useUi();
+  const { focusArea, setPalette, tagFilter, setTagFilter, say } = useUi();
   const { data } = useStore();
   const [day, setDay] = useState<string | null>(null);
-  const [saved, setSaved] = usePersistentState<{ items: LayoutItem[]; hidden: WidgetId[] }>('layout.board', { items: DEFAULT_LAYOUT, hidden: [] });
+  const [saved, setSaved] = usePersistentState<{ items: LayoutItem[]; hidden: WidgetId[] }>('layout.board.v2', { items: DEFAULT_LAYOUT, hidden: [] });
   const { width, containerRef, mounted } = useContainerWidth();
   const [height, setHeight] = useState(800);
   const [dragging, setDragging] = useState(false);
   const [ready, setReady] = useState(false);
   const before = useRef<LayoutItem[] | null>(null);
+  const snapshot = useRef<typeof saved | null>(null);
+  // Moving or resizing a panel can be undone with Ctrl+Z (or the toast's Undo).
+  const remember = (label: string) => {
+    const prev = snapshot.current;
+    snapshot.current = null;
+    if (!prev) return;
+    pushUiUndo(label, () => { skipNext.current = true; setSaved(prev); });
+    say(`${label}.`, true);
+  };
   const skipNext = useRef(false);
 
   // Fit the default board to the window height so everything is visible at a glance.
@@ -116,7 +126,7 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
     return () => ro.disconnect();
   }, [containerRef, focusArea]);
   useEffect(() => { if (mounted) { const t = window.setTimeout(() => setReady(true), 120); return () => window.clearTimeout(t); } }, [mounted]);
-  const rowHeight = Math.max(12, Math.min(40, Math.floor((height - 4 - (DEFAULT_ROWS - 1) * MARGIN[1]) / DEFAULT_ROWS)));
+  const rowHeight = Math.max(18, Math.min(56, Math.floor((height - 4 - (DEFAULT_ROWS - 1) * MARGIN[1]) / DEFAULT_ROWS)));
 
   const visible = useMemo(() => {
     const byId = new Map(saved.items.map((l) => [l.i, l]));
@@ -185,11 +195,10 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
         </div>
       </header>
 
-      {focusArea ? (
-        <div className="focus"><PanelFor area={focusArea} focused /></div>
-      ) : (
-        <div className={`board-scroll${ready ? ' ready' : ''}`} ref={containerRef}>
-          {mounted && (
+      {focusArea && <div className="focus"><PanelFor area={focusArea} focused /></div>}
+      {/* The board stays mounted (just hidden) in focus mode so its width tracking keeps working. */}
+      <div className={`board-scroll${ready ? ' ready' : ''}`} ref={containerRef} hidden={!!focusArea}>
+          {mounted && !focusArea && (
             <div style={{ width: boardWidth }}>
               <ReactGridLayout
                 width={boardWidth}
@@ -198,7 +207,9 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
                 dragConfig={{ enabled: !touch, handle: '.panel-grip', cancel: 'input,select,textarea,button,a,.no-drag' }}
                 resizeConfig={{ enabled: true, handles: ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'] }}
                 compactor={dragging ? floatingCompactor : verticalCompactor}
-                onDragStart={() => { before.current = visible.map((l) => ({ ...l })); setDragging(true); }}
+                onDragStart={() => { before.current = visible.map((l) => ({ ...l })); snapshot.current = saved; setDragging(true); }}
+                onResizeStart={() => { snapshot.current = saved; }}
+                onResizeStop={() => remember('Panel resized')}
                 onDragStop={(_l, _old, item) => {
                   const prev = before.current;
                   before.current = null;
@@ -206,6 +217,7 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
                   if (!prev || !item) return;
                   skipNext.current = true;
                   store(verticalCompactor.compact(swapOnDrop(prev, item), COLS));
+                  if (prev.some((l) => { const n = item.i === l.i ? item : null; return n && (n.x !== l.x || n.y !== l.y); })) remember('Panel moved'); else snapshot.current = null;
                 }}
                 onLayoutChange={onLayoutChange}
               >
@@ -213,8 +225,7 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
               </ReactGridLayout>
             </div>
           )}
-        </div>
-      )}
+      </div>
       <footer className="assistant-bar">
         <Popover align="right" trigger={({ toggle, ref }) => (
           <button ref={ref} className="btn" onClick={toggle}><Icon name="sparkle" size={15} /> Ask assistant</button>

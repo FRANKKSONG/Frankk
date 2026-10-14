@@ -37,7 +37,8 @@ export function useColumns(tableId: string, defs: ColDef[]) {
   const reset = useCallback(() => setSaved({ widths: {}, hidden: defs.filter((d) => d.defaultHidden).map((d) => d.id) }), [defs, setSaved]);
 
   const template = useMemo(
-    () => [`${GRIP}px`, `${CHECK}px`, ...visible.map((d) => `${width(d.id)}px`), 'minmax(0, 1fr)', `${MENU}px`].join(' '),
+    // The name column grows to use spare room (never narrower than its set width); the rest stay where you drag them.
+    () => [`${GRIP}px`, `${CHECK}px`, ...visible.map((d) => (d.id === 'title' ? `minmax(${width(d.id)}px, 1fr)` : `${width(d.id)}px`)), '0px', `${MENU}px`].join(' '),
     [visible, width],
   );
   const minWidth = useMemo(

@@ -170,6 +170,7 @@ check('Third click returns to manual order (drag enabled again)', (await general
 
 /* ---------- row drag (pointer) ---------- */
 const before = await titles();
+await general.locator('[data-task="t-budget"]').scrollIntoViewIfNeeded();
 const g1 = await box(general.locator('[data-task="t-budget"] .row-grip'));
 const target = await box(general.locator('[data-task="t-food"] .row-grip'));
 await page.mouse.move(g1.x + 6, g1.y + 10); await page.mouse.down();
@@ -233,7 +234,7 @@ await page.mouse.move(seroundBox.x + 120, seroundBox.y + 30, { steps: 14 });
 await page.mouse.up(); await page.waitForTimeout(900);
 const gen1 = await box(page.locator('.react-grid-item:has(section[aria-label="General"])'));
 const ser1 = await box(page.locator('.react-grid-item:has(section[aria-label="Seround"])'));
-check('Panel drag: dropping General on Seround swaps them', Math.abs(gen1.x - seroundBox.x) < 4 && Math.abs(ser1.x - gen0.x) < 4 && Math.abs(gen1.y - gen0.y) < 4, `gen ${gen0.x}->${gen1.x} (target ${seroundBox.x}), seround -> ${ser1.x}`);
+check('Panel drag: dropping General on Seround swaps them', Math.abs(gen1.x - seroundBox.x) < 4 && Math.abs(gen1.y - seroundBox.y) < 4 && Math.abs(ser1.x - gen0.x) < 4 && Math.abs(ser1.y - gen0.y) < 4, `gen ${gen0.x},${gen0.y}->${gen1.x},${gen1.y} (target ${seroundBox.x},${seroundBox.y}), seround -> ${ser1.x},${ser1.y}`);
 const rh = page.locator('.react-grid-item:has(section[aria-label="House"]) .react-resizable-handle-se');
 const hb = await box(page.locator('.react-grid-item:has(section[aria-label="House"])'));
 await page.locator('.react-grid-item:has(section[aria-label="House"])').hover();
@@ -242,12 +243,12 @@ await page.mouse.move(rb.x + 9, rb.y + 9); await page.mouse.down(); await page.m
 const hb2 = await box(page.locator('.react-grid-item:has(section[aria-label="House"])'));
 check('Panel resize: House made taller via corner handle', hb2.height > hb.height + 20, `${hb.height} → ${hb2.height}`);
 await page.waitForTimeout(500);
-const layoutKey = () => page.evaluate(() => localStorage.getItem('esther.proto.v1.layout.board'));
+const layoutKey = () => page.evaluate(() => localStorage.getItem('esther.proto.v1.layout.board.v2'));
 const lay1 = JSON.parse(await layoutKey()).items;
 await reload();
 const lay2 = JSON.parse(await layoutKey()).items;
 const g = lay2.find((l) => l.i === 'general'), h = lay2.find((l) => l.i === 'house');
-check('Layout persists after restart (saved positions and sizes identical)', JSON.stringify(lay1) === JSON.stringify(lay2) && g.x !== 0 && h.h > 17, JSON.stringify({ g, h }));
+check('Layout persists after restart (saved positions and sizes identical)', JSON.stringify(lay1) === JSON.stringify(lay2) && g.y !== 2 && h.h > 9, JSON.stringify({ g, h }));
 
 /* ---------- edit layout: hide / restore ---------- */
 await page.getByRole('button', { name: /Edit layout/ }).click();
@@ -457,6 +458,18 @@ await page.keyboard.press('Escape');
   await page.getByRole('option', { name: 'Icon bolt' }).click();
   const label = await sr.getByRole('button', { name: /Seround panel icon/ }).getAttribute('aria-label');
   check('Panel icon is editable with an icon picker', label.includes('bolt'), label);
+}
+
+{
+  const before = await layoutKey();
+  const it = page.locator('.react-grid-item', { has: page.locator('section[aria-label="House"]') });
+  const bb = await it.boundingBox();
+  await page.mouse.move(bb.x + bb.width + 2, bb.y + bb.height / 2); await page.mouse.down();
+  await page.mouse.move(bb.x + bb.width - 120, bb.y + bb.height / 2, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(300);
+  const resized = await layoutKey();
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+z'); await page.waitForTimeout(300);
+  check('Ctrl+Z undoes a panel resize', resized !== before && (await layoutKey()) === before);
 }
 
 /* ---------- focus mode & narrow ---------- */

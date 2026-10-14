@@ -89,7 +89,7 @@ export function buildFixtures(today: ISODate): AppData {
         stage('p-jing', 'Mix', { end: d(20) }), stage('p-jing', 'Master', { end: d(24) }),
         stage('p-jing', 'Concept', { inScope: false }), stage('p-jing', 'Art (Design)', { inScope: false }),
       ] },
-    { id: 'p-single', kind: 'own-release' as const, artist: 'FRANKK', title: 'My next single', label: 'Surftape', roles: ['Artist', 'Producer'], releaseType: 'single' as const,
+    { id: 'p-single', kind: 'own-release' as const, artist: 'FRANKK', title: 'My next single', label: 'Surftape', roles: ['Artist', 'Producer'], releaseType: 'single' as const, notes: 'Warm, late-night synth-pop. Jing on the hook; reference: city lights at 2am.',
       targetRelease: d(47), start: d(-14), color: '#d4a03c', tags: ['surftape'],
       notePath: 'Music/Releases/My next single.md',
       stages: [
