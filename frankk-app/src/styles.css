@@ -1007,3 +1007,76 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 .date-btn.compact { padding: 2px 6px !important; gap: 4px; }
 .date-btn.compact:not(.empty) .date-ico { display: none; }
 .date-btn.compact.empty { padding: 3px 6px !important; }
+
+/* =====================================================================
+   Iteration 7: highlight without edges (Gilded, Modern)
+   Rule: selection = soft tinted fill + brighter text; colour-coding = a small
+   dot or a tinted chip. Never a coloured border, outline or edge stripe.
+   ===================================================================== */
+:is([data-style='gilded'], [data-style='modern']) {
+  --hl: color-mix(in srgb, var(--accent) 18%, transparent);
+  --hl-strong: color-mix(in srgb, var(--accent) 28%, transparent);
+  --soft: color-mix(in srgb, var(--text) 6%, transparent);
+}
+/* 1. no edge stripes on rows, groups, chips */
+:is([data-style='gilded'], [data-style='modern']) :is(.task.prio-high > .trow, .task.prio-low > .trow, .task.project > .trow, .group[style*='--brand'], .w-list.music li) { box-shadow: none !important; }
+:is([data-style='gilded'], [data-style='modern']) :is(.today-item, .w-chip, .big-chip) { border: 0 !important; }
+:is([data-style='gilded'], [data-style='modern']) :is(.dv-col, .dv-tile, .lib-main, .panel) { border-top: 1px solid var(--edge) !important; }
+:is([data-style='gilded'], [data-style='modern']) .w-list.music li { padding-left: 4px; }
+/* colour-coding as dots */
+:is([data-style='gilded'], [data-style='modern']) .proj-name::before,
+:is([data-style='gilded'], [data-style='modern']) .w-list.music li .w-item::before {
+  content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--row); margin-right: 7px; vertical-align: 1px;
+}
+:is([data-style='gilded'], [data-style='modern']) .prio { display: inline-grid; place-items: center; width: 16px; height: 16px; padding: 0; border-radius: 50%; font-size: 10px; color: #fff; background: color-mix(in srgb, var(--danger) 85%, transparent); flex: none; }
+:is([data-style='gilded'], [data-style='modern']) .dv-col-head .choice::before,
+:is([data-style='gilded'], [data-style='modern']) .w-chip::before, :is([data-style='gilded'], [data-style='modern']) .big-chip::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--area)); margin-right: 5px; vertical-align: 1px;
+}
+:is([data-style='gilded'], [data-style='modern']) .today-item { background: var(--soft); border-radius: 10px; }
+:is([data-style='gilded'], [data-style='modern']) .today-item > svg { color: var(--area); }
+:is([data-style='gilded'], [data-style='modern']) .dv-col { background: color-mix(in srgb, var(--text) 3%, transparent); border: 0 !important; }
+:is([data-style='gilded'], [data-style='modern']) .dv-col.over { outline: 0; background: var(--hl); }
+:is([data-style='gilded'], [data-style='modern']) .md blockquote { border-left: 0; background: var(--soft); border-radius: 8px; padding: 8px 12px; font-style: italic; }
+
+/* 2. soft filled pills and tags, no outlines */
+:is([data-style='gilded'], [data-style='modern']) :is(.choice, .pill, .tag-chip, .badge, .ws) { border: 0 !important; }
+:is([data-style='gilded'], [data-style='modern']) .choice { background: color-mix(in srgb, var(--c) 24%, transparent); color: color-mix(in srgb, var(--c) 55%, var(--text)); font-weight: 600; }
+:is([data-style='gilded'], [data-style='modern']) .pill { background: color-mix(in srgb, var(--pc) 22%, transparent); color: color-mix(in srgb, var(--pc) 55%, var(--text)); font-weight: 600; }
+:is([data-style='gilded'], [data-style='modern']) .tag-chip { background: color-mix(in srgb, var(--tag) 20%, transparent); color: color-mix(in srgb, var(--tag) 55%, var(--text)); }
+:is([data-style='gilded'], [data-style='modern']) .tag-add { border: 0; background: var(--soft); }
+:is([data-style='gilded'], [data-style='modern']) .badge { background: var(--soft); }
+
+/* 3. selected / active = tinted fill, never a coloured border */
+:is([data-style='gilded'], [data-style='modern']) :is(.theme-card[aria-checked=true], .seg button[aria-checked=true], .seg button[aria-selected=true], .seg-icons button[aria-checked=true], .radio-card.on, .icon-pick.on, .tag-filter.active .chip-btn, .stage-pick.on, .chip-check.on) {
+  border-color: var(--edge) !important; box-shadow: none !important; outline: 0 !important; background: var(--hl) !important; color: var(--text) !important;
+}
+:is([data-style='gilded'], [data-style='modern']) .theme-card[aria-checked=true] { position: relative; }
+:is([data-style='gilded'], [data-style='modern']) :is(.theme-card[aria-checked=true], .bg-tile.on)::after {
+  content: '✓'; position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; background: var(--accent); color: var(--accent-ink);
+}
+:is([data-style='gilded'], [data-style='modern']) .bg-tile { position: relative; border: 0 !important; }
+:is([data-style='gilded'], [data-style='modern']) .bg-tile.upload { background: var(--soft); }
+:is([data-style='gilded'], [data-style='modern']) :is(.sidebar button.active, .set-nav button.on, .lib-type.on, .tree-note.on, .view-tabs button.on) { box-shadow: none !important; border-color: transparent; background: var(--hl); color: var(--text); }
+:is([data-style='gilded'], [data-style='modern']) .view-tabs { border-bottom: 0; gap: 4px; }
+:is([data-style='gilded'], [data-style='modern']) .view-tabs button { border: 0; border-radius: 8px; margin: 0; }
+:is([data-style='gilded'], [data-style='modern']) :is(.w-day.today, .dv-day.today, .big-day.today) { outline: 0; box-shadow: none; border-color: var(--edge) !important; background: var(--hl) !important; }
+:is([data-style='gilded'], [data-style='modern']) .day.picked { outline: 0; background: var(--hl); }
+:is([data-style='gilded'], [data-style='modern']) .stepper li.current .node, :is([data-style='gilded'], [data-style='modern']) .stepper li.active .node { box-shadow: none; background: color-mix(in srgb, var(--warn) 22%, var(--bg-2)); }
+
+/* 4. hover & focus: brighten the fill, keep edges neutral */
+:is([data-style='gilded'], [data-style='modern']) :is(.btn, .chip-btn, .search-btn, .date-btn, .ask-bar):hover:not(:disabled) { border-color: var(--edge) !important; background: color-mix(in srgb, var(--text) 10%, transparent); }
+:is([data-style='gilded'], [data-style='modern']) .btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #fff); }
+:is([data-style='gilded'], [data-style='modern']) .date-btn:hover { background: var(--hl) !important; }
+:is([data-style='gilded'], [data-style='modern']) .tag-add:hover { border: 0; background: var(--hl); color: var(--text); }
+:is([data-style='gilded'], [data-style='modern']) :is(input:not([type=checkbox]):not([type=color]):not([type=range]), select, textarea):focus {
+  border-color: color-mix(in srgb, var(--text) 22%, transparent) !important; box-shadow: none !important; background: color-mix(in srgb, var(--text) 8%, transparent) !important;
+}
+:is([data-style='gilded'], [data-style='modern']) .edit-input { border-color: color-mix(in srgb, var(--text) 22%, transparent) !important; }
+:is([data-style='gilded'], [data-style='modern']) :focus-visible { outline: 2px solid color-mix(in srgb, var(--text) 35%, transparent) !important; outline-offset: 1px; }
+:is([data-style='gilded'], [data-style='modern']) .wcard.editing .w-frame { outline: 1px dashed color-mix(in srgb, var(--text) 18%, transparent); }
+:is([data-style='gilded'], [data-style='modern']) .react-grid-item.react-grid-placeholder { border: 0; background: var(--accent); opacity: .12; }
+:is([data-style='gilded'], [data-style='modern']) :is(.date-btn.today, .date-btn.overdue) { border-color: transparent !important; }
+:is([data-style='gilded'], [data-style='modern']) .type.on { border-color: var(--edge); background: var(--hl); }
+:is([data-style='gilded'], [data-style='modern']) .type { border-color: var(--edge); }
