@@ -285,23 +285,28 @@ await page.keyboard.press('Control+z');
 check('Ctrl+Z undoes the brand rename', (await store()).brands.includes('Eli Lao Origin'));
 
 /* ---------- Music ---------- */
+check('Music: separate tabs for my releases and artist jobs', await music.getByRole('tab', { name: /My releases/ }).getAttribute('aria-selected') === 'true' && await music.locator('[data-project="p-jzero"]').count() === 0);
+await music.getByRole('tab', { name: /Artist jobs/ }).click();
 const jz = music.locator('[data-project="p-jzero"]');
 await jz.getByRole('button', { name: /Expand JZero/ }).click();
-check('Music: JZero shows Artist job pill + Mix/Master only', (await jz.textContent()).includes('Artist job') && (await jz.textContent()).includes('Mix / Master only'));
+check('Music: JZero shows Job pill + Mix/Master only', (await jz.textContent()).includes('Job') && (await jz.textContent()).includes('Mix / Master only'));
 check('Music: JZero starts at 50% (1 of 2), % printed on bar', (await jz.locator('.plabel').first().textContent()) === '50%');
 check('Music: only assigned stages listed as work (Mix, Master)', (await jz.locator('.stage-name').allTextContents()).join() === 'Mix,Master', (await jz.locator('.stage-name').allTextContents()).join());
 await jz.getByRole('button', { name: /Other stages outside my scope/ }).click();
 check('Music: out-of-scope stages are in a separate, labelled list (6)', (await jz.locator('.outside-list .tag').count()) === 6);
 await jz.getByLabel('Master done').check();
 check('Music: JZero reaches 2/2 with the rest of the release out of scope', (await jz.locator('.plabel').first().textContent()) === '100%');
+await music.getByRole('tab', { name: /My releases/ }).click();
 const single = music.locator('[data-project="p-single"]');
 const stepNames = (await single.locator('.stepper .name').allTextContents()).join(' → ');
 check('Music: own release shows a step bar of its release steps (in your order)', stepNames.split(' → ').sort().join() === ['Art (Design)', 'Concept', 'Lyrics', 'Mix & Master', 'Produce', 'Record'].sort().join() && stepNames.startsWith('Concept'), stepNames);
+await single.getByRole('tab', { name: /Other tracks/ }).click();
 check('Music: Marketing/MV are separate tracks, not steps', (await single.locator('.side-track .stage-name').allTextContents()).join() === 'Marketing,Streaming' && !stepNames.includes('Marketing'));
 const before2 = await single.locator('.mini-steps em').textContent();
 await single.locator('.side-track .stage').first().getByLabel('Marketing done').check();
 check('Music: finishing a separate track does not move the release step bar', (await single.locator('.mini-steps em').textContent()) === before2);
-await music.getByRole('button', { name: 'New project or artist job' }).click();
+await single.getByRole('tab', { name: /Release steps/ }).click();
+await music.getByRole('button', { name: 'New release' }).click();
 await page.getByRole('radio', { name: /Artist job/ }).click();
 await page.locator('#np-artist').fill('Nok'); await page.locator('#np-title').fill('Demo');
 await page.locator('.stage-pick').filter({ has: page.getByText('Mix', { exact: true }) }).locator('.check').click();
@@ -414,6 +419,7 @@ await page.keyboard.press('Escape');
 /* ---------- release steps: Explorer-style header + right-click ---------- */
 {
   const mp = page.locator('section[aria-label="Music"]');
+  await mp.getByRole('tab', { name: /My releases/ }).click();
   const head = mp.locator('.st-head').first();
   check('Release steps have column headers (Name, Progress, Date)', await head.isVisible() && (await head.textContent()).includes('Progress'));
   const names = async () => mp.locator('.project-detail').first().locator('.stage-head .stage-name').allTextContents();
@@ -424,7 +430,7 @@ await page.keyboard.press('Escape');
   const desc = await names();
   await head.getByRole('button', { name: 'Name' }).click();
   const back = await names();
-  const main = manual.length - 2; // the two separate tracks sort on their own
+  const main = manual.length; // other tracks live on their own tab
   const sorted = manual.slice(0, main).sort((a, b) => a.localeCompare(b));
   check('Click a header to sort A→Z, again for Z→A, again for manual order', JSON.stringify(asc.slice(0, sorted.length)) === JSON.stringify(sorted) && JSON.stringify(desc.slice(0, main)) === JSON.stringify([...sorted].reverse()) && JSON.stringify(back) === JSON.stringify(manual), JSON.stringify({ manual, asc, desc, back }));
   const before = (await store()).projects.find((x) => x.id === 'p-single').stages.length;

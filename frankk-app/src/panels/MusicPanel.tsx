@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Panel } from '../components/Panel';
-import { Dropdown } from '../components/Dropdown';
 import { Icon } from '../components/Icons';
 import { ColorSelect } from '../components/ColorSelect';
 import { DateCell } from '../components/DateCell';
@@ -29,9 +28,19 @@ export const MUSIC_COLS: ColDef[] = [
   { id: 'next', label: 'Next', width: 54, min: 40 },
 ];
 
-type Kind = 'all' | 'artist-job' | 'own-release';
-const KINDS: { id: Kind; label: string }[] = [
-  { id: 'all', label: 'Projects & artist work' }, { id: 'artist-job', label: 'Artist jobs only' }, { id: 'own-release', label: 'Own releases only' },
+type Tab = 'own-release' | 'artist-job' | 'all';
+
+const REL_COLS: ColDef[] = [
+  { id: 'title', label: 'Release', width: 150, min: 80 },
+  { id: 'type', label: 'Format', width: 70, min: 50 },
+  { id: 'progress', label: 'Release steps', width: 150, min: 80 },
+  { id: 'next', label: 'Next date', width: 70, min: 46 },
+];
+const JOB_COLS: ColDef[] = [
+  { id: 'title', label: 'Artist / client', width: 150, min: 80 },
+  { id: 'type', label: 'My roles', width: 90, min: 50 },
+  { id: 'progress', label: 'My progress', width: 110, min: 60 },
+  { id: 'next', label: 'Next date', width: 70, min: 46 },
 ];
 const RELEASE_TYPES = [{ id: 'single', label: 'Single' }, { id: 'ep', label: 'EP' }, { id: 'album', label: 'Album' }, { id: 'other', label: 'Other' }] as const;
 type PatchP = Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label' | 'roles' | 'targetRelease' | 'start' | 'color' | 'notes' | 'releaseType'>>;
@@ -39,43 +48,77 @@ type PatchP = Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label'
 export function MusicPanel({ focused }: { focused: boolean }) {
   const { data } = useStore();
   const { setProjectDialog, reveal, tagFilter } = useUi();
-  const cols = useColumns('music', MUSIC_COLS);
-  const [prefs, setPrefs] = usePersistentState<{ kind: Kind; sort: SortState | null }>('prefs.music', { kind: 'all', sort: null });
+  const relCols = useColumns('music.rel', REL_COLS);
+  const jobCols = useColumns('music.job', JOB_COLS);
+  const allCols = useColumns('music', MUSIC_COLS);
+  const [prefs, setPrefs] = usePersistentState<{ tab: Tab; sort: SortState | null }>('prefs.music.v2', { tab: 'own-release', sort: null });
   const [open, setOpen] = useState<Set<string>>(new Set(['p-single']));
+  const tab = prefs.tab;
+  const cols = tab === 'own-release' ? relCols : tab === 'artist-job' ? jobCols : allCols;
+  const defs = tab === 'own-release' ? REL_COLS : tab === 'artist-job' ? JOB_COLS : MUSIC_COLS;
 
   useEffect(() => {
     if (reveal?.kind === 'project') {
+      const p = data.projects.find((x) => x.id === reveal.id);
+      if (p && tab !== 'all' && p.kind !== tab) setPrefs((s) => ({ ...s, tab: p.kind }));
       setOpen((s) => new Set(s).add(reveal.id));
       requestAnimationFrame(() => document.querySelector(`[data-project="${reveal.id}"]`)?.scrollIntoView({ block: 'nearest' }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reveal]);
 
+  const visible = useMemo(() => data.projects.filter((p) => !tagFilter || p.tags.includes(tagFilter)), [data.projects, tagFilter]);
+  const count = (k: MusicProject['kind']) => visible.filter((p) => p.kind === k).length;
+
   const groups = useMemo(() => {
-    const list = data.projects.filter((p) => (prefs.kind === 'all' || p.kind === prefs.kind) && (!tagFilter || p.tags.includes(tagFilter)));
+    const list = visible.filter((p) => tab === 'all' || p.kind === tab);
     const map = new Map<string, MusicProject[]>();
     for (const p of list) {
-      const g = p.kind === 'artist-job' ? 'Artist jobs' : p.label ? `${p.label} · own releases` : 'Own releases';
+      // Releases group by label; jobs by client. "All" groups by kind.
+      const g = tab === 'all' ? (p.kind === 'artist-job' ? 'Artist jobs' : 'My releases')
+        : p.kind === 'own-release' ? (p.label || 'No label') : (p.client || p.artist);
       map.set(g, [...(map.get(g) ?? []), p]);
     }
     const s = prefs.sort;
-    const val = (p: MusicProject): string | number => !s ? 0 : s.key === 'title' ? `${p.artist} ${p.title}`.toLowerCase() : s.key === 'type' ? p.kind
+    const val = (p: MusicProject): string | number => !s ? 0 : s.key === 'title' ? `${p.artist} ${p.title}`.toLowerCase() : s.key === 'type' ? (p.kind === 'own-release' ? p.releaseType ?? '' : p.roles.join(','))
       : s.key === 'progress' ? projectProgress(p).pct ?? -1 : nextProjectDate(p) ?? '9999';
     const sortList = (l: MusicProject[]) => (!s ? l : [...l].sort((a, b) => { const x = val(a), y = val(b); const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y)); return s.dir === 'asc' ? c : -c; }));
-    return [...map.entries()].map(([k, l]) => [k, sortList(l)] as [string, MusicProject[]]).sort(([a], [b]) => (a === 'Artist jobs' ? 1 : 0) - (b === 'Artist jobs' ? 1 : 0));
-  }, [data.projects, prefs.kind, prefs.sort, tagFilter]);
+    return [...map.entries()].map(([k, l]) => [k, sortList(l)] as [string, MusicProject[]]);
+  }, [visible, tab, prefs.sort]);
 
   const toggle = (id: string) => setOpen((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
+  const newKind = tab === 'artist-job' ? 'artist-job' : 'own-release';
+  const newLabel = tab === 'artist-job' ? 'New artist job' : tab === 'own-release' ? 'New release' : 'New project or artist job';
+  const TABS: { id: Tab; label: string; icon: 'music' | 'person' | 'list'; n: number; hint: string }[] = [
+    { id: 'own-release', label: 'My releases', icon: 'music', n: count('own-release'), hint: 'Your own singles, EPs and albums: every release step counts.' },
+    { id: 'artist-job', label: 'Artist jobs', icon: 'person', n: count('artist-job'), hint: 'Work for other artists: only the stages you were hired for count.' },
+    { id: 'all', label: 'All', icon: 'list', n: visible.length, hint: 'Everything together.' },
+  ];
 
   return (
-    <Panel area="music" title="Music" icon="music" focused={focused} onAdd={() => setProjectDialog(true)} addLabel="New project or artist job"
-      menu={(close) => <ColumnsMenu defs={MUSIC_COLS} cols={cols} close={close} />}
-      toolbar={<Dropdown ariaLabel="Show" value={prefs.kind} options={KINDS} onChange={(kind) => setPrefs((p) => ({ ...p, kind }))} />}
-      footer={<button className="foot-add" onClick={() => setProjectDialog(true)}><Icon name="plus" size={13} /> Project or artist job</button>}>
+    <Panel area="music" title="Music" icon="music" focused={focused} onAdd={() => setProjectDialog(newKind)} addLabel={newLabel}
+      menu={(close) => <ColumnsMenu defs={defs} cols={cols} close={close} />}
+      toolbar={
+        <div className="music-tabs" role="tablist" aria-label="Kind of music work">
+          {TABS.map((t) => (
+            <button key={t.id} role="tab" aria-selected={tab === t.id} title={t.hint} className="music-tab" onClick={() => setPrefs((p) => ({ ...p, tab: t.id }))}>
+              <Icon name={t.icon} size={13} /> {t.label} <em>{t.n}</em>
+            </button>
+          ))}
+        </div>
+      }
+      footer={<button className="foot-add" onClick={() => setProjectDialog(newKind)}><Icon name="plus" size={13} /> {tab === 'artist-job' ? 'Artist job' : tab === 'own-release' ? 'Release' : 'Project or artist job'}</button>}>
+      {tab !== 'all' && <p className="music-hint">{TABS.find((t) => t.id === tab)!.hint}</p>}
       <Table cols={cols} label="Music projects" sort={prefs.sort} onSort={(col) => setPrefs((p) => ({ ...p, sort: nextSort(p.sort, col) }))}>
-        {groups.length === 0 && <div className="empty">Nothing here yet.</div>}
+        {groups.length === 0 && (
+          <div className="empty">
+            {tab === 'artist-job' ? 'No artist jobs yet.' : tab === 'own-release' ? 'No releases yet.' : 'Nothing here yet.'}{' '}
+            <button className="link-btn" onClick={() => setProjectDialog(newKind)}>{newLabel}</button>
+          </div>
+        )}
         {groups.map(([name, list]) => (
           <div className="group" key={name}>
-            <div className="group-label">{name}</div>
+            <div className="group-label">{name} <span className="muted">· {list.length}</span></div>
             {list.map((p) => <ProjectRow key={p.id} p={p} cols={cols} open={open.has(p.id)} onToggle={() => toggle(p.id)} />)}
           </div>
         ))}
@@ -112,8 +155,9 @@ function ProjectRow({ p, cols, open, onToggle }: { p: MusicProject; cols: Return
             );
             case 'type': return (
               <div key={c.id} className="cell col" data-col={c.id}>
-                <span className={`pill ${job ? 'job' : 'own'}`}>{job ? 'Artist job' : 'Own release'}</span>
-                <span className="sub">{p.roles.join(' / ')}</span>
+                {job
+                  ? <><span className="pill job">Job</span><span className="sub">{p.roles.join(' / ') || 'No roles yet'}</span></>
+                  : <><span className="pill own">{RELEASE_TYPES.find((r) => r.id === p.releaseType)?.label ?? 'Release'}</span><span className="sub">{p.roles.join(' / ')}</span></>}
               </div>
             );
             case 'progress': return (
@@ -146,74 +190,93 @@ function ProjectDetail({ p }: { p: MusicProject }) {
   const [widths, setWidths] = usePersistentState<StageWidths>('stage.widths', STAGE_WIDTHS);
   const setWidth = (id: string, w: number) => setWidths((cur) => ({ ...cur, [id]: Math.max(STAGE_MIN[id] ?? 50, Math.min(640, Math.round(w))) }));
 
+  const [section, setSection] = usePersistentState<'steps' | 'tracks' | 'details'>(`proj.section.${p.id}`, 'steps');
+  const sec = job && section === 'tracks' ? 'steps' : section;
+  const SECTIONS = [
+    { id: 'steps' as const, label: job ? 'My stages' : 'Release steps', n: main.length },
+    ...(!job ? [{ id: 'tracks' as const, label: 'Other tracks', n: side.length }] : []),
+    { id: 'details' as const, label: 'Details & notes', n: undefined },
+  ];
+
   return (
     <div className="project-detail" style={{ '--st-name': `${widths.name}px`, '--st-desc': `${widths.desc}px`, '--st-progress': `${widths.progress}px`, '--st-date': `${widths.date}px` } as React.CSSProperties}>
       {!job && <ReleaseStepper project={p} />}
 
-      <div className="fields">
-        <label>Artist<Editable label="Artist" value={p.artist} onSave={(v) => patchP({ artist: v })} /></label>
-        <label>Project<Editable label="Project" value={p.title} onSave={(v) => patchP({ title: v })} /></label>
-        {job
-          ? <label>Client<Editable label="Client" value={p.client ?? ''} allowEmpty placeholder="+ client" onSave={(v) => patchP({ client: v.trim() || undefined })} /></label>
-          : <label>Label<Editable label="Label" value={p.label ?? ''} allowEmpty placeholder="+ label" onSave={(v) => patchP({ label: v.trim() || undefined })} /></label>}
-        <label>{job ? 'My roles' : 'Roles'}<Editable label="Roles" value={p.roles.join(', ')} allowEmpty placeholder="+ roles" onSave={(v) => patchP({ roles: v.split(',').map((x) => x.trim()).filter(Boolean) })} /></label>
-        {!job && <label>Type<MiniSelect label="Release type" value={p.releaseType ?? 'single'} options={[...RELEASE_TYPES]} onChange={(v) => patchP({ releaseType: v })} /></label>}
-        {!job && <label>Release date<DateCell label="Target release" value={p.targetRelease} onChange={(v) => patchP({ targetRelease: v })} /></label>}
-        <div className="field">Colour<ColorSelect label="Project colour" value={p.color ?? PIGMENTS[0].color} onChange={(color) => patchP({ color })} /></div>
-        <div className="field-tags">Tags<span className="tag-line"><TagChips names={p.tags} small /><TagPicker compact value={p.tags} onChange={(tags) => dispatch({ type: 'project/tags', projectId: p.id, tags })} label="Edit project tags" /></span></div>
-      </div>
-      <label className="notes-line">Notes & links<Editable label="Notes" value={p.notes ?? ''} allowEmpty placeholder="+ add notes or reference links" onSave={(v) => patchP({ notes: v.trim() || undefined })} /></label>
-
-      <div className="scope-line">
-        {job ? <>Only the stages assigned to me count. The rest of the release isn’t tracked.</> : <>Release steps. Stages can overlap, be reordered or skipped.</>}
+      <div className="pd-tabs" role="tablist" aria-label={`${p.title} sections`}>
+        {SECTIONS.map((t) => (
+          <button key={t.id} role="tab" aria-selected={sec === t.id} onClick={() => setSection(t.id)}>{t.label}{t.n !== undefined && <em>{t.n}</em>}</button>
+        ))}
+        <span className="dv-spacer" />
         <button className="link-btn" onClick={() => openNote(p.notePath)}><Icon name="external" size={12} /> Open in Obsidian</button>
       </div>
 
-      {main.length === 0 && <p className="steps-empty">No stages yet. Add one below.</p>}
-      {main.length > 0 && <StageHeader sort={stageSort} onSort={(k) => setStageSort((cur) => nextSort(cur, k))} widths={widths} setWidth={setWidth} />}
-      <SortableList items={sortStages(main, stageSort)} disabled={!!stageSort} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
-        {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} />}
-      </SortableList>
+      {sec === 'details' && (
+        <div className="pd-details">
+          <div className="fields">
+            <label>Artist<Editable label="Artist" value={p.artist} onSave={(v) => patchP({ artist: v })} /></label>
+            <label>Project<Editable label="Project" value={p.title} onSave={(v) => patchP({ title: v })} /></label>
+            {job
+              ? <label>Client<Editable label="Client" value={p.client ?? ''} allowEmpty placeholder="+ client" onSave={(v) => patchP({ client: v.trim() || undefined })} /></label>
+              : <label>Label<Editable label="Label" value={p.label ?? ''} allowEmpty placeholder="+ label" onSave={(v) => patchP({ label: v.trim() || undefined })} /></label>}
+            <label>{job ? 'My roles' : 'Roles'}<Editable label="Roles" value={p.roles.join(', ')} allowEmpty placeholder="+ roles" onSave={(v) => patchP({ roles: v.split(',').map((x) => x.trim()).filter(Boolean) })} /></label>
+            {!job && <label>Format<MiniSelect label="Release type" value={p.releaseType ?? 'single'} options={[...RELEASE_TYPES]} onChange={(v) => patchP({ releaseType: v })} /></label>}
+            <label>{job ? 'Deadline' : 'Release date'}<DateCell label="Target release" value={p.targetRelease} onChange={(v) => patchP({ targetRelease: v })} /></label>
+            <div className="field">Colour<ColorSelect label="Project colour" value={p.color ?? PIGMENTS[0].color} onChange={(color) => patchP({ color })} /></div>
+            <div className="field-tags">Tags<span className="tag-line"><TagChips names={p.tags} small /><TagPicker compact value={p.tags} onChange={(tags) => dispatch({ type: 'project/tags', projectId: p.id, tags })} label="Edit project tags" /></span></div>
+          </div>
+          <label className="notes-line">Notes & links<Editable label="Notes" value={p.notes ?? ''} allowEmpty placeholder="+ add notes or reference links" onSave={(v) => patchP({ notes: v.trim() || undefined })} /></label>
+        </div>
+      )}
 
-      <div className="stage-add">
-        <Icon name="plus" size={12} />
-        <select aria-label={`Add stage to ${p.artist}`} value="" onChange={(e) => { if (e.target.value) dispatch({ type: 'stage/add', projectId: p.id, name: e.target.value, track: job ? undefined : 'main' }); }}>
-          <option value="">{job ? 'Add assigned stage' : 'Add release step'}</option>
-          {available.map((n) => <option key={n}>{n}</option>)}
-        </select>
-      </div>
+      {sec === 'steps' && (
+        <>
+          <p className="scope-line">{job ? 'Only the stages you were hired for count toward your progress.' : 'Every step here makes the step bar above. Drag to reorder, right-click for more.'}</p>
+          {main.length === 0 && <p className="steps-empty">No stages yet. Add one below.</p>}
+          {main.length > 0 && <StageHeader sort={stageSort} onSort={(k) => setStageSort((cur) => nextSort(cur, k))} widths={widths} setWidth={setWidth} />}
+          <SortableList items={sortStages(main, stageSort)} disabled={!!stageSort} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
+            {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} />}
+          </SortableList>
+          <div className="stage-add">
+            <Icon name="plus" size={12} />
+            <select aria-label={`Add stage to ${p.artist}`} value="" onChange={(e) => { if (e.target.value) dispatch({ type: 'stage/add', projectId: p.id, name: e.target.value, track: job ? undefined : 'main' }); }}>
+              <option value="">{job ? 'Add assigned stage' : 'Add release step'}</option>
+              {available.map((n) => <option key={n}>{n}</option>)}
+            </select>
+          </div>
+          {outside.length > 0 && (
+            <div className="outside">
+              <button className="link-btn" aria-expanded={showOutside} onClick={() => setShowOutside((v) => !v)}>
+                <Icon name="info" size={12} /> {job ? 'Other stages outside my scope' : 'Skipped'} ({outside.length})
+              </button>
+              {showOutside && (
+                <div className="outside-list">
+                  <p>{job ? 'These belong to someone else. They don’t reduce my progress and never count as overdue.' : 'Skipped for this release.'}</p>
+                  {outside.map((s) => (
+                    <span key={s.id} className="tag">{s.name}
+                      <button aria-label={`Include ${s.name} in my scope`} onClick={() => dispatch({ type: 'stage/patch', projectId: p.id, stageId: s.id, patch: { inScope: true } })}>Include</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
-      {!job && (
+      {sec === 'tracks' && (
         <div className="side-track">
-          <div className="sub-label"><Icon name="sparkle" size={11} /> Separate tracks <span className="muted">· not part of release progress</span></div>
+          <p className="scope-line">Marketing, MV and other work that runs alongside the release. Tracked here, but never counted in release progress.</p>
+          {side.length > 0 && <StageHeader sort={stageSort} onSort={(k) => setStageSort((cur) => nextSort(cur, k))} widths={widths} setWidth={setWidth} />}
           <SortableList items={sortStages(side, stageSort)} disabled={!!stageSort} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
             {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} />}
           </SortableList>
           <div className="stage-add">
             <Icon name="plus" size={12} />
             <select aria-label="Add separate track" value="" onChange={(e) => { if (e.target.value) dispatch({ type: 'stage/add', projectId: p.id, name: e.target.value, track: 'side' }); }}>
-              <option value="">Add separate track (Marketing, MV…)</option>
+              <option value="">Add track (Marketing, MV…)</option>
               {available.map((n) => <option key={n}>{n}</option>)}
             </select>
           </div>
-        </div>
-      )}
-
-      {outside.length > 0 && (
-        <div className="outside">
-          <button className="link-btn" aria-expanded={showOutside} onClick={() => setShowOutside((v) => !v)}>
-            <Icon name="info" size={12} /> {job ? 'Other stages outside my scope' : 'Skipped'} ({outside.length})
-          </button>
-          {showOutside && (
-            <div className="outside-list">
-              <p>{job ? 'These belong to someone else. They don’t reduce my progress and never count as overdue.' : 'Skipped for this release.'}</p>
-              {outside.map((s) => (
-                <span key={s.id} className="tag">{s.name}
-                  <button aria-label={`Include ${s.name} in my scope`} onClick={() => dispatch({ type: 'stage/patch', projectId: p.id, stageId: s.id, patch: { inScope: true } })}>Include</button>
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -364,8 +427,9 @@ const draftsFor = (kind: MusicProject['kind']): StageDraft[] => STAGE_LIBRARY.ma
 
 export function ProjectDialog() {
   const { dispatch } = useStore();
-  const { setProjectDialog, say, revealRow } = useUi();
-  const [kind, setKind] = useState<MusicProject['kind']>('own-release');
+  const { setProjectDialog, say, revealRow, projectDialog } = useUi();
+  const startKind: MusicProject['kind'] = projectDialog === 'artist-job' ? 'artist-job' : 'own-release';
+  const [kind, setKind] = useState<MusicProject['kind']>(startKind);
   const [artist, setArtist] = useState('');
   const [title, setTitle] = useState('');
   const [releaseType, setReleaseType] = useState<NonNullable<MusicProject['releaseType']>>('single');
@@ -377,7 +441,7 @@ export function ProjectDialog() {
   const [color, setColor] = useState(PIGMENTS[1].color);
   const [tags, setTags] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
-  const [stages, setStages] = useState<StageDraft[]>(draftsFor('own-release'));
+  const [stages, setStages] = useState<StageDraft[]>(draftsFor(startKind));
 
   const pickKind = (k: MusicProject['kind']) => { setKind(k); setStages(draftsFor(k)); };
   const setStage = (name: string, patch: Partial<StageDraft>) => setStages((s) => s.map((x) => (x.name === name ? { ...x, ...patch } : x)));

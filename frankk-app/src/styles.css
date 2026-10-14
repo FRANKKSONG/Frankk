@@ -1214,3 +1214,21 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 .st-desc.empty { color: var(--faint); opacity: 0; }
 .stage-head:hover .st-desc.empty, .st-item:hover .st-desc.empty, .st-desc.empty:focus-visible { opacity: 1; }
 .project-detail { overflow-x: auto; }
+
+/* ── Iteration 12: Music tabs ── */
+.music-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.music-tab { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 8px; font-size: 13px; color: var(--muted); background: color-mix(in srgb, var(--text) 4%, transparent); }
+.music-tab:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.music-tab[aria-selected='true'] { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--music) 24%, transparent); }
+.music-tab svg { color: var(--music); }
+.music-tab em, .pd-tabs em { font-style: normal; font-size: 11px; color: var(--faint); font-weight: 500; font-variant-numeric: tabular-nums; }
+.music-hint { margin: 2px 4px 6px; font-size: 12px; color: var(--muted); }
+.pd-tabs { display: flex; align-items: center; gap: 2px; margin: 8px 0 4px; border-bottom: 1px solid var(--edge, var(--line-soft)); }
+.pd-tabs [role='tab'] { display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; font-size: 13px; color: var(--muted); border-radius: 7px 7px 0 0; position: relative; }
+.pd-tabs [role='tab']:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.pd-tabs [role='tab'][aria-selected='true'] { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--music) 14%, transparent); }
+.pd-details { padding-top: 4px; }
+.project-detail .scope-line { margin: 4px 2px 2px; }
+/* Description stretches to fill spare room, so Progress and Date sit at the far right */
+.st-grid { grid-template-columns: 16px 20px 20px var(--st-name, 170px) minmax(var(--st-desc, 260px), 1fr) var(--st-progress, 90px) var(--st-date, 112px); }
+.st-head .st-desc { font-size: inherit; color: inherit; }

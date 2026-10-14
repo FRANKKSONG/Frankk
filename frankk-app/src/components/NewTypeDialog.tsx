@@ -12,7 +12,7 @@ const ICONS: IconName[] = ['person', 'idea', 'library', 'music', 'house', 'tasks
 /** Suggested starter fields by what the type sounds like. */
 function suggest(name: string): string[] {
   const n = name.toLowerCase();
-  if (/client|customer|contact|person|people|friend/.test(n)) return ['Email', 'Phone', 'Company', 'Rate', 'Birthday', 'Status'];
+  if (/client|customer|contact|person|people|friend/.test(n)) return ['Email', 'Phone', 'Company', 'Birthday', 'Status'];
   if (/book|read|course|learn/.test(n)) return ['Author', 'Status', 'Rating', 'Started date', 'Finished date', 'Link'];
   if (/song|track|beat|sample/.test(n)) return ['BPM', 'Key', 'Genre', 'Status', 'Length minutes', 'Link'];
   if (/gear|equipment|asset|item/.test(n)) return ['Price', 'Purchase date', 'Status', 'Serial number', 'Link'];

@@ -56,11 +56,13 @@ export function defaultTypes(brands: string[]): TypeDef[] {
     {
       id: 'person', name: 'Person', plural: 'People', icon: 'person', color: '#8a4f8f', folder: 'People',
       fields: [
+        { key: 'firstName', name: 'First name', kind: 'text' },
+        { key: 'lastName', name: 'Last name', kind: 'text' },
+        { key: 'description', name: 'Description', kind: 'longtext' },
         { key: 'role', name: 'Role', kind: 'select', options: [opt('Artist', '#4c6fb8'), opt('Client', '#d4a03c'), opt('Team', '#3f9a80'), opt('Family', '#b44a6e'), opt('Friend', '#8a4f8f')] },
         { key: 'phone', name: 'Phone', kind: 'phone' },
         { key: 'email', name: 'Email', kind: 'email' },
         { key: 'birthday', name: 'Birthday', kind: 'date' },
-        { key: 'rate', name: 'Rate', kind: 'currency', currency: 'LAK' },
         { key: 'instagram', name: 'Instagram', kind: 'url' },
       ],
     },
@@ -84,10 +86,10 @@ export function defaultEntries(today: ISODate): Entry[] {
   const i = (id: string, title: string, props: Record<string, unknown>, tags: string[] = []): Entry =>
     ({ id, typeId: 'idea', title, props, tags, created: now, updated: now, path: `Ideas/${title}.md` });
   return [
-    p('e-jing', 'Jing', { role: 'Artist', phone: '+856 20 5555 0101', rate: 1500000, birthday: addDays(today, 40) }, ['client']),
-    p('e-just', 'Just', { role: 'Artist', instagram: 'https://instagram.com/' }, ['client']),
-    p('e-jzero', 'JZero', { role: 'Client', email: 'jzero@example.com', rate: 1200000 }, ['client']),
-    p('e-mom', 'Mum', { role: 'Family', birthday: addDays(today, 9) }),
+    p('e-jing', 'Jing', { firstName: 'Jing', description: 'Singer on the Surftape single', role: 'Artist', phone: '+856 20 5555 0101', birthday: addDays(today, 40) }, ['client']),
+    p('e-just', 'Just', { firstName: 'Just', description: 'Rapper; mixing job', role: 'Artist', instagram: 'https://instagram.com/' }, ['client']),
+    p('e-jzero', 'JZero', { firstName: 'JZero', description: 'Mix and master client', role: 'Client', email: 'jzero@example.com' }, ['client']),
+    p('e-mom', 'Mum', { firstName: 'Mum', role: 'Family', birthday: addDays(today, 9) }),
     i('e-lao-pack', 'Lao folk sample pack', { status: 'Exploring', space: 'Music', rating: 5, captured: addDays(today, -6) }, ['surftape']),
     i('e-merch', 'sundey sticker merch', { status: 'Spark', space: 'Seround', rating: 3, captured: addDays(today, -2) }, ['design']),
     i('e-studio', 'Treat the home studio walls', { status: 'Doing', space: 'Life', rating: 4, captured: addDays(today, -14) }, ['home']),
@@ -127,7 +129,7 @@ export function defaultViews(): ViewDef[] {
   return [
     { id: 'v-tasks-board', typeId: 'task', name: 'Tasks by priority', layout: 'board', filters: [{ field: 'done', op: 'is', value: 'false' }], groupBy: 'priority', fields: ['due', 'tags'] },
     { id: 'v-tasks-cal', typeId: 'task', name: 'Task calendar', layout: 'calendar', filters: [], dateField: 'due', fields: [] },
-    { id: 'v-people', typeId: 'person', name: 'All people', layout: 'table', filters: [], sort: { field: 'title', dir: 'asc' }, fields: ['role', 'phone', 'birthday', 'rate'] },
+    { id: 'v-people', typeId: 'person', name: 'All people', layout: 'table', filters: [], sort: { field: 'title', dir: 'asc' }, fields: ['firstName', 'lastName', 'description', 'role', 'phone', 'email', 'birthday'] },
     { id: 'v-ideas', typeId: 'idea', name: 'Idea board', layout: 'board', filters: [], groupBy: 'status', fields: ['space', 'rating'] },
     { id: 'v-projects', typeId: 'project', name: 'Projects gallery', layout: 'gallery', filters: [], fields: ['kind', 'progress', 'targetRelease'] },
   ];

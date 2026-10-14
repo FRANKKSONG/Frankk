@@ -17,8 +17,9 @@ interface Ui {
   /** Ask a panel to expand a specific row (used by search). */
   reveal: { kind: 'task' | 'project'; id: string; n: number } | null;
   revealRow: (kind: 'task' | 'project', id: string) => void;
-  projectDialog: boolean;
-  setProjectDialog: (v: boolean) => void;
+  /** true, or the kind of music project to start with. */
+  projectDialog: boolean | 'own-release' | 'artist-job';
+  setProjectDialog: (v: boolean | 'own-release' | 'artist-job') => void;
   /** Board-wide tag filter. */
   tagFilter: string | null;
   setTagFilter: (t: string | null) => void;
@@ -39,7 +40,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const [paletteOpen, setPalette] = useState(false);
   const [focusArea, setFocusArea] = useState<Area | null>(null);
   const [reveal, setReveal] = useState<Ui['reveal']>(null);
-  const [projectDialog, setProjectDialog] = useState(false);
+  const [projectDialog, setProjectDialog] = useState<Ui['projectDialog']>(false);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [newTask, setNewTask] = useState<Ui['newTask']>(null);
   const [page, setPage] = useState<Page>('home');
