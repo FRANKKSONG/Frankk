@@ -1461,3 +1461,10 @@ input.editable.editing::selection { background: color-mix(in srgb, var(--accent)
 .panel-body { padding-top: 0 !important; }
 .panel-body > .table > .thead, .panel-body .thead { top: 0; box-shadow: 0 -12px 0 0 var(--panel-solid, rgb(25 22 19)); }
 .cal-grid .day .marks { bottom: 4px; } .cal-grid .day { line-height: 1; padding-bottom: 4px !important; }
+
+/* Today strip: items wrap onto as many lines as the strip is tall, and scroll up/down like everything else */
+section.today { align-items: stretch; padding: 6px 12px; }
+section.today .today-head { align-self: center; }
+.today-list { flex-wrap: wrap; align-content: flex-start; overflow-x: hidden; overflow-y: auto; gap: 5px 6px; padding: 2px 0; max-height: 100%; }
+.today-item { padding: 3px 9px; }
+section.today { padding: 4px 12px; } .today-list { gap: 4px 6px; padding: 1px 0; } .today-item { padding: 2px 9px; min-height: 24px; }
