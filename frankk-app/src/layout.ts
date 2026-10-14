@@ -20,11 +20,11 @@ export const WIDGETS: { id: WidgetId; label: string; secondary: boolean }[] = [
 ];
 
 export const DEFAULT_LAYOUT: LayoutItem[] = [
-  { i: 'today', x: 0, y: 0, w: 48, h: 2, minW: 16, minH: 2, maxH: 14 },
-  { i: 'general', x: 0, y: 2, w: 13, h: 18, minW: 8, minH: 9 },
-  { i: 'music', x: 13, y: 2, w: 14, h: 18, minW: 10, minH: 9 },
-  { i: 'seround', x: 27, y: 2, w: 11, h: 18, minW: 8, minH: 9 },
-  { i: 'house', x: 38, y: 2, w: 10, h: 18, minW: 7, minH: 9 },
+  { i: 'today', x: 0, y: 0, w: 48, h: 3, minW: 16, minH: 2, maxH: 14 },
+  { i: 'general', x: 0, y: 3, w: 13, h: 17, minW: 8, minH: 9 },
+  { i: 'music', x: 13, y: 3, w: 14, h: 17, minW: 10, minH: 9 },
+  { i: 'seround', x: 27, y: 3, w: 11, h: 17, minW: 8, minH: 9 },
+  { i: 'house', x: 38, y: 3, w: 10, h: 17, minW: 7, minH: 9 },
   { i: 'capture', x: 0, y: 20, w: 20, h: 8, minW: 10, minH: 8 },
   { i: 'coming', x: 20, y: 20, w: 15, h: 8, minW: 9, minH: 7 },
   { i: 'calendar', x: 35, y: 20, w: 13, h: 8, minW: 10, minH: 8 },

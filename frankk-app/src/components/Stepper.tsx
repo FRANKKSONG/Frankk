@@ -2,6 +2,8 @@ import { relLabel } from '../lib/dates';
 import { stageComplete, stageUnits } from '../lib/progress';
 import type { MusicProject, Stage } from '../data/types';
 
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
 export const mainSteps = (p: MusicProject) => p.stages.filter((s) => s.inScope && s.track !== 'side');
 
 function state(s: Stage): { cls: 'done' | 'active' | 'todo'; fill: number } {
@@ -31,7 +33,7 @@ export function ReleaseStepper({ project, compact }: { project: MusicProject; co
         const st = state(s);
         return (
           <li key={s.id} className={`${st.cls}${s === current ? ' current' : ''}`}>
-            <span className="node">{st.cls === 'done' ? '✓' : i + 1}</span>
+            <span className="node">{ROMAN[i] ?? i + 1}</span>
             <span className="bar"><b style={{ width: `${st.fill * 100}%` }} /></span>
             <span className="name">{s.name}</span>
             {s.end && <span className="step-when">{relLabel(s.end)}</span>}

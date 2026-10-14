@@ -1,14 +1,14 @@
 import { Icon } from './Icons';
 import { Popover } from './Popover';
-import { COLOR_KEYS, THEMES, themeColor, type ThemeId, type ThemePrefs } from '../lib/theme';
+import { COLOR_KEYS, THEMES, themeColor, themeOf, type ThemeId, type ThemePrefs } from '../lib/theme';
 
 export function AppearancePanel({ prefs, setPrefs }: { prefs: ThemePrefs; setPrefs: (p: ThemePrefs) => void }) {
   return (
     <div className="appearance">
       <div className="theme-cards" role="radiogroup" aria-label="Theme">
         {(Object.keys(THEMES) as ThemeId[]).map((id) => (
-          <button key={id} role="radio" aria-checked={prefs.theme === id} className={`theme-card look-${id}`}
-            onClick={() => setPrefs({ theme: id, colors: prefs.colors })}>
+          <button key={id} role="radio" aria-checked={themeOf(prefs) === id} className={`theme-card look-${id}`}
+            onClick={() => setPrefs({ theme: id, colors: {} })}>
             <span className="swatches">
               {(['bg-2', 'general', 'music', 'seround', 'house'] as const).map((k) => <i key={k} style={{ background: THEMES[id].vars[k] }} />)}
             </span>

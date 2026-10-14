@@ -1,5 +1,6 @@
 import { Icon, type IconName } from './Icons';
 import { useUi } from '../ui';
+import { ArchEmblem, Drollery } from './Ornaments';
 import type { Area } from '../data/types';
 
 export type View = 'home' | 'library' | 'calendar' | 'settings';
@@ -19,7 +20,7 @@ export function Sidebar({ view, setView }: { view: View; setView: (v: View) => v
   const active = (n: (typeof NAV)[number]) => (n.area ? view === 'home' && focusArea === n.area : n.id === 'home' ? view === 'home' && !focusArea : view === n.view);
   return (
     <nav className="sidebar" aria-label="Main">
-      <div className="wordmark" aria-label="Esther">ESTHER</div>
+      <div className="brand"><ArchEmblem /><div className="wordmark" aria-label="Esther">Esther</div></div>
       <ul>
         {NAV.map((n) => (
           <li key={n.id}>
@@ -31,6 +32,7 @@ export function Sidebar({ view, setView }: { view: View; setView: (v: View) => v
         ))}
       </ul>
       <div className="sidebar-foot">
+        <Drollery className="side-drollery" />
         <div className="vault-box">
           <div className="vault-name"><Icon name="folder" size={16} /><span><small>Obsidian vault</small><b>Sample data</b></span></div>
           <button className="btn small" disabled title="Not connected: the real vault is connected in Milestone 2 (read-only)">Not connected</button>

@@ -17,7 +17,7 @@ export const HOUSE_COLS: ColDef[] = [
   { id: 'title', label: 'Task', width: 100, min: 60 },
   { id: 'progress', label: 'Status', width: 58, min: 44 },
   { id: 'plan', label: 'Plan', width: 52, min: 40, defaultHidden: true },
-  { id: 'due', label: 'Due', width: 48, min: 40 },
+  { id: 'due', label: 'Due', width: 54, min: 40 },
   { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true },
 ];
 

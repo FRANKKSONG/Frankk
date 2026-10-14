@@ -35,7 +35,7 @@ export function TodayStrip() {
 
   return (
     <section className="today" aria-label="Today">
-      <div className="today-head"><strong>TODAY</strong><span>{longToday(today)}</span></div>
+      <div className="today-head"><strong>Today</strong><span>{longToday(today)}</span></div>
       {items.length === 0 ? <p className="today-empty">Nothing is due or planned for today.</p> : (
         <ul className="today-list">
           {items.map((i) => (

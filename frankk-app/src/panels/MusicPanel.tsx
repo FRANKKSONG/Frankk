@@ -20,10 +20,10 @@ import { PIGMENTS, RELEASE_STEPS, SIDE_STAGES, STAGE_LIBRARY, type MusicProject,
 import { newId } from '../data/fixtures';
 
 export const MUSIC_COLS: ColDef[] = [
-  { id: 'title', label: 'Artist / Project', width: 114, min: 70 },
+  { id: 'title', label: 'Artist / Project', width: 106, min: 70 },
   { id: 'type', label: 'Role / Type', width: 78, min: 50 },
   { id: 'progress', label: 'Progress', width: 84, min: 50 },
-  { id: 'next', label: 'Next', width: 48, min: 40 },
+  { id: 'next', label: 'Next', width: 54, min: 40 },
 ];
 
 type Kind = 'all' | 'artist-job' | 'own-release';

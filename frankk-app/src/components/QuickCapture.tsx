@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Icon, type IconName } from './Icons';
 import { useStore } from '../data/store';
+import { Drollery } from './Ornaments';
 import { useUi } from '../ui';
 
 const LATER: { id: string; label: string; icon: IconName }[] = [
@@ -50,6 +51,7 @@ export function QuickCapture() {
         ))}
       </div>
       <p className="hint">Tasks only for now. Notes, ideas, links and meetings are planned.</p>
+      <Drollery className="capture-drollery" />
     </section>
   );
 }

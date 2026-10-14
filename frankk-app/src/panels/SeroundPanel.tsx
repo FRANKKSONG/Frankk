@@ -15,7 +15,7 @@ export const SEROUND_COLS: ColDef[] = [
   { id: 'title', label: 'Task', width: 116, min: 60 },
   { id: 'progress', label: 'Progress', width: 60, min: 40 },
   { id: 'plan', label: 'Plan', width: 58, min: 40, defaultHidden: true },
-  { id: 'due', label: 'Due', width: 50, min: 40 },
+  { id: 'due', label: 'Due', width: 56, min: 40 },
   { id: 'workstream', label: 'Workstream', width: 86, min: 50, defaultHidden: true },
   { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true },
 ];

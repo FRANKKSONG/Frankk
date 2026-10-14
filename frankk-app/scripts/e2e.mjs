@@ -156,7 +156,8 @@ await page.getByRole('menuitem', { name: 'Restore default layout' }).click();
 await page.waitForTimeout(500);
 check('Layout: restore default brings it back', (await page.locator('section[aria-label="Calendar"]').count()) === 1);
 const genReset = await box(page.locator('.react-grid-item:has(section[aria-label="General"])'));
-check('Layout: restore default puts General back on the left', genReset.x < 200, String(genReset.x));
+const musReset = await box(page.locator('.react-grid-item:has(section[aria-label="Music"])'));
+check('Layout: restore default puts General back on the left', genReset.x < musReset.x && genReset.y === musReset.y, `${genReset.x} vs ${musReset.x}`);
 
 /* ---------- quick capture ---------- */
 const count0 = (await store()).tasks.filter((t) => t.title === 'Quick one').length;
@@ -276,13 +277,16 @@ check('Today strip: today + overdue work shown, no invented items', today.length
 
 /* ---------- themes ---------- */
 await page.getByRole('button', { name: 'Appearance' }).click();
-await page.getByRole('radio', { name: /Parchment/ }).click();
-const bgP = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+await page.getByRole('radio', { name: /Nocturne/ }).click();
+const lookN = await page.evaluate(() => [document.documentElement.dataset.look, document.documentElement.dataset.style].join());
 await page.getByRole('radio', { name: /Modern/ }).click();
-const lookM = await page.evaluate(() => document.documentElement.dataset.look);
-await page.getByRole('radio', { name: /Manuscript/ }).click();
+const lookM = await page.evaluate(() => [document.documentElement.dataset.look, document.documentElement.dataset.style].join());
+await page.getByRole('radio', { name: /Illuminated/ }).click();
 await page.keyboard.press('Escape');
-check('Themes: switch between Manuscript, Parchment and Modern', bgP !== '' && lookM === 'modern' && (await page.evaluate(() => document.documentElement.dataset.look)) === 'manuscript');
+const vine = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--vine'));
+check('Themes: Illuminated, Nocturne and Modern switch; medieval looks draw the vine border', lookN === 'nocturne,medieval' && lookM === 'modern,modern'
+  && (await page.evaluate(() => document.documentElement.dataset.look)) === 'illuminated' && vine.includes('data:image/svg+xml'), `${lookN} ${lookM}`);
+check('Drollery: the lion marginalia renders', await page.locator('.capture-drollery').evaluate((img) => img.complete && img.naturalWidth > 0));
 
 /* ---------- focus mode & narrow ---------- */
 await general.getByRole('button', { name: 'Focus General' }).click();

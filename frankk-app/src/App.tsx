@@ -13,6 +13,7 @@ import { NoteDialog } from './components/NoteDialog';
 import { SearchPalette } from './components/SearchPalette';
 import { Placeholder, SettingsPage } from './components/Pages';
 import { NewTaskDialog } from './components/NewTaskDialog';
+import { Initial } from './components/Ornaments';
 import { AppearanceButton } from './components/Appearance';
 import { Dropdown } from './components/Dropdown';
 import { applyTheme, DEFAULT_THEME, type ThemePrefs } from './lib/theme';
@@ -33,7 +34,7 @@ export default function App() {
   const [view, setView] = useState<View>('home');
   const { focusArea, setFocusArea, setPalette, paletteOpen, noteDialog, drawerTaskId, projectDialog, toast, say } = useUi();
   const { undo, canUndo } = useStore();
-  const [theme, setTheme] = usePersistentState<ThemePrefs>('theme', DEFAULT_THEME);
+  const [theme, setTheme] = usePersistentState<ThemePrefs>('theme.v2', DEFAULT_THEME);
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   useEffect(() => {
@@ -149,7 +150,7 @@ function Home({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs
     <div className="home">
       <header className="home-head">
         <div>
-          <h1><span className="dropcap" aria-hidden="true">{g[0]}</span><span className="sr-only">{g[0]}</span>{g.slice(1)}, FRANKK</h1>
+          <h1><Initial letter={g[0]} /><span className="sr-only">{g[0]}</span><span className="greet-rest">{g.slice(1)}, FRANKK</span></h1>
           <p className="tagline">A little structure. More room to create.</p>
         </div>
         <div className="head-actions">
@@ -174,7 +175,6 @@ function Home({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs
               </div>
             )}
           </Popover>
-          <div className="vault-badge" title="Sample records stored in this browser only"><Icon name="folder" size={18} /><span><small>SAMPLE DATA</small><b>No vault connected</b></span></div>
         </div>
       </header>
 

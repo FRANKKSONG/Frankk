@@ -8,7 +8,7 @@ It never reads or writes your Obsidian vault. All records are sample data kept i
 npm install
 npm run dev        # http://127.0.0.1:5173   (add ?today=2026-10-14 to pin the date)
 npm test           # unit tests (rules: progress, scope, bills, agenda)
-npm run e2e        # 62 browser checks (needs the dev server running and Chromium)
+npm run e2e        # 63 browser checks (needs the dev server running and Chromium)
 ```
 
 ## What works (real)
@@ -47,3 +47,8 @@ Screenshots: `docs/screens/`.
 - **Tags**: coloured, add from any row or with `#tag` in quick capture, click a tag to filter the board, rename/recolour in Settings.
 - Full **New task** and **New project** windows that ask for everything.
 - More colour coding: priority stripes, brand colours, project colours, date pills (today, soon, overdue), calendar dots by area.
+
+## Iteration 4: medieval art direction
+- New default look **Illuminated** (vellum, iron-gall ink, flat lapis / vermilion / verdigris / gold), plus **Nocturne** (the same manuscript language printed dark with grain) and **Modern**.
+- No glows, gradients, blur or rounded pills in the medieval looks: double ink rules, blackletter rubrics, small caps, pilcrows, Roman-numeral steps.
+- Ornaments: vine border with ivy leaves and gold dots, diaper band, illuminated initials, arch emblem, and the lion drollery.

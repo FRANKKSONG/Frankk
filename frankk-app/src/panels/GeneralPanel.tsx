@@ -11,10 +11,10 @@ import { usePersistentState } from '../hooks/usePersistentState';
 import { FILTERS, SORTS, applyFilter, applySort, type Filter, type SortKey } from '../lib/tasks';
 
 export const GENERAL_COLS: ColDef[] = [
-  { id: 'title', label: 'To-do', width: 124, min: 60 },
+  { id: 'title', label: 'To-do', width: 118, min: 60 },
   { id: 'progress', label: 'Progress', width: 60, min: 40 },
-  { id: 'plan', label: 'Plan', width: 50, min: 40 },
-  { id: 'due', label: 'Due', width: 54, min: 40 },
+  { id: 'plan', label: 'Plan', width: 56, min: 40 },
+  { id: 'due', label: 'Due', width: 64, min: 40 },
   { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true },
   { id: 'list', label: 'List', width: 80, min: 40, defaultHidden: true },
 ];

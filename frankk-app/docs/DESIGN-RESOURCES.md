@@ -17,10 +17,9 @@ orpiment and ochre (Seround), gold leaf (accent), madder, tyrian purple, azurite
 The hex values are visual approximations chosen for contrast on screen, not colorimetric measurements.
 
 ## Typefaces (Google Fonts, free)
-- **Cinzel**: Roman inscriptional capitals, for panel titles and the wordmark
-- **IM Fell English**: 17th-century Fell types, for the greeting and tagline
-- **Alegreya Sans**: calligraphy-rooted humanist sans, readable at small sizes for dense tables
-- **UnifrakturMaguntia**: blackletter, used only for the illuminated drop cap
+- **Grenze Gotisch**: a readable Gothic textura for headings and rubrics
+- **UnifrakturMaguntia**: blackletter for the illuminated initials and the Esther name
+- **Alegreya** and **Alegreya SC**: calligraphy-rooted book serif and its small caps, for body text, labels and dates
 - Pairing notes: [EB Garamond pairings](https://fontalternatives.com/pairings/eb-garamond/), [UnifrakturMaguntia pairings](https://fontalternatives.com/pairings/unifraktur-maguntia/)
 
 ## Ornament and imagery (public domain, check each licence)
@@ -31,5 +30,12 @@ The hex values are visual approximations chosen for contrast on screen, not colo
 - [USF ClipArt: 14th-century border](https://etc.usf.edu/clipart/77000/77079/77079_14c-msborder.htm)
 - [RIBApix: medieval border plates](https://www.architecture.com/image-library/ribapix/image-information/poster/medieval-ornament-no-2-examples-of-decorative-borders-from-illuminated-manuscripts-from-the-9th-to-t/posterid/RIBA93659.html)
 
-The current build draws its ornament in code (gold double rules, fleurons ❦ ❧, the drop cap and an SVG paper grain),
-because the hosted preview can't load outside images. Licensed images from the sources above can be added in the desktop app later.
+## What is in the app now
+- **Drollery**: the lion playing a vielle (a medieval marginal drawing supplied by FRANKK) sits in the sidebar and Quick capture.
+- **Drawn in code** (`src/lib/ornaments.ts`, `src/components/Ornaments.tsx`): the vine border with ivy leaves and gold dots
+  (after Gothic marginal borders), a lapis/vermilion diaper band, illuminated initials (gold letter, lapis field, vermilion frame,
+  white penwork), a pointed-arch emblem with stars, vellum mottling and print grain.
+- **Rubrication**: pilcrows (¶), red first letters, double ink rules, Roman numerals on the release steps.
+
+Downloading more artwork from Wikimedia Commons, the Met and other museum APIs was blocked by this cloud environment's
+network policy. Once those hosts are allowed (or on your PC), public-domain miniatures can be added the same way.
