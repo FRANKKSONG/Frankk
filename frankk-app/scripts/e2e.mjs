@@ -483,6 +483,16 @@ await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
 }
 
+{
+  const k = page.locator('.knight'); const kb = await k.boundingBox();
+  await page.mouse.move(kb.x + 32, kb.y + 12); await page.mouse.down(); await page.mouse.move(kb.x - 80, kb.y - 280, { steps: 10 });
+  const held = (await k.getAttribute('class')).includes('m-drag');
+  await page.mouse.up();
+  const seen = new Set(); const t0 = Date.now();
+  while (Date.now() - t0 < 5000) { const m = (await k.getAttribute('class')).match(/m-(\w+)/)[1]; seen.add(m); if (m === 'patrol' && seen.has('brush')) break; await page.waitForTimeout(40); }
+  check('Knight: drag him up; dropped from high he falls, is hurt, lies down, gets up, brushes off, resumes patrol', held && ['fall', 'hurt', 'down', 'getup', 'brush', 'patrol'].every((m) => seen.has(m)), [...seen].join(' → '));
+}
+
 /* ---------- focus mode & narrow ---------- */
 await general.getByRole('button', { name: 'Focus General' }).click();
 check('Focus mode: General fills the main area', (await box(page.locator('.focus > .panel'))).width > 900);

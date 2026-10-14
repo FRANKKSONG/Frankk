@@ -1600,7 +1600,7 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 
 /* ── Iteration 22: the knight assistant patrols the bottom edge; no footer bar taking space ── */
 .assistant-bar { display: none !important; }
-.knight { position: fixed; bottom: 4px; z-index: 450; width: 72px; height: 64px; padding: 0; background: none; border: 0; cursor: pointer;
+.knight { position: fixed; bottom: 4px; z-index: 450; width: 64px; height: 64px; touch-action: none; user-select: none; padding: 0; background: none; border: 0; cursor: pointer;
   image-rendering: pixelated; filter: drop-shadow(0 2px 0 rgba(0,0,0,.45)); transition: filter .15s; }
 .knight:hover { filter: drop-shadow(0 2px 0 rgba(0,0,0,.45)) drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 70%, transparent)); }
 .knight.walking svg { animation: knight-bob .22s steps(2) infinite; }
@@ -1627,3 +1627,35 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .knight::after { content: ''; position: absolute; left: 50%; bottom: 0; width: 40px; height: 6px; transform: translateX(-50%); border-radius: 50%; background: rgba(0,0,0,.38); z-index: -1; }
 .knight { filter: none; }
 .knight:hover { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)); }
+
+/* ── Iteration 23: knight can be carried, falls, gets hurt, lies dizzy, gets up and brushes off ── */
+.knight-body { display: block; width: 64px; height: 64px; transform-origin: 50% 92%; }
+.knight.m-drag { cursor: grabbing; }
+.knight.m-drag .knight-body, .knight.m-fall .knight-body { transform-origin: 50% 10%; animation: knight-sway .5s ease-in-out infinite alternate; }
+@keyframes knight-sway { from { rotate: -6deg; } to { rotate: 6deg; } }
+.knight.m-drag::after, .knight.m-fall::after { opacity: 0; }
+.knight.m-hurt .knight-body { animation: knight-squash .38s ease-out 1; }
+@keyframes knight-squash { 0% { transform: scale(1.25, .7); } 35% { transform: scale(.9, 1.1) translateX(-2px); } 55% { transform: scale(1.05, .95) translateX(2px); } 100% { transform: none; } }
+.knight.m-down .knight-body { transform: rotate(90deg) translate(14px, -6px); animation: knight-flop .3s cubic-bezier(.3, 1.5, .6, 1) 1; }
+@keyframes knight-flop { from { transform: rotate(40deg) translate(4px, 0); } to { transform: rotate(90deg) translate(14px, -6px); } }
+.knight.m-getup .knight-body { animation: knight-rise .45s ease-out 1; }
+@keyframes knight-rise { from { transform: rotate(60deg) translate(8px, -2px); } to { transform: none; } }
+.knight.m-brush .knight-body { animation: knight-wobble .38s ease-in-out infinite alternate; }
+@keyframes knight-wobble { from { rotate: -2deg; } to { rotate: 2deg; } }
+.knight-stars { position: absolute; left: 44px; bottom: 26px; width: 28px; height: 14px; animation: knight-orbit 1s linear infinite; pointer-events: none; }
+.knight-stars i { position: absolute; font-style: normal; color: #f6d680; font-size: 11px; line-height: 1; text-shadow: 0 0 4px rgba(246, 214, 128, .7); }
+.knight-stars i:nth-child(1) { left: 0; top: 4px; } .knight-stars i:nth-child(2) { left: 10px; top: -2px; } .knight-stars i:nth-child(3) { left: 20px; top: 4px; }
+@keyframes knight-orbit { 0% { transform: translateX(-4px) scaleY(.6); } 50% { transform: translateX(4px) scaleY(.6); } 100% { transform: translateX(-4px) scaleY(.6); } }
+.knight-dust { position: absolute; inset: auto 0 2px 0; height: 20px; pointer-events: none; }
+.knight-dust i { position: absolute; bottom: 0; width: 7px; height: 7px; border-radius: 50%; background: rgba(214, 200, 170, .55); animation: knight-puff .75s ease-out infinite; }
+.knight-dust i:nth-child(1) { left: 14px; } .knight-dust i:nth-child(2) { left: 24px; animation-delay: .2s; } .knight-dust i:nth-child(3) { left: 36px; animation-delay: .4s; } .knight-dust i:nth-child(4) { left: 44px; animation-delay: .55s; }
+@keyframes knight-puff { from { transform: translateY(0) scale(.5); opacity: .9; } to { transform: translateY(-16px) scale(1.4); opacity: 0; } }
+.knight-ouch { position: absolute; top: -10px; left: 40px; font: 700 16px var(--font-display); color: #e65046; animation: knight-ouch .38s ease-out 1; pointer-events: none; }
+@keyframes knight-ouch { from { transform: translateY(6px) scale(.5); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .knight-body, .knight-stars, .knight-dust i { animation: none !important; } }
+/* lying down: rotate about the centre so he rests on the ground instead of sinking below it */
+.knight.m-down .knight-body { transform-origin: 50% 50%; transform: rotate(90deg) translateX(4px); animation: knight-flop2 .32s cubic-bezier(.3, 1.5, .6, 1) 1; }
+@keyframes knight-flop2 { from { transform: rotate(25deg); } to { transform: rotate(90deg) translateX(4px); } }
+.knight.m-getup .knight-body { transform-origin: 50% 50%; animation: knight-rise2 .45s ease-out 1; }
+@keyframes knight-rise2 { from { transform: rotate(70deg) translateX(3px); } to { transform: none; } }
+.knight-stars { left: 40px; bottom: 44px; }
