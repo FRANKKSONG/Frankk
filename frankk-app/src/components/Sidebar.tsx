@@ -1,32 +1,32 @@
 import { Icon, type IconName } from './Icons';
-import { useUi } from '../ui';
+import { useUi, type Page } from '../ui';
 import { ArchEmblem, Drollery } from './Ornaments';
 import type { Area } from '../data/types';
 
-export type View = 'home' | 'library' | 'calendar' | 'settings';
-
-const NAV: { id: string; label: string; icon: IconName; area?: Area; view?: View }[] = [
-  { id: 'home', label: 'Home', icon: 'home', view: 'home' },
-  { id: 'tasks', label: 'Tasks', icon: 'tasks', area: 'general' },
-  { id: 'music', label: 'Music', icon: 'music', area: 'music' },
-  { id: 'seround', label: 'Seround', icon: 'seround', area: 'seround' },
-  { id: 'house', label: 'House', icon: 'house', area: 'house' },
-  { id: 'library', label: 'Library', icon: 'library', view: 'library' },
-  { id: 'calendar', label: 'Calendar', icon: 'calendar', view: 'calendar' },
+const NAV: { id: string; label: string; icon: IconName; page: Page; area?: Area; sub?: boolean }[] = [
+  { id: 'home', label: 'Home', icon: 'home', page: 'home' },
+  { id: 'tasks', label: 'Tasks', icon: 'tasks', page: 'tasks' },
+  { id: 'general', label: 'General', icon: 'check', page: 'tasks', area: 'general', sub: true },
+  { id: 'music', label: 'Music', icon: 'music', page: 'tasks', area: 'music', sub: true },
+  { id: 'seround', label: 'Seround', icon: 'seround', page: 'tasks', area: 'seround', sub: true },
+  { id: 'house', label: 'House', icon: 'house', page: 'tasks', area: 'house', sub: true },
+  { id: 'notes', label: 'Notes', icon: 'note', page: 'notes' },
+  { id: 'library', label: 'Library', icon: 'library2', page: 'library' },
+  { id: 'calendar', label: 'Calendar', icon: 'calendar', page: 'calendar' },
 ];
 
-export function Sidebar({ view, setView }: { view: View; setView: (v: View) => void }) {
-  const { focusArea, setFocusArea } = useUi();
-  const active = (n: (typeof NAV)[number]) => (n.area ? view === 'home' && focusArea === n.area : n.id === 'home' ? view === 'home' && !focusArea : view === n.view);
+export function Sidebar() {
+  const { focusArea, setFocusArea, page, go } = useUi();
+  const active = (n: (typeof NAV)[number]) => (n.area ? page === 'tasks' && focusArea === n.area : n.id === 'tasks' ? page === 'tasks' && !focusArea : page === n.page);
   return (
     <nav className="sidebar" aria-label="Main">
       <div className="brand"><ArchEmblem /><div className="wordmark" aria-label="Esther">Esther</div></div>
       <ul>
         {NAV.map((n) => (
-          <li key={n.id}>
+          <li key={n.id} className={n.sub ? 'sub' : ''}>
             <button className={active(n) ? 'active' : ''} aria-current={active(n) ? 'page' : undefined} title={n.label}
-              onClick={() => { setView('home'); if (n.area) setFocusArea(n.area); else { setFocusArea(null); if (n.view) setView(n.view); } }}>
-              <Icon name={n.icon} size={18} /><span>{n.label}</span>
+              onClick={() => { go(n.page); setFocusArea(n.area ?? null); }}>
+              <Icon name={n.icon} size={n.sub ? 15 : 18} /><span>{n.label}</span>
             </button>
           </li>
         ))}
@@ -35,10 +35,9 @@ export function Sidebar({ view, setView }: { view: View; setView: (v: View) => v
         <Drollery className="side-drollery" />
         <div className="vault-box">
           <div className="vault-name"><Icon name="folder" size={16} /><span><small>Obsidian vault</small><b>Sample data</b></span></div>
-          <button className="btn small" disabled title="Not connected: the real vault is connected in Milestone 2 (read-only)">Not connected</button>
+          <button className="btn small" onClick={() => go('settings')} title="See Vault & storage in Settings">Not connected</button>
         </div>
-        <button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')} title="Settings"><Icon name="settings" size={18} /><span>Settings</span></button>
-        <p className="tiny">Local notes · Yours to keep</p>
+        <button className={page === 'settings' ? 'active' : ''} onClick={() => go('settings')} title="Settings"><Icon name="settings" size={18} /><span>Settings</span></button>
       </div>
     </nav>
   );

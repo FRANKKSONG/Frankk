@@ -1,6 +1,7 @@
 import { addDays, monthKey, addMonths, type ISODate } from '../lib/dates';
 import type { AppData, Stage, Task } from './types';
 import { BRANDS } from './types';
+import { defaultDashboard, defaultEntries, defaultNotes, defaultTypes, defaultViews } from './defaults';
 
 let seq = 0;
 export const newId = (p: string) => `${p}-${Date.now().toString(36)}-${(seq++).toString(36)}`;
@@ -32,10 +33,10 @@ export function buildFixtures(today: ISODate): AppData {
   });
 
   const tasks: Task[] = [
-    task({ id: 't-food', title: 'Clean food box', area: 'general', done: false, plan: today, due: d(1), list: 'Home admin', tags: ['home'],
+    task({ id: 't-food', title: 'Clean food box', props: { energy: 'Errand' }, area: 'general', done: false, plan: today, due: d(1), list: 'Home admin', tags: ['home'],
       steps: steps('t-food', [['Empty box', true], ['Wash & dry', true], ['Put away', false]]), notePath: 'Planning/Tasks/Clean food box.md' }),
     task({ id: 't-dentist', title: 'Book dentist', area: 'general', done: false, plan: d(2), due: d(4), mode: 'simple', tags: ['health'], notePath: 'Planning/Tasks/Book dentist.md' }),
-    task({ id: 't-budget', title: 'Review budget', area: 'general', done: false, plan: d(2), due: d(6), priority: 'high', list: 'Admin', tags: ['money'],
+    task({ id: 't-budget', title: 'Review budget', props: { energy: 'Deep work' }, area: 'general', done: false, plan: d(2), due: d(6), priority: 'high', list: 'Admin', tags: ['money'],
       steps: steps('t-budget', [['Export statements', true], ['Categorise spending', false], ['Compare with last month', false], ['Note changes', false]]), notePath: 'Planning/Tasks/Review budget.md' }),
     task({ id: 't-landlord', title: 'Call landlord about the gate', area: 'general', done: false, due: d(-2), priority: 'high', mode: 'simple', tags: ['home', 'urgent'], notePath: 'Planning/Tasks/Call landlord about the gate.md' }),
     task({ id: 't-course', title: 'Finish colour theory course', area: 'general', done: false, plan: d(5), tags: ['learning'],
@@ -113,6 +114,7 @@ export function buildFixtures(today: ISODate): AppData {
   return {
     version: 1, tasks, bills, projects, tags,
     brands: [...BRANDS],
+    types: defaultTypes(BRANDS), entries: defaultEntries(today), notes: defaultNotes(today), views: defaultViews(), dashboards: [defaultDashboard()],
     brandColors: { [sundey]: '#d4a03c', [eli]: '#3f9a80', [reva]: '#b44a6e' },
   };
 }

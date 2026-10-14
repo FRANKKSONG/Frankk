@@ -5,7 +5,7 @@ import { COLOR_KEYS, THEMES, themeColor, themeOf, type ThemeId, type ThemePrefs 
 export function AppearancePanel({ prefs, setPrefs }: { prefs: ThemePrefs; setPrefs: (p: ThemePrefs) => void }) {
   return (
     <div className="appearance">
-      <div className="theme-cards" role="radiogroup" aria-label="Theme">
+      <div className="theme-cards four" role="radiogroup" aria-label="Theme">
         {(Object.keys(THEMES) as ThemeId[]).map((id) => (
           <button key={id} role="radio" aria-checked={themeOf(prefs) === id} className={`theme-card look-${id}`}
             onClick={() => setPrefs({ theme: id, colors: {} })}>

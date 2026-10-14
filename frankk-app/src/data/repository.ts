@@ -13,7 +13,7 @@ export interface Repository {
   reset(): AppData;
 }
 
-const KEY = 'esther.proto.data.v2';
+const KEY = 'esther.proto.data.v3';
 
 export class FixtureRepository implements Repository {
   readonly kind = 'fixture' as const;
@@ -23,7 +23,7 @@ export class FixtureRepository implements Repository {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as AppData;
-        if (parsed.version === 1 && Array.isArray(parsed.tasks) && Array.isArray(parsed.tags)) return parsed;
+        if (parsed.version === 1 && Array.isArray(parsed.tasks) && Array.isArray(parsed.tags) && Array.isArray(parsed.types)) return parsed;
       }
     } catch {
       /* corrupt or unavailable storage: fall back to the sample data */

@@ -1,4 +1,5 @@
 import type { ISODate } from '../lib/dates';
+import type { Dashboard, Entry, Note, TypeDef, ViewDef } from './schema';
 
 export type Area = 'general' | 'music' | 'seround' | 'house';
 export type TaskArea = 'general' | 'seround' | 'house';
@@ -39,6 +40,8 @@ export interface Task {
   mode: 'progress' | 'simple';
   tags: string[];
   notes?: string;
+  /** Values of custom fields you added to the Task type. */
+  props?: Record<string, unknown>;
   /** Path of the (fixture) note this task would live in. */
   notePath: string;
 }
@@ -58,6 +61,7 @@ export interface Bill {
   start: string;
   /** Per-month payment state. One month never affects another. */
   payments: Record<string, Payment>;
+  props?: Record<string, unknown>;
   notePath: string;
 }
 
@@ -97,6 +101,7 @@ export interface MusicProject {
   /** Colour used for this project's row stripe. */
   color?: string;
   notes?: string;
+  props?: Record<string, unknown>;
   notePath: string;
 }
 
@@ -111,6 +116,11 @@ export interface AppData {
   brands: string[];
   brandColors: Record<string, string>;
   tags: TagDef[];
+  types: TypeDef[];
+  entries: Entry[];
+  notes: Note[];
+  views: ViewDef[];
+  dashboards: Dashboard[];
 }
 
 export const STAGE_LIBRARY = ['Concept', 'Lyrics', 'Produce', 'Record', 'Mix', 'Master', 'Mix & Master', 'Art (Design)', 'MV', 'Marketing', 'Streaming', 'Release'];

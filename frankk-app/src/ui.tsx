@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Area, TaskArea } from './data/types';
 
+export type Page = 'home' | 'tasks' | 'notes' | 'library' | 'calendar' | 'settings';
+
 interface Ui {
   drawerTaskId: string | null;
   openTask: (id: string | null) => void;
@@ -20,6 +22,10 @@ interface Ui {
   /** Board-wide tag filter. */
   tagFilter: string | null;
   setTagFilter: (t: string | null) => void;
+  page: Page;
+  go: (p: Page, opts?: { noteId?: string }) => void;
+  noteId: string | null;
+  setNoteId: (id: string | null) => void;
   newTask: { area: TaskArea; brand?: string } | null;
   setNewTask: (v: { area: TaskArea; brand?: string } | null) => void;
 }
@@ -36,6 +42,9 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const [projectDialog, setProjectDialog] = useState(false);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [newTask, setNewTask] = useState<Ui['newTask']>(null);
+  const [page, setPage] = useState<Page>('home');
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const go = useCallback((p: Page, opts?: { noteId?: string }) => { setPage(p); if (opts?.noteId) setNoteId(opts.noteId); if (p !== 'tasks') setFocusArea(null); }, []);
   const timer = useRef<number | undefined>(undefined);
   const n = useRef(0);
 
@@ -48,8 +57,8 @@ export function UiProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Ui>(() => ({
     drawerTaskId, openTask, noteDialog, openNote, toast, say, paletteOpen, setPalette, focusArea, setFocusArea,
-    reveal, revealRow, projectDialog, setProjectDialog, tagFilter, setTagFilter, newTask, setNewTask,
-  }), [drawerTaskId, noteDialog, toast, say, paletteOpen, focusArea, reveal, revealRow, projectDialog, tagFilter, newTask]);
+    reveal, revealRow, projectDialog, setProjectDialog, tagFilter, setTagFilter, newTask, setNewTask, page, go, noteId, setNoteId,
+  }), [drawerTaskId, noteDialog, toast, say, paletteOpen, focusArea, reveal, revealRow, projectDialog, tagFilter, newTask, page, go, noteId]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

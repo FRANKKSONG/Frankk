@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import ReactGridLayout, { useContainerWidth, verticalCompactor, type Compactor, type Layout, type LayoutItem } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
-import { Sidebar, type View } from './components/Sidebar';
+import { Sidebar } from './components/Sidebar';
 import { Icon } from './components/Icons';
 import { Popover } from './components/Popover';
 import { TodayStrip } from './components/TodayStrip';
@@ -11,7 +11,11 @@ import { MiniCalendar } from './components/MiniCalendar';
 import { TaskDrawer } from './components/TaskDrawer';
 import { NoteDialog } from './components/NoteDialog';
 import { SearchPalette } from './components/SearchPalette';
-import { Placeholder, SettingsPage } from './components/Pages';
+import { SettingsPage } from './pages/SettingsPage';
+import { HomePage } from './pages/HomePage';
+import { NotesPage } from './pages/NotesPage';
+import { LibraryPage } from './pages/LibraryPage';
+import { CalendarPage } from './pages/CalendarPage';
 import { NewTaskDialog } from './components/NewTaskDialog';
 import { Initial } from './components/Ornaments';
 import { AppearanceButton } from './components/Appearance';
@@ -24,17 +28,15 @@ import { HousePanel } from './panels/HousePanel';
 import { useUi } from './ui';
 import { useStore } from './data/store';
 import { usePersistentState } from './hooks/usePersistentState';
-import { greeting } from './lib/dates';
 import { COLS, DEFAULT_LAYOUT, DEFAULT_ROWS, MARGIN, MIN_BOARD_WIDTH, WIDGETS, defaultItem, swapOnDrop, type WidgetId } from './layout';
 import type { Area } from './data/types';
 
 const hasCoarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export default function App() {
-  const [view, setView] = useState<View>('home');
-  const { focusArea, setFocusArea, setPalette, paletteOpen, noteDialog, drawerTaskId, projectDialog, toast, say } = useUi();
+  const { page, focusArea, setFocusArea, setPalette, paletteOpen, noteDialog, drawerTaskId, projectDialog, toast, say } = useUi();
   const { undo, canUndo } = useStore();
-  const [theme, setTheme] = usePersistentState<ThemePrefs>('theme.v2', DEFAULT_THEME);
+  const [theme, setTheme] = usePersistentState<ThemePrefs>('theme.v3', DEFAULT_THEME);
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   useEffect(() => {
@@ -53,12 +55,14 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar view={view} setView={setView} />
+      <Sidebar />
       <main className="main">
-        {view === 'home' && <Home theme={theme} setTheme={setTheme} />}
-        {view === 'settings' && <SettingsPage theme={theme} setTheme={setTheme} />}
-        {view === 'library' && <Placeholder title="Library" milestone="a later milestone">References, links and attachments from your vault will appear here. Nothing is linked yet.</Placeholder>}
-        {view === 'calendar' && <Placeholder title="Calendar" milestone="Milestone 6">A full calendar needs an explicitly chosen, read-only calendar first. The Home mini calendar is a date overview only.</Placeholder>}
+        {page === 'home' && <HomePage />}
+        {page === 'tasks' && <TasksBoard theme={theme} setTheme={setTheme} />}
+        {page === 'notes' && <NotesPage />}
+        {page === 'library' && <LibraryPage />}
+        {page === 'calendar' && <CalendarPage />}
+        {page === 'settings' && <SettingsPage theme={theme} setTheme={setTheme} />}
       </main>
       <TaskDrawer />
       <NoteDialog />
@@ -86,10 +90,10 @@ function PanelFor({ area, focused }: { area: Area; focused: boolean }) {
 // on release it swaps with the panel it was dropped on (see swapOnDrop).
 const floatingCompactor: Compactor = { ...verticalCompactor, allowOverlap: true, compact: (l: Layout) => l };
 
-function Home({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
+/** The Tasks page: the bento board of every area at a glance. */
+function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
   const { focusArea, setPalette, tagFilter, setTagFilter } = useUi();
   const { data } = useStore();
-  const g = greeting();
   const [day, setDay] = useState<string | null>(null);
   const [saved, setSaved] = usePersistentState<{ items: LayoutItem[]; hidden: WidgetId[] }>('layout.board', { items: DEFAULT_LAYOUT, hidden: [] });
   const { width, containerRef, mounted } = useContainerWidth();
@@ -150,8 +154,8 @@ function Home({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs
     <div className="home">
       <header className="home-head">
         <div>
-          <h1><Initial letter={g[0]} /><span className="sr-only">{g[0]}</span><span className="greet-rest">{g.slice(1)}, FRANKK</span></h1>
-          <p className="tagline">A little structure. More room to create.</p>
+          <h1><Initial letter="T" /><span className="sr-only">T</span><span className="greet-rest">asks</span></h1>
+          <p className="tagline">Every area at a glance. Drag, resize and edit anything.</p>
         </div>
         <div className="head-actions">
           <button className="search-btn" onClick={() => setPalette(true)} aria-label="Search (Ctrl+K)"><Icon name="search" /><span>Search anything…</span><kbd>Ctrl</kbd><kbd>K</kbd></button>

@@ -9,7 +9,7 @@ const LATER: { id: string; label: string; icon: IconName }[] = [
   { id: 'link', label: 'Link', icon: 'link' }, { id: 'meeting', label: 'Meeting', icon: 'calendar' },
 ];
 
-export function QuickCapture() {
+export function QuickCapture({ bare }: { bare?: boolean }) {
   const { dispatch, data } = useStore();
   const [area, setArea] = useState<'general' | 'seround' | 'house'>('general');
   const { say } = useUi();
@@ -32,8 +32,8 @@ export function QuickCapture() {
   };
 
   return (
-    <section className="capture" aria-label="Quick capture">
-      <h3><Icon name="bolt" size={15} /> Quick capture</h3>
+    <section className={`capture${bare ? ' bare' : ''}`} aria-label="Quick capture">
+      {!bare && <h3><Icon name="bolt" size={15} /> Quick capture</h3>}
       <div className="capture-row">
         <input value={text} placeholder="Write a task… add #tags to tag it" aria-label="Quick capture text" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save(); }} />
         <select aria-label="Category" value={area} onChange={(e) => setArea(e.target.value as typeof area)}>
@@ -51,7 +51,7 @@ export function QuickCapture() {
         ))}
       </div>
       <p className="hint">Tasks only for now. Notes, ideas, links and meetings are planned.</p>
-      <Drollery className="capture-drollery" />
+      {!bare && <Drollery className="capture-drollery" />}
     </section>
   );
 }

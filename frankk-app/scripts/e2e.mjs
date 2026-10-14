@@ -21,11 +21,79 @@ const music = page.locator('section[aria-label="Music"]');
 const seround = page.locator('section[aria-label="Seround"]');
 const house = page.locator('section[aria-label="House"]');
 const titles = async () => (await general.locator('.task .task-title').allTextContents()).map((s) => s.trim());
-const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.data.v2')));
+const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.data.v3')));
 const box = async (loc) => (await loc.boundingBox());
-const reload = async () => { await page.reload(); await page.waitForSelector('section[aria-label="General"]'); await page.waitForTimeout(900); };
+const reload = async () => { await page.reload(); await page.waitForSelector('.homepage'); await page.getByRole('button', { name: 'Tasks', exact: true }).click(); await page.waitForSelector('section[aria-label="General"]'); await page.waitForTimeout(900); };
+const reloadHome = async () => { await page.reload(); await page.waitForSelector('.homepage'); await page.waitForTimeout(700); };
 
-await page.goto(BASE); await page.waitForSelector('section[aria-label="General"]'); await page.waitForTimeout(900);
+await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitForTimeout(900);
+
+/* ---------- Home dashboard ---------- */
+const overdueNum = await page.locator('[data-widget="w-over"] .w-stat-num').textContent();
+check('Home: at-a-glance numbers come from the data (2 overdue)', overdueNum === '2', overdueNum);
+check('Home: Today, This week, Music, Money widgets render', (await page.locator('.wcard').count()) >= 10 && (await page.locator('.w-week .w-day').count()) === 7);
+await page.getByRole('button', { name: 'Customize' }).click();
+const wBefore = await page.locator('.wcard').count();
+await page.getByRole('button', { name: 'Add widget' }).click();
+await page.locator('.catalog-item', { hasText: 'Pinned note' }).click();
+await page.waitForTimeout(300);
+check('Home: add a widget from the catalog', (await page.locator('.wcard').count()) === wBefore + 1);
+await page.locator('[data-widget="w-capture"]').getByRole('button', { name: /Settings for/ }).click();
+await page.getByRole('button', { name: 'Remove widget' }).click();
+check('Home: remove a widget', (await page.locator('.wcard').count()) === wBefore);
+await page.getByRole('button', { name: 'Background' }).click();
+await page.locator('.bg-tile', { hasText: 'Starred lapis' }).click();
+await page.keyboard.press('Escape');
+await page.getByRole('button', { name: 'Done' }).click();
+await reloadHome();
+check('Home: dashboard changes persist after restart', (await page.locator('.wcard').count()) === wBefore && (await store()).dashboards[0].background === 'lapis');
+
+/* ---------- Library: types, smart fields, views ---------- */
+await page.getByRole('button', { name: 'Library', exact: true }).click();
+await page.locator('.lib-type', { hasText: 'People' }).click();
+check('Library: People table lists 4 people', (await page.locator('.dv-table tbody tr').count()) === 4);
+await page.getByRole('tab', { name: /Fields/ }).click();
+await page.getByLabel('New field name').fill('Followers');
+const detected = await page.locator('.field-add select').inputValue();
+await page.getByRole('button', { name: 'Add field' }).click();
+const personType = (await store()).types.find((t) => t.id === 'person');
+check('Library: new field kind is detected (Followers → Number) and stored on the type', detected === 'number' && personType.fields.some((f) => f.key === 'followers' && f.kind === 'number'), detected);
+await page.getByRole('tab', { name: 'Records' }).click();
+await page.locator('.lib-type', { hasText: 'Ideas' }).click();
+const card = page.locator('.dv-card', { hasText: 'sundey sticker merch' });
+await card.dragTo(page.locator('.dv-col', { hasText: 'Doing' }).first());
+await page.waitForTimeout(200);
+check('Library: drag a card to another board column updates its field', (await store()).entries.find((e) => e.id === 'e-merch').props.status === 'Doing');
+await page.getByRole('radio', { name: 'Table' }).click();
+check('Library: switch the same view to a table', (await page.locator('.dv-table').count()) === 1);
+await page.getByRole('button', { name: 'New type' }).click();
+await page.locator('#nty-name').fill('Book');
+await page.locator('.chip-check', { hasText: 'Author' }).click();
+await page.locator('.chip-check', { hasText: 'Rating' }).click();
+await page.getByRole('button', { name: 'Create type' }).click();
+const book = (await store()).types.find((t) => t.id === 'book');
+check('Library: create your own type with suggested smart fields', book && book.fields.map((f) => `${f.key}:${f.kind}`).join() === 'author:text,rating:rating', JSON.stringify(book?.fields));
+
+/* ---------- Notes ---------- */
+await page.getByRole('button', { name: 'Notes', exact: true }).click();
+await page.locator('.tree-note', { hasText: 'My next single' }).click();
+check('Notes: backlinks list notes that link here', (await page.locator('.note-side .side-link', { hasText: 'Knowledge index' }).count()) === 1);
+await page.locator('.tree-note', { hasText: 'Vocal mixing notes' }).click();
+await page.locator('.note-read .wikilink', { hasText: 'Jing' }).click();
+check('Notes: [[Jing]] opens the person record', await page.getByRole('dialog', { name: /Details: Jing/ }).isVisible());
+await page.keyboard.press('Escape');
+await page.locator('.proposal', { hasText: 'Mood' }).getByRole('button', { name: 'Approve' }).click();
+check('Notes: approving a librarian proposal applies it', (await store()).types.find((t) => t.id === 'idea').fields.some((f) => f.key === 'mood'));
+
+/* ---------- Settings ---------- */
+await page.getByRole('button', { name: 'Settings', exact: true }).click();
+await page.getByRole('button', { name: 'Obsidian bridge' }).click();
+check('Settings: saved views preview as Obsidian Bases files', (await page.locator('.code-block').textContent()).includes('file.inFolder('));
+await page.getByRole('button', { name: 'Vault & storage' }).click();
+check('Settings: storage shows every type and its vault folder', (await page.locator('.set-table tbody tr').count()) === (await store()).types.length);
+
+await page.getByRole('button', { name: 'Tasks', exact: true }).click();
+await page.waitForSelector('section[aria-label="General"]'); await page.waitForTimeout(700);
 
 /* ---------- General: create ---------- */
 await general.getByRole('button', { name: 'New task' }).click();
@@ -281,11 +349,11 @@ await page.getByRole('radio', { name: /Nocturne/ }).click();
 const lookN = await page.evaluate(() => [document.documentElement.dataset.look, document.documentElement.dataset.style].join());
 await page.getByRole('radio', { name: /Modern/ }).click();
 const lookM = await page.evaluate(() => [document.documentElement.dataset.look, document.documentElement.dataset.style].join());
-await page.getByRole('radio', { name: /Illuminated/ }).click();
+await page.getByRole('radio', { name: /Gilded/ }).click();
 await page.keyboard.press('Escape');
 const vine = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--vine'));
-check('Themes: Illuminated, Nocturne and Modern switch; medieval looks draw the vine border', lookN === 'nocturne,medieval' && lookM === 'modern,modern'
-  && (await page.evaluate(() => document.documentElement.dataset.look)) === 'illuminated' && vine.includes('data:image/svg+xml'), `${lookN} ${lookM}`);
+check('Themes: Gilded, Nocturne and Modern switch; decorated looks draw the vine border', lookN === 'nocturne,medieval' && lookM === 'modern,modern'
+  && (await page.evaluate(() => document.documentElement.dataset.look)) === 'gilded' && vine.includes('data:image/svg+xml'), `${lookN} ${lookM}`);
 check('Drollery: the lion marginalia renders', await page.locator('.capture-drollery').evaluate((img) => img.complete && img.naturalWidth > 0));
 
 /* ---------- focus mode & narrow ---------- */
@@ -300,10 +368,11 @@ await page.screenshot({ path: 'docs/screens/narrow-1024.png' });
 await page.setViewportSize({ width: 1586, height: 992 });
 
 /* ---------- reset ---------- */
-await page.getByRole('button', { name: 'Settings' }).click();
+await page.getByRole('button', { name: 'Settings', exact: true }).click();
+await page.getByRole('button', { name: 'History & backups' }).click();
 await page.getByRole('button', { name: 'Reset sample data' }).click();
 await page.getByRole('button', { name: 'Yes, reset' }).click();
-await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.waitForTimeout(500);
+await page.getByRole('button', { name: 'Tasks', exact: true }).click(); await page.waitForTimeout(500);
 check('Reset sample data restores the originals', !(await titles()).includes('Pay parking fine'));
 await page.screenshot({ path: 'docs/screens/after-reset.png' });
 

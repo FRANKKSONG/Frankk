@@ -156,3 +156,53 @@ describe('iteration 3 rules', () => {
     expect(s.brandColors['Eli Lao']).toBe('#3f9a80');
   });
 });
+
+import { inferKind, toMarkdown } from './data/schema';
+import { applyView, recordsOf } from './lib/records';
+
+describe('object system', () => {
+  it('detects field kinds from names and sample values', () => {
+    expect(inferKind('Budget')).toBe('currency');
+    expect(inferKind('Release date')).toBe('date');
+    expect(inferKind('BPM')).toBe('number');
+    expect(inferKind('Status')).toBe('select');
+    expect(inferKind('Website')).toBe('url');
+    expect(inferKind('Anything', 'https://x.com')).toBe('url');
+    expect(inferKind('Anything', '2026-10-30')).toBe('date');
+    expect(inferKind('Anything', 'a@b.co')).toBe('email');
+    expect(inferKind('Anything', '75%')).toBe('percent');
+    expect(inferKind('Anything', '120')).toBe('number');
+    expect(inferKind('Is signed')).toBe('checkbox');
+  });
+  it('custom fields on built-in types are stored in props and readable by views', () => {
+    let s = fresh();
+    s = reducer(s, { type: 'record/set', typeId: 'task', id: 't-dentist', key: 'energy', value: 'Errand' });
+    const recs = recordsOf(s, 'task', TODAY);
+    expect(recs.find((r) => r.id === 't-dentist')!.get('energy')).toBe('Errand');
+    const errands = applyView(recs, { filters: [{ field: 'energy', op: 'is', value: 'Errand' }] });
+    expect(errands.map((r) => r.id).sort()).toEqual(['t-dentist', 't-food']);
+  });
+  it('computed fields cannot be overwritten', () => {
+    const s = fresh();
+    expect(reducer(s, { type: 'record/set', typeId: 'task', id: 't-food', key: 'progress', value: 5 })).toBe(s);
+  });
+  it('user types hold entries; views sort them', () => {
+    const recs = applyView(recordsOf(fresh(), 'person', TODAY), { filters: [], sort: { field: 'title', dir: 'asc' } });
+    expect(recs.map((r) => r.title)).toEqual(['Jing', 'Just', 'JZero', 'Mum']);
+  });
+  it('writes Obsidian-compatible frontmatter', () => {
+    expect(toMarkdown({ type: 'person', role: 'Artist', tags: ['client'], rate: 1500000 }, 'Hi')).toBe(
+      '---\ntype: person\nrole: Artist\ntags:\n  - "client"\nrate: 1500000\n---\n\nHi\n');
+  });
+});
+
+import { renderMarkdown, wikilinksIn } from './lib/markdown';
+describe('markdown', () => {
+  it('escapes HTML and renders wikilinks', () => {
+    const html = renderMarkdown('<script>x</script> see [[Jing]] and [[Nope]]', ['Jing']);
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('data-wikilink="Jing"');
+    expect(html).toContain('wikilink unresolved');
+    expect(wikilinksIn('a [[B]] c [[D|alias]]')).toEqual(['B', 'D']);
+  });
+});

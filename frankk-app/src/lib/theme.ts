@@ -6,7 +6,7 @@ import { diaper, grain, vineBorder, vineBorderVertical, type OrnamentInk } from 
  * Nocturne: the same manuscript vocabulary printed dark, with coarse grain.
  * Modern: the plain look.
  */
-export type ThemeId = 'illuminated' | 'nocturne' | 'modern';
+export type ThemeId = 'gilded' | 'illuminated' | 'nocturne' | 'modern';
 export type ColorKey = 'accent' | 'general' | 'music' | 'seround' | 'house';
 
 export interface ThemePrefs {
@@ -19,6 +19,8 @@ interface Theme {
   blurb: string;
   dark: boolean;
   medieval: boolean;
+  /** gilded = readable dashboard with medieval accents. */
+  gilded?: boolean;
   grain?: 'vellum' | 'print';
   ink?: OrnamentInk;
   vars: Record<string, string>;
@@ -31,6 +33,23 @@ const FRAKTUR = "'UnifrakturMaguntia', 'Grenze Gotisch', Georgia, serif";
 const MODERN = "'Inter', 'Noto Sans Lao', 'Segoe UI', system-ui, sans-serif";
 
 export const THEMES: Record<ThemeId, Theme> = {
+  gilded: {
+    label: 'Gilded',
+    blurb: 'Readable dashboard, art and gold',
+    dark: true, medieval: false, gilded: true,
+    ink: { ink: '#0e0c0a', stem: '#8c6a5a', red: '#e0694c', blue: '#6f93df', green: '#5fb08e', gold: '#d9a63a', ground: '#0e0c0a' },
+    vars: {
+      bg: '#0e0c0a', 'bg-2': '#191613', 'bg-3': '#221e1a', 'bg-hover': '#2a2520', 'pop-bg': '#1d1a16',
+      line: '#3b352d', 'line-soft': '#2a2520', 'line-gold': '#a8873e',
+      text: '#f2ede3', muted: '#b9af9d', faint: '#82796a',
+      accent: '#d9a63a', 'accent-ink': '#15110c', gold: '#d9a63a',
+      general: '#e0694c', music: '#6f93df', seround: '#e3b04b', house: '#5fb08e',
+      danger: '#e5604a', ok: '#7cc08a', warn: '#e8b24f', info: '#6f93df',
+      'font-display': GOTHIC, 'font-serif': SERIF, 'font-body': MODERN, 'font-sc': MODERN, 'font-cap': GOTHIC,
+      radius: '14px', 'radius-sm': '8px', 'pill-radius': '99px',
+      shadow: '0 10px 30px rgba(0,0,0,.35)', 'grain-opacity': '0',
+    },
+  },
   illuminated: {
     label: 'Illuminated',
     blurb: 'Vellum, ink and gold leaf',
@@ -88,9 +107,9 @@ export const COLOR_KEYS: { key: ColorKey; label: string }[] = [
   { key: 'seround', label: 'Seround' }, { key: 'house', label: 'House' },
 ];
 
-export const DEFAULT_THEME: ThemePrefs = { theme: 'illuminated', colors: {} };
+export const DEFAULT_THEME: ThemePrefs = { theme: 'gilded', colors: {} };
 
-export const themeOf = (prefs: ThemePrefs): ThemeId => (prefs.theme in THEMES ? prefs.theme : 'illuminated');
+export const themeOf = (prefs: ThemePrefs): ThemeId => (prefs.theme in THEMES ? prefs.theme : 'gilded');
 
 export function themeColor(prefs: ThemePrefs, key: ColorKey): string {
   return prefs.colors[key] ?? THEMES[themeOf(prefs)].vars[key];
@@ -112,6 +131,6 @@ export function applyTheme(prefs: ThemePrefs) {
   }
   root.style.setProperty('--grain', t.grain ? grain(t.grain) : 'none');
   root.dataset.look = id;
-  root.dataset.style = t.medieval ? 'medieval' : 'modern';
+  root.dataset.style = t.medieval ? 'medieval' : t.gilded ? 'gilded' : 'modern';
   root.style.colorScheme = t.dark ? 'dark' : 'light';
 }

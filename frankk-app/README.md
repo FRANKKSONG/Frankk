@@ -8,7 +8,7 @@ It never reads or writes your Obsidian vault. All records are sample data kept i
 npm install
 npm run dev        # http://127.0.0.1:5173   (add ?today=2026-10-14 to pin the date)
 npm test           # unit tests (rules: progress, scope, bills, agenda)
-npm run e2e        # 63 browser checks (needs the dev server running and Chromium)
+npm run e2e        # 78 browser checks (needs the dev server running and Chromium)
 ```
 
 ## What works (real)
@@ -52,3 +52,11 @@ Screenshots: `docs/screens/`.
 - New default look **Illuminated** (vellum, iron-gall ink, flat lapis / vermilion / verdigris / gold), plus **Nocturne** (the same manuscript language printed dark with grain) and **Modern**.
 - No glows, gradients, blur or rounded pills in the medieval looks: double ink rules, blackletter rubrics, small caps, pilcrows, Roman-numeral steps.
 - Ornaments: vine border with ivy leaves and gold dots, diaper band, illuminated initials, arch emblem, and the lion drollery.
+
+## Iteration 5: depth
+- Two main pages: **Home** (your own dashboard of widgets) and **Tasks** (the board).
+- **Library**: types with smart fields (kind detected from the name/example), your own types, saved views (table, board, gallery, calendar, list).
+- **Notes**: folders, Markdown, `[[wikilinks]]`, backlinks, linked records, the AI librarian's folder and proposals.
+- **Settings**: storage map (types → vault folders → files), Obsidian Bridge with Bases previews, AI & models (MCP for subscriptions, keys for DeepSeek/Jev), AI permissions, history.
+- New default look **Gilded**: readable dashboard over art backgrounds with medieval accents.
+- Principles and roadmap: `docs/ARCHITECTURE.md`.

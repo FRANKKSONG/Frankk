@@ -1,6 +1,7 @@
 import { newId } from './fixtures';
 import { uniqueNotePath } from '../lib/obsidian';
 import { PIGMENTS, type AppData, type MusicProject, type Stage, type StageItem, type Task } from './types';
+import type { Dashboard, Entry, FieldDef, Note, TypeDef, ViewDef, WidgetDef } from './schema';
 
 export type Action =
   | { type: 'task/add'; title: string; area?: Task['area']; extra?: Partial<Task> }
@@ -30,6 +31,21 @@ export type Action =
   | { type: 'stage/add'; projectId: string; name: string; track?: 'main' | 'side' }
   | { type: 'item/add'; projectId: string; stageId: string; text: string }
   | { type: 'item/patch'; projectId: string; stageId: string; itemId: string; patch: Partial<StageItem> }
+  | { type: 'type/add'; def: TypeDef }
+  | { type: 'type/update'; id: string; patch: Partial<Pick<TypeDef, 'name' | 'plural' | 'icon' | 'color' | 'folder'>> }
+  | { type: 'field/add'; typeId: string; field: FieldDef }
+  | { type: 'field/update'; typeId: string; key: string; patch: Partial<FieldDef> }
+  | { type: 'field/remove'; typeId: string; key: string }
+  | { type: 'record/set'; typeId: string; id: string; key: string; value: unknown }
+  | { type: 'entry/add'; entry: Entry }
+  | { type: 'entry/archive'; id: string; archived: boolean }
+  | { type: 'note/add'; note: Note }
+  | { type: 'note/update'; id: string; patch: Partial<Pick<Note, 'title' | 'body' | 'tags' | 'folder' | 'pinned' | 'props'>> }
+  | { type: 'view/save'; view: ViewDef }
+  | { type: 'view/remove'; id: string }
+  | { type: 'dash/update'; id: string; patch: Partial<Omit<Dashboard, 'id'>> }
+  | { type: 'dash/widget'; dashId: string; widget: WidgetDef; at?: { x: number; y: number; w: number; h: number } }
+  | { type: 'dash/remove-widget'; dashId: string; widgetId: string }
   | { type: 'replace'; data: AppData };
 
 const mapTask = (s: AppData, id: string, fn: (t: Task) => Task): AppData => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? fn(t) : t)) });
@@ -157,6 +173,83 @@ export function reducer(state: AppData, a: Action): AppData {
       const s2 = ensureTags(state, tags);
       return { ...s2, projects: s2.projects.map((p) => (p.id === a.projectId ? { ...p, tags } : p)) };
     }
+
+    case 'type/add':
+      return state.types.some((t) => t.id === a.def.id) ? state : { ...state, types: [...state.types, a.def] };
+    case 'type/update':
+      return { ...state, types: state.types.map((t) => (t.id === a.id ? { ...t, ...a.patch } : t)) };
+    case 'field/add':
+      return {
+        ...state,
+        types: state.types.map((t) => (t.id === a.typeId && !t.fields.some((f) => f.key === a.field.key) ? { ...t, fields: [...t.fields, a.field] } : t)),
+      };
+    case 'field/update':
+      return { ...state, types: state.types.map((t) => (t.id === a.typeId ? { ...t, fields: t.fields.map((f) => (f.key === a.key ? { ...f, ...a.patch, key: f.key } : f)) } : t)) };
+    case 'field/remove':
+      // Removes the column definition only; values already written to notes stay in their frontmatter.
+      return { ...state, types: state.types.map((t) => (t.id === a.typeId ? { ...t, fields: t.fields.filter((f) => f.key !== a.key || f.builtin) } : t)) };
+
+    case 'record/set': {
+      const now = new Date().toISOString().slice(0, 19);
+      const { key, value, id } = a;
+      if (key === 'tags') {
+        const tags = Array.isArray(value) ? value.map(String) : String(value ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+        if (a.typeId === 'task') return reducer(state, { type: 'task/tags', id, tags });
+        if (a.typeId === 'project') return reducer(state, { type: 'project/tags', projectId: id, tags });
+        const s2 = ensureTags(state, tags);
+        if (a.typeId === 'note') return { ...s2, notes: s2.notes.map((n) => (n.id === id ? { ...n, tags: tags.map(tagKey), updated: now } : n)) };
+        return { ...s2, entries: s2.entries.map((e) => (e.id === id ? { ...e, tags: tags.map(tagKey), updated: now } : e)) };
+      }
+      const def = state.types.find((t) => t.id === a.typeId)?.fields.find((f) => f.key === key);
+      const builtin = key === 'title' || !!def?.builtin;
+      if (def?.computed) return state;
+      switch (a.typeId) {
+        case 'task':
+          return mapTask(state, id, (t) => (builtin ? { ...t, [key]: value === '' ? undefined : value } : { ...t, props: { ...t.props, [key]: value } }));
+        case 'project':
+          return { ...state, projects: state.projects.map((p) => (p.id !== id ? p : builtin ? { ...p, [key]: value } : { ...p, props: { ...p.props, [key]: value } })) };
+        case 'bill':
+          return { ...state, bills: state.bills.map((b) => (b.id !== id ? b : builtin ? { ...b, [key]: value } : { ...b, props: { ...b.props, [key]: value } })) };
+        case 'note':
+          return { ...state, notes: state.notes.map((n) => (n.id !== id ? n : key === 'title' ? { ...n, title: String(value), updated: now } : { ...n, props: { ...n.props, [key]: value }, updated: now })) };
+        default:
+          return { ...state, entries: state.entries.map((e) => (e.id !== id ? e : key === 'title' ? { ...e, title: String(value) || e.title, updated: now } : { ...e, props: { ...e.props, [key]: value }, updated: now })) };
+      }
+    }
+    case 'entry/add': {
+      const s2 = ensureTags(state, a.entry.tags);
+      return { ...s2, entries: [a.entry, ...s2.entries] };
+    }
+    case 'entry/archive':
+      return { ...state, entries: state.entries.map((e) => (e.id === a.id ? { ...e, archived: a.archived } : e)) };
+    case 'note/add':
+      return { ...ensureTags(state, a.note.tags), notes: [a.note, ...state.notes] };
+    case 'note/update': {
+      const now = new Date().toISOString().slice(0, 19);
+      const s2 = a.patch.tags ? ensureTags(state, a.patch.tags) : state;
+      return { ...s2, notes: s2.notes.map((n) => (n.id === a.id ? { ...n, ...a.patch, updated: now } : n)) };
+    }
+    case 'view/save':
+      return { ...state, views: state.views.some((v) => v.id === a.view.id) ? state.views.map((v) => (v.id === a.view.id ? a.view : v)) : [...state.views, a.view] };
+    case 'view/remove':
+      return { ...state, views: state.views.filter((v) => v.id !== a.id) };
+    case 'dash/update':
+      return { ...state, dashboards: state.dashboards.map((d) => (d.id === a.id ? { ...d, ...a.patch } : d)) };
+    case 'dash/widget':
+      return {
+        ...state,
+        dashboards: state.dashboards.map((d) => {
+          if (d.id !== a.dashId) return d;
+          const exists = d.widgets.some((w) => w.id === a.widget.id);
+          return {
+            ...d,
+            widgets: exists ? d.widgets.map((w) => (w.id === a.widget.id ? a.widget : w)) : [...d.widgets, a.widget],
+            layout: exists ? d.layout : [...d.layout, { i: a.widget.id, ...(a.at ?? { x: 0, y: 999, w: 8, h: 6 }) }],
+          };
+        }),
+      };
+    case 'dash/remove-widget':
+      return { ...state, dashboards: state.dashboards.map((d) => (d.id === a.dashId ? { ...d, widgets: d.widgets.filter((w) => w.id !== a.widgetId), layout: d.layout.filter((l) => l.i !== a.widgetId) } : d)) };
 
     case 'bill/pay':
       return {
