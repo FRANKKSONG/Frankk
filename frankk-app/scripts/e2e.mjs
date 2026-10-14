@@ -436,6 +436,15 @@ await page.keyboard.press('Escape');
   check('Right-click a stage → Delete stage, and Undo restores it', after === before - 1 && restored === before, `${before} ${after} ${restored}`);
 }
 
+{
+  const sr = page.locator('section[aria-label="Seround"]');
+  await sr.getByRole('button', { name: /Seround panel icon/ }).click();
+  await page.getByLabel('Search icons').fill('bolt');
+  await page.getByRole('option', { name: 'Icon bolt' }).click();
+  const label = await sr.getByRole('button', { name: /Seround panel icon/ }).getAttribute('aria-label');
+  check('Panel icon is editable with an icon picker', label.includes('bolt'), label);
+}
+
 /* ---------- focus mode & narrow ---------- */
 await general.getByRole('button', { name: 'Focus General' }).click();
 check('Focus mode: General fills the main area', (await box(page.locator('.focus > .panel'))).width > 900);

@@ -55,6 +55,8 @@ const P: Record<string, string> = {
 };
 
 export type IconName = keyof typeof P;
+/** Every icon, minus UI-only glyphs, for icon pickers. */
+export const ICON_NAMES = (Object.keys(P) as IconName[]).filter((n) => !["grip", "more", "chevron", "chevronR", "close", "maximize", "restore", "up", "down"].includes(n));
 
 export function Icon({ name, size = 16, ...rest }: { name: IconName; size?: number } & SVGProps<SVGSVGElement>) {
   const dots = name === 'grip' || name === 'seround' || name === 'more';

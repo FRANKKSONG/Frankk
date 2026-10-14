@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '../components/Icons';
 import { ColorSelect } from '../components/ColorSelect';
-import { Editable } from '../components/Editable';
+import { IconPicker } from '../components/IconPicker';
+import { Popover } from '../components/Popover';
 import { DataView } from '../components/DataView';
 import { FieldsPanel } from '../components/FieldsPanel';
 import { NewTypeDialog } from '../components/NewTypeDialog';
@@ -52,14 +53,25 @@ export function LibraryPage() {
             <Icon name={t.icon} size={15} /><span>{t.plural}</span><em>{recordsOf(data, t.id, today).length}</em>
           </button>
         ))}
-        <button className="btn small" onClick={() => setNewType(true)}><Icon name="plus" size={13} /> New type</button>
+        <button className="lib-type lib-new" onClick={() => setNewType(true)}><Icon name="plus" size={15} /><span>New type</span></button>
         <p className="hint">Each type is a folder of Markdown notes in your vault. Fields are their properties.</p>
       </aside>
       <section className="lib-main" style={{ '--area': type.color } as React.CSSProperties}>
         <header className="lib-head">
-          <span className="lib-icon"><Icon name={type.icon} size={20} /></span>
-          <Editable className="lib-title" label="Type name" value={type.plural} onSave={(v) => dispatch({ type: 'type/update', id: type.id, patch: { plural: v.trim() } })} />
-          <ColorSelect label="Type colour" value={type.color ?? PIGMENTS[0].color} onChange={(color) => dispatch({ type: 'type/update', id: type.id, patch: { color } })} />
+          <IconPicker className="lib-icon" size={20} label={`${type.plural} icon`} value={type.icon} onChange={(icon) => dispatch({ type: 'type/update', id: type.id, patch: { icon } })} />
+          <Popover trigger={({ toggle, ref, open }) => (
+            <button ref={ref} type="button" className="lib-title title-btn" aria-haspopup="dialog" aria-expanded={open} aria-label={`${type.plural}: customize type`} title="Click to rename or recolour" onClick={toggle}>{type.plural}</button>
+          )}>
+            {() => (
+              <div className="pop-form type-custom" key={type.id}>
+                <strong>Customize type</strong>
+                <label>Name (plural)<input defaultValue={type.plural} aria-label="Type name" onBlur={(e) => e.target.value.trim() && dispatch({ type: 'type/update', id: type.id, patch: { plural: e.target.value.trim() } })} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} /></label>
+                <label>One item is called<input defaultValue={type.name} aria-label="Singular name" onBlur={(e) => e.target.value.trim() && dispatch({ type: 'type/update', id: type.id, patch: { name: e.target.value.trim() } })} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} /></label>
+                <div className="color-row">Colour<ColorSelect label="Type colour" value={type.color ?? PIGMENTS[0].color} onChange={(color) => dispatch({ type: 'type/update', id: type.id, patch: { color } })} /></div>
+                <div className="color-row">Icon<IconPicker label={`${type.plural} icon`} value={type.icon} onChange={(icon) => dispatch({ type: 'type/update', id: type.id, patch: { icon } })} /></div>
+              </div>
+            )}
+          </Popover>
           <code className="lib-folder" title="Vault folder">{type.folder || '(by folder)'}/</code>
           <span className="dv-spacer" />
           <div className="seg slim" role="tablist">

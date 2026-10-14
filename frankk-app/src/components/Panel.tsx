@@ -3,6 +3,7 @@ import { Icon, type IconName } from './Icons';
 import { Popover } from './Popover';
 import { useUi } from '../ui';
 import { Editable } from './Editable';
+import { IconPicker } from './IconPicker';
 import { usePersistentState } from '../hooks/usePersistentState';
 import type { Area } from '../data/types';
 
@@ -22,12 +23,15 @@ interface Props {
 /** Shared chrome for the four work areas: grip, title, +, menu, focus/maximize. */
 export function Panel({ area, title, icon, focused, onAdd, addLabel, toolbar, menu, footer, children }: Props) {
   const { setFocusArea } = useUi();
-  const [name, setName] = usePersistentState<{ t: string }>(`title.${area}`, { t: title });
+  const [name, setName] = usePersistentState<{ t: string; icon?: IconName }>(`title.${area}`, { t: title });
   return (
     <section className={`panel area-${area}`} aria-label={title} data-area={area}>
       <header className="panel-head">
         {!focused && <span className="panel-grip" title="Drag to move panel" aria-label={`Move ${title} panel`}><Icon name="grip" size={14} /></span>}
-        <span className="panel-title"><Icon name={icon} size={15} /><Editable label={`${title} panel name`} value={name.t} onSave={(v) => setName({ t: v.trim() })} /></span>
+        <span className="panel-title">
+          <IconPicker label={`${title} panel icon`} value={name.icon ?? icon} onChange={(i) => setName((n) => ({ ...n, icon: i }))} />
+          <Editable label={`${title} panel name`} value={name.t} onSave={(v) => setName((n) => ({ ...n, t: v.trim() }))} />
+        </span>
         <span className="panel-actions">
           {onAdd && <button className="icon-btn" aria-label={addLabel} title={addLabel} onClick={onAdd}><Icon name="plus" /></button>}
           <button className="icon-btn" aria-label={focused ? 'Back to Home' : `Focus ${title}`} title={focused ? 'Back to Home (Esc)' : 'Focus this panel'}

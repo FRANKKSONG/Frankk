@@ -70,7 +70,7 @@ export function TableHeader({ cols, sort, onSort, sortable }: { cols: Columns; s
   );
 }
 
-function ResizeHandle({ label, value, onChange, onFit }: { label: string; value: number; onChange: (w: number) => void; onFit: (el: HTMLElement) => void }) {
+export function ResizeHandle({ label, value, onChange, onFit }: { label: string; value: number; onChange: (w: number) => void; onFit: (el: HTMLElement) => void }) {
   const start = useRef<{ x: number; w: number } | null>(null);
   const end = () => { start.current = null; document.body.classList.remove('col-resizing'); };
   return (

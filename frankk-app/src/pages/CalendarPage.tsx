@@ -33,7 +33,7 @@ export function CalendarPage() {
       <div className="big-cal">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <span key={d} className="dow">{d}</span>)}
         {cells.map((c, i) => c ? (
-          <div key={c} className={`big-day${c === today ? ' today' : ''}`}>
+          <div key={c} className={`big-day${c === today ? ' is-today' : ''}`}>
             <span className="n">{Number(c.slice(8))}</span>
             {agenda.filter((a) => a.date === c).map((a) => (
               <button key={a.key} className={`big-chip area-${a.area}${a.overdue ? ' overdue' : ''}`} title={a.title}

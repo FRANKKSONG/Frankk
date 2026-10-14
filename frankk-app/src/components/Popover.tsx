@@ -29,7 +29,8 @@ export function Popover({ trigger, children, align = 'left', className = '' }: P
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (pop.current?.contains(t) || ref.current?.contains(t)) return;
+      // Clicks inside a nested popover (e.g. a colour dropdown in this one) keep this one open.
+      if (pop.current?.contains(t) || ref.current?.contains(t) || (t as Element).closest?.('.popover')) return;
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); ref.current?.focus(); } };

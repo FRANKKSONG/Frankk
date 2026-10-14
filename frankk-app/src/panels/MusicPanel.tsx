@@ -7,7 +7,7 @@ import { DateCell } from '../components/DateCell';
 import { ProgressCell } from '../components/ProgressBar';
 import { Modal } from '../components/Modal';
 import { ColumnsMenu } from '../components/ColumnsMenu';
-import { Table, nextSort, type SortState } from '../components/TaskTable';
+import { Table, ResizeHandle, nextSort, type SortState } from '../components/TaskTable';
 import { Editable, MiniSelect } from '../components/Editable';
 import { ReleaseStepper } from '../components/Stepper';
 import { SortableList } from '../components/SortableList';
@@ -143,9 +143,11 @@ function ProjectDetail({ p }: { p: MusicProject }) {
   const available = STAGE_LIBRARY.filter((n) => !p.stages.some((s) => s.name === n));
   const patchP = (patch: PatchP) => dispatch({ type: 'project/patch', projectId: p.id, patch });
   const [stageSort, setStageSort] = usePersistentState<SortState | null>('prefs.stageSort', null);
+  const [widths, setWidths] = usePersistentState<StageWidths>('stage.widths', STAGE_WIDTHS);
+  const setWidth = (id: string, w: number) => setWidths((cur) => ({ ...cur, [id]: Math.max(STAGE_MIN[id] ?? 50, Math.min(640, Math.round(w))) }));
 
   return (
-    <div className="project-detail">
+    <div className="project-detail" style={{ '--st-name': `${widths.name}px`, '--st-desc': `${widths.desc}px`, '--st-progress': `${widths.progress}px`, '--st-date': `${widths.date}px` } as React.CSSProperties}>
       {!job && <ReleaseStepper project={p} />}
 
       <div className="fields">
@@ -168,7 +170,7 @@ function ProjectDetail({ p }: { p: MusicProject }) {
       </div>
 
       {main.length === 0 && <p className="steps-empty">No stages yet. Add one below.</p>}
-      {main.length > 0 && <StageHeader sort={stageSort} onSort={(k) => setStageSort((cur) => nextSort(cur, k))} />}
+      {main.length > 0 && <StageHeader sort={stageSort} onSort={(k) => setStageSort((cur) => nextSort(cur, k))} widths={widths} setWidth={setWidth} />}
       <SortableList items={sortStages(main, stageSort)} disabled={!!stageSort} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
         {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} />}
       </SortableList>
@@ -220,7 +222,10 @@ function ProjectDetail({ p }: { p: MusicProject }) {
 
 /* ---------- stage list: Explorer-style columns (Name · Progress · Date), sortable, right-click for actions ---------- */
 
-const STAGE_COLS: { id: string; label: string }[] = [{ id: 'name', label: 'Name' }, { id: 'progress', label: 'Progress' }, { id: 'date', label: 'Date' }];
+type StageWidths = Record<'name' | 'desc' | 'progress' | 'date', number>;
+const STAGE_WIDTHS: StageWidths = { name: 170, desc: 260, progress: 90, date: 112 };
+const STAGE_MIN: Record<string, number> = { name: 80, desc: 60, progress: 60, date: 90 };
+const STAGE_COLS: { id: keyof StageWidths; label: string }[] = [{ id: 'name', label: 'Name' }, { id: 'desc', label: 'Description' }, { id: 'progress', label: 'Progress' }, { id: 'date', label: 'Date' }];
 
 /** Sort by one column. Empty values always go last, like Explorer and Finder. */
 function sortBy<T>(list: T[], get: (x: T) => string | number | undefined, sort: SortState | null): T[] {
@@ -237,12 +242,13 @@ function sortBy<T>(list: T[], get: (x: T) => string | number | undefined, sort: 
 const stageValue = (st: Stage, key: string) => {
   if (key === 'name') return st.name;
   if (key === 'date') return st.end;
+  if (key === 'desc') return st.description;
   const u = stageUnits(st);
   return stageComplete(st) ? 1 : u.total ? u.done / u.total : 0;
 };
 const sortStages = (list: Stage[], sort: SortState | null) => sortBy(list, (st) => stageValue(st, sort?.key ?? ''), sort);
 
-function StageHeader({ sort, onSort }: { sort: SortState | null; onSort: (key: string) => void }) {
+function StageHeader({ sort, onSort, widths, setWidth }: { sort: SortState | null; onSort: (key: string) => void; widths: StageWidths; setWidth: (id: string, w: number) => void }) {
   return (
     <div className="st-grid st-head" role="row">
       <span /><span />
@@ -255,6 +261,12 @@ function StageHeader({ sort, onSort }: { sort: SortState | null; onSort: (key: s
               <span className="th-label">{c.label}</span>
               <span className="sort-ind" aria-hidden="true">{active ? (sort!.dir === 'asc' ? '▲' : '▼') : ''}</span>
             </button>
+            <ResizeHandle label={c.label} value={widths[c.id]} onChange={(w) => setWidth(c.id, w)}
+              onFit={(el) => {
+                const sel = c.id === 'name' ? '.stage-name, .step-text' : c.id === 'desc' ? '.st-desc' : c.id === 'progress' ? '.st-progress' : '.st-date > *';
+                const cells = [...(el.closest('.project-detail')?.querySelectorAll<HTMLElement>(sel) ?? [])];
+                setWidth(c.id, Math.max(c.label.length * 8 + 30, ...cells.map((x) => x.scrollWidth + 12)));
+              }} />
           </span>
         );
       })}
@@ -274,7 +286,7 @@ function StageRow({ p, st, grip, sort }: { p: MusicProject; st: Stage; grip: Rea
   const addItem = () => { if (text.trim()) { dispatch({ type: 'item/add', projectId: p.id, stageId: st.id, text }); setText(''); } };
   const own = p.kind === 'own-release';
   const complete = stageComplete(st);
-  const items = sortBy(st.items, (i) => (sort?.key === 'name' ? i.text : sort?.key === 'date' ? i.date : i.done ? 1 : 0), sort);
+  const items = sortBy(st.items, (i) => (sort?.key === 'name' ? i.text : sort?.key === 'date' ? i.date : sort?.key === 'desc' ? i.description : i.done ? 1 : 0), sort);
 
   const stageMenu = (e: React.MouseEvent) => menu(e, [
     ...(!hasItems ? [{ label: st.done ? 'Mark not done' : 'Mark done', icon: 'check' as const, onClick: () => patch({ done: !st.done }) }] : []),
@@ -297,6 +309,7 @@ function StageRow({ p, st, grip, sort }: { p: MusicProject; st: Stage; grip: Rea
             </label>
           )}
         <Editable className="stage-name" label="Stage name" value={st.name} onSave={(v) => patch({ name: v })} />
+        <Editable className="st-desc" label={`${st.name} description`} value={st.description ?? ''} allowEmpty placeholder="+ description" onSave={(v) => patch({ description: v.trim() || undefined })} />
         <span className="st-progress">
           {hasItems
             ? <><span className="st-bar" aria-hidden="true"><i style={{ width: `${(u.done / u.total) * 100}%` }} /></span><span className="stage-frac" title="Checked items in this stage">{u.done}/{u.total}</span></>
@@ -318,6 +331,7 @@ function StageRow({ p, st, grip, sort }: { p: MusicProject; st: Stage; grip: Rea
             <span className="box" />
           </label>
           <Editable className="step-text" label="Item" value={i.text} onSave={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { text: v } })} />
+          <Editable className="st-desc" label={`${i.text} description`} value={i.description ?? ''} allowEmpty placeholder="+ description" onSave={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { description: v.trim() || undefined } })} />
           <span />
           <span className="st-date"><DateCell label={`${i.text} date`} value={i.date} done={i.done} onChange={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { date: v } })} /></span>
         </div>

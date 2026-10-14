@@ -70,6 +70,7 @@ export interface StageItem {
   text: string;
   done: boolean;
   date?: ISODate;
+  description?: string;
 }
 
 export interface Stage {
@@ -81,6 +82,7 @@ export interface Stage {
   done: boolean;
   start?: ISODate;
   end?: ISODate;
+  description?: string;
   items: StageItem[];
 }
 
