@@ -1151,3 +1151,26 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 .context-menu .cm-sep { border: 0; border-top: 1px solid var(--edge, var(--line)); margin: 4px 2px; }
 .stage .st-grid.step { margin-left: 0; }
 .st-head { font-size: 11px; font-weight: 500; letter-spacing: .02em; color: var(--muted); }
+
+/* ── Iteration 10: Quick capture uses its whole box ── */
+.capture { gap: 8px; min-height: 0; }
+.qc-areas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.qc-area { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 6px 8px; border-radius: 9px; font-size: 13.5px; font-weight: 500; color: var(--muted);
+  background: color-mix(in srgb, var(--text) 5%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qc-area:hover { background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--text); }
+.qc-area svg { flex: none; color: var(--c, var(--accent)); }
+.qc-area.area-general { --c: var(--general); } .qc-area.area-seround { --c: var(--seround); } .qc-area.area-house { --c: var(--house); } .qc-area.area-music { --c: var(--music); }
+.qc-area[aria-checked='true'] { color: var(--text); background: color-mix(in srgb, var(--c) 22%, transparent); }
+.qc-area.area-music { font-weight: 400; }
+.qc-write { position: relative; flex: 1; min-height: 64px; display: flex; flex-direction: column; border-radius: 10px; background: color-mix(in srgb, var(--text) 5%, transparent); }
+.qc-write:focus-within { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.qc-write textarea { flex: 1; min-height: 0; width: 100%; resize: none; border: 0 !important; background: transparent !important; box-shadow: none !important; outline: none; padding: 10px 12px; font: 400 15px/1.5 var(--font-body); color: var(--text); }
+.qc-write textarea::placeholder { color: var(--faint); }
+.qc-tags { padding: 0 10px 8px; }
+.qc-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.qc-brand { max-width: 170px; }
+.qc-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.qc-later { display: inline-flex; gap: 8px; color: var(--faint); opacity: .6; margin-left: auto; cursor: help; }
+.qc-save { min-width: 84px; justify-content: center; }
+:is([data-style='gilded'], [data-style='modern']) .capture-drollery { display: none; }
+[data-style='medieval'] .qc-area { border-radius: 0; }

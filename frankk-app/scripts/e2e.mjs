@@ -260,7 +260,7 @@ await page.getByLabel('Quick capture text').fill('Quick one');
 await page.getByRole('button', { name: 'Save capture' }).dblclick();
 await page.waitForTimeout(200);
 check('Quick capture: double-click creates exactly one task', (await store()).tasks.filter((t) => t.title === 'Quick one').length === count0 + 1);
-check('Quick capture: unavailable types are disabled', await page.getByRole('button', { name: 'Idea' }).isDisabled());
+check('Quick capture: planned types are shown as planned, not clickable', (await page.locator('.qc-later').first().getAttribute('title')).includes('planned') && await page.getByRole('button', { name: 'Idea' }).count() === 0);
 
 /* ---------- more editing ---------- */
 await food.getByRole('button', { name: 'Expand steps of Clean food box' }).click().catch(() => {});
@@ -333,6 +333,16 @@ await page.getByLabel('Quick capture text').fill('Call bank #money #errand');
 await page.getByRole('button', { name: 'Save capture' }).click();
 const bank = (await store()).tasks.find((t) => t.title === 'Call bank');
 check('Tags: "#tag" in quick capture tags the task and creates new tags', bank && bank.tags.join() === 'money,errand' && (await store()).tags.some((t) => t.name === 'errand'));
+{
+  const qc = page.locator('section[aria-label="Quick capture"]').first();
+  await qc.getByRole('radio', { name: 'House' }).click();
+  await qc.getByLabel('Quick capture text').fill('Fix tap\nBuy bulbs #home');
+  await qc.getByRole('button', { name: 'Save capture' }).click();
+  const all = (await store()).tasks;
+  const tap = all.find((t) => t.title === 'Fix tap'), bulbs = all.find((t) => t.title === 'Buy bulbs');
+  check('Quick capture: one task per line, into the chosen category', tap?.area === 'house' && bulbs?.area === 'house' && bulbs.tags.includes('home'), JSON.stringify([tap?.area, bulbs?.tags]));
+  await qc.getByRole('radio', { name: 'General' }).click();
+}
 await general.locator('.tag-chip', { hasText: '#money' }).first().click();
 const filtered = await titles();
 check('Tags: clicking a tag filters the board', filtered.length > 0 && filtered.every((t) => ['Review budget', 'Call bank'].includes(t)), filtered.join('|'));
