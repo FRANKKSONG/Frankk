@@ -32,16 +32,16 @@ export function stageComplete(stage: Stage): boolean {
 export const countsTowardProgress = (project: Pick<MusicProject, 'kind'>, st: Stage) =>
   st.inScope && !(project.kind === 'own-release' && st.track === 'side');
 
+/**
+ * Music progress is counted in stages, the way a production actually moves: every stage you're responsible
+ * for weighs the same, and a stage with a checklist counts as partly done (2 of 4 items = half a stage).
+ * done/total = finished stages / stages; pct = overall share, e.g. Produce half done of 4 stages = 13%.
+ */
 export function projectProgress(project: Pick<MusicProject, 'stages'> & Partial<Pick<MusicProject, 'kind'>>): Progress {
-  let done = 0;
-  let total = 0;
-  for (const st of project.stages) {
-    if (!countsTowardProgress({ kind: project.kind ?? 'artist-job' }, st)) continue;
-    const u = stageUnits(st);
-    done += u.done;
-    total += u.total;
-  }
-  return { done, total, pct: total === 0 ? null : Math.round((done / total) * 100) };
+  const stages = project.stages.filter((st) => countsTowardProgress({ kind: project.kind ?? 'artist-job' }, st));
+  if (!stages.length) return { done: 0, total: 0, pct: null };
+  const frac = stages.reduce((n, st) => { const u = stageUnits(st); return n + u.done / u.total; }, 0);
+  return { done: stages.filter(stageComplete).length, total: stages.length, pct: Math.round((frac / stages.length) * 100) };
 }
 
 /** Earliest unfinished dated thing in scope: item date, else stage end date. */

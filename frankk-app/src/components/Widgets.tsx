@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { Icon } from './Icons';
 import { DataView } from './DataView';
 import { ReleaseStepper } from './Stepper';
-import { ProgressCell } from './ProgressBar';
 import { QuickCapture } from './QuickCapture';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
@@ -137,7 +136,7 @@ function MusicWidget() {
       {data.projects.map((p) => (
         <li key={p.id} style={{ '--row': p.color ?? 'var(--music)' } as React.CSSProperties}>
           <button className="w-item" onClick={() => { go('tasks'); revealRow('project', p.id); }}><b>{p.artist}</b> <span className="muted">· {p.title}</span></button>
-          <span className="w-prog area-music">{p.kind === 'own-release' ? <ReleaseStepper project={p} compact /> : <ProgressCell p={projectProgress(p)} none="Not broken down" />}</span>
+          <span className="w-prog area-music"><ReleaseStepper project={p} compact /></span>
         </li>
       ))}
     </ul>

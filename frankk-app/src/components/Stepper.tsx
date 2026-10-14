@@ -4,7 +4,8 @@ import type { MusicProject, Stage } from '../data/types';
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 
-export const mainSteps = (p: MusicProject) => p.stages.filter((s) => s.inScope && s.track !== 'side');
+/** The stages that make up a project's progress, in order: a release's step bar, or the stages I was hired for on a job. */
+export const mainSteps = (p: MusicProject) => p.stages.filter((s) => s.inScope && (p.kind === 'artist-job' || s.track !== 'side'));
 
 /**
  * Stage colours climb as a project moves on: I green, II blue, III violet, IV amber, V red, VI and beyond gold.
@@ -36,13 +37,23 @@ export function ReleaseStepper({ project, compact }: { project: MusicProject; co
   if (!steps.length) return <span className="progress-none">No steps</span>;
   const current = steps.find((s) => !stageComplete(s));
   if (compact) {
+    // One segment per stage (equal width, in order), filled by that stage's checklist; below it, the stage you're on.
     const done = steps.filter(stageComplete).length;
+    const cur = current ? stageUnits(current) : null;
+    const idx = current ? steps.indexOf(current) : -1;
     return (
-      <span className="mini-steps" role="img" aria-label={`Release step ${Math.min(done + 1, steps.length)} of ${steps.length}: ${current?.name ?? 'all done'}`}
+      <span className="stage-track" role="img"
+        aria-label={current ? `Stage ${idx + 1} of ${steps.length}: ${current.name}${cur && current.items.length ? `, ${cur.done} of ${cur.total} items` : ''}` : 'All stages done'}
         title={steps.map((s) => `${stageComplete(s) ? '✓' : s === current ? '▸' : '·'} ${s.name}`).join('\n')}>
-        {steps.map((s, i) => { const st = state(s); return <i key={s.id} className={st.cls} style={{ '--tone': stageTone(i) } as React.CSSProperties}><b style={{ width: `${st.fill * 100}%` }} /></i>; })}
-        {current && <StageBadge index={steps.indexOf(current)} state="current" size={16} />}
-        <em>{current ? current.name.replace(' (Design)', '') : 'Done'}</em>
+        <span className="st-segs">
+          {steps.map((s, i) => { const st = state(s); return <i key={s.id} className={`${st.cls}${s === current ? ' now' : ''}`} style={{ '--tone': stageTone(i) } as React.CSSProperties}><b style={{ width: `${st.fill * 100}%` }} /></i>; })}
+        </span>
+        <span className="st-now">
+          {current ? <StageBadge index={idx} state="current" size={16} /> : <span className="st-done-mark">✓</span>}
+          <em>{current ? current.name : 'All stages done'}</em>
+          {current && cur && current.items.length > 0 && <small title="Checklist items done in this stage">☑ {cur.done}/{cur.total}</small>}
+          <small className="st-of" title="Stages finished">{done}/{steps.length}</small>
+        </span>
       </span>
     );
   }

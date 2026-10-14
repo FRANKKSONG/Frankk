@@ -3,7 +3,6 @@ import { Panel } from '../components/Panel';
 import { Icon } from '../components/Icons';
 import { ColorSelect } from '../components/ColorSelect';
 import { DateCell } from '../components/DateCell';
-import { ProgressCell } from '../components/ProgressBar';
 import { Modal } from '../components/Modal';
 import { ColumnsMenu } from '../components/ColumnsMenu';
 import { Table, ResizeHandle, nextSort, type SortState } from '../components/TaskTable';
@@ -24,7 +23,7 @@ import { newId } from '../data/fixtures';
 export const MUSIC_COLS: ColDef[] = [
   { id: 'title', label: 'Artist / Project', width: 106, min: 70, focusWidth: 300 },
   { id: 'type', label: 'Role / Type', width: 78, min: 50, focusWidth: 200 },
-  { id: 'progress', label: 'Progress', width: 84, min: 50, focusWidth: 180 },
+  { id: 'progress', label: 'Stages', width: 112, min: 60, focusWidth: 220 },
   { id: 'next', label: 'Next date', width: 54, min: 40, focusWidth: 100 },
 ];
 
@@ -33,13 +32,13 @@ type Tab = 'own-release' | 'artist-job' | 'all';
 const REL_COLS: ColDef[] = [
   { id: 'title', label: 'Release', width: 150, min: 80, focusWidth: 300 },
   { id: 'type', label: 'Format', width: 70, min: 50, focusWidth: 150 },
-  { id: 'progress', label: 'Release steps', width: 150, min: 80, focusWidth: 200 },
+  { id: 'progress', label: 'Release steps', width: 150, min: 80, focusWidth: 220 },
   { id: 'next', label: 'Next date', width: 70, min: 46, focusWidth: 100 },
 ];
 const JOB_COLS: ColDef[] = [
   { id: 'title', label: 'Artist / client', width: 150, min: 80, focusWidth: 300 },
   { id: 'type', label: 'My roles', width: 78, min: 50, focusWidth: 200 },
-  { id: 'progress', label: 'My progress', width: 92, min: 60, focusWidth: 180 },
+  { id: 'progress', label: 'My stages', width: 112, min: 70, focusWidth: 220 },
   { id: 'next', label: 'Next date', width: 70, min: 46, focusWidth: 100 },
 ];
 const RELEASE_TYPES = [{ id: 'single', label: 'Single' }, { id: 'ep', label: 'EP' }, { id: 'album', label: 'Album' }, { id: 'other', label: 'Other' }] as const;
@@ -248,7 +247,6 @@ function ProjectRow({ p, cols, open, onToggle }: { p: MusicProject; cols: Return
   const { today, dispatch } = useStore();
   const { openNote, say } = useUi();
   const menu = useContextMenu();
-  const prog = projectProgress(p);
   const next = nextProjectDate(p);
   const job = p.kind === 'artist-job';
   const scoped = p.stages.filter((s) => s.inScope && s.track !== 'side');
@@ -278,7 +276,7 @@ function ProjectRow({ p, cols, open, onToggle }: { p: MusicProject; cols: Return
               </div>
             );
             case 'progress': return (
-              <div key={c.id} className="cell" data-col={c.id}>{job ? <ProgressCell p={prog} none="Not broken down yet" /> : <ReleaseStepper project={p} compact />}</div>
+              <div key={c.id} className="cell" data-col={c.id}><ReleaseStepper project={p} compact /></div>
             );
             case 'next': return (
               <div key={c.id} className="cell" data-col={c.id}><span className={`date-static${next && next <= today ? ' today' : ''}`}>{next ? relLabel(next, today) : '—'}</span></div>
@@ -325,7 +323,7 @@ function ProjectDetail({ p }: { p: MusicProject }) {
 
   return (
     <div className="project-detail" style={{ '--st-name': `${widths.name}px`, '--st-desc': `${widths.desc}px`, '--st-progress': `${widths.progress}px`, '--st-date': `${widths.date}px`, '--st-desc-track': widths.descSet ? `${widths.desc}px` : `minmax(${STAGE_MIN.desc}px, 1fr)`, '--st-tail': widths.descSet ? 'minmax(0, 1fr)' : '0px' } as React.CSSProperties}>
-      {!job && <ReleaseStepper project={p} />}
+      <ReleaseStepper project={p} />
 
       <div className="pd-tabs" role="tablist" aria-label={`${p.title} sections`}>
         {SECTIONS.map((t) => (

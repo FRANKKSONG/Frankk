@@ -1659,3 +1659,16 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .knight.m-getup .knight-body { transform-origin: 50% 50%; animation: knight-rise2 .45s ease-out 1; }
 @keyframes knight-rise2 { from { transform: rotate(70deg) translateX(3px); } to { transform: none; } }
 .knight-stars { left: 40px; bottom: 44px; }
+
+/* ── Iteration 24: music progress = stages. One segment per stage, filled by its checklist; the stage you're on below ── */
+.stage-track { display: grid; gap: 4px; width: 100%; min-width: 0; }
+.st-segs { display: flex; gap: 3px; }
+.st-segs i { flex: 1; height: 7px; border-radius: 3px; background: color-mix(in srgb, var(--text) 11%, transparent); overflow: hidden; }
+.st-segs i b { display: block; height: 100%; background: var(--tone); opacity: .6; }
+.st-segs i.done b { opacity: 1; }
+.st-segs i.now { background: color-mix(in srgb, var(--tone) 22%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone) 60%, transparent); }
+.st-now { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 11.5px; }
+.st-now em { font-style: normal; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-now small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.st-now .st-of { margin-left: auto; color: var(--faint); }
+.st-done-mark { color: var(--ok); font-weight: 700; }

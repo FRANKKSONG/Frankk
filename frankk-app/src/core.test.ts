@@ -225,3 +225,11 @@ describe('restoring release steps', () => {
     expect(after.stages.some((s) => s.name === 'Marketing')).toBe(true);
   });
 });
+
+describe('stage-based music progress', () => {
+  it('weighs every stage the same, counting a checklist as part of its stage', () => {
+    const jing = buildFixtures('2026-10-14').projects.find((x) => x.id === 'p-jing')!;
+    // Record 0/2, Produce 1/2, Mix 0, Master 0 → half a stage of four = 13%, no stage finished yet
+    expect(projectProgress(jing)).toEqual({ done: 0, total: 4, pct: 13 });
+  });
+});
