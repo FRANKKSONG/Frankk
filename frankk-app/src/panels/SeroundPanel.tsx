@@ -14,18 +14,19 @@ import { useColumns, type ColDef } from '../hooks/useColumns';
 import { usePersistentState } from '../hooks/usePersistentState';
 
 export const SEROUND_COLS: ColDef[] = [
-  { id: 'title', label: 'Task', width: 116, min: 60 },
-  { id: 'progress', label: 'Progress', width: 62, min: 40 },
-  { id: 'plan', label: 'Plan', width: 68, min: 44, defaultHidden: true },
-  { id: 'due', label: 'Due', width: 70, min: 44 },
-  { id: 'workstream', label: 'Workstream', width: 86, min: 50, defaultHidden: true },
-  { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true },
+  { id: 'title', label: 'Task', width: 116, min: 60, focusHidden: false, focusWidth: 280 },
+  { id: 'notes', label: 'Description', width: 240, min: 80, flex: true, defaultHidden: true, focusHidden: false },
+  { id: 'progress', label: 'Progress', width: 62, min: 40, focusWidth: 96 },
+  { id: 'plan', label: 'Plan', width: 68, min: 44, defaultHidden: true, focusHidden: false, focusWidth: 88 },
+  { id: 'due', label: 'Due', width: 70, min: 44, focusWidth: 88 },
+  { id: 'workstream', label: 'Workstream', width: 86, min: 50, defaultHidden: true, focusHidden: false, focusWidth: 124 },
+  { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true, focusHidden: false, focusWidth: 88 },
 ];
 
 export function SeroundPanel({ focused }: { focused: boolean }) {
   const { data, dispatch } = useStore();
   const { say, setNewTask, tagFilter } = useUi();
-  const cols = useColumns('seround', SEROUND_COLS);
+  const cols = useColumns('seround', SEROUND_COLS, focused);
   const [prefs, setPrefs] = usePersistentState<{ brand: string; showDone: boolean; collapsed: string[]; sort: SortKey; dir: SortDir }>('prefs.seround', { brand: 'all', showDone: true, collapsed: [], sort: 'manual', dir: 'asc' });
   const [newBrand, setNewBrand] = useState('');
 

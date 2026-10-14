@@ -137,12 +137,19 @@ export function MusicPanel({ focused }: { focused: boolean }) {
 /* ---------- My releases: a dashboard of what's coming out and where each one stands ---------- */
 
 function ReleaseBoard({ list, open, onToggle }: { list: MusicProject[]; open: Set<string>; onToggle: (id: string) => void }) {
-  const { today } = useStore();
-  const { setProjectDialog } = useUi();
+  const { today, dispatch } = useStore();
+  const { setProjectDialog, say } = useUi();
+  const [order, setOrder] = usePersistentState<'date' | 'mine'>('music.releaseOrder', 'date');
   const finished = (p: MusicProject) => mainSteps(p).length > 0 && mainSteps(p).every(stageComplete);
   const byDate = (a: MusicProject, b: MusicProject) => (a.targetRelease ?? '9999').localeCompare(b.targetRelease ?? '9999');
-  const upcoming = list.filter((p) => !finished(p)).sort(byDate);
-  const done = list.filter(finished).sort(byDate);
+  const arrange = (l: MusicProject[]) => (order === 'date' ? [...l].sort(byDate) : l);
+  const upcoming = arrange(list.filter((p) => !finished(p)));
+  const done = arrange(list.filter(finished));
+  // Drag a card to reorder; if cards were sorted by date, the order you see becomes your own order.
+  const move = (ids: string[]) => {
+    dispatch({ type: 'project/set-order', ids });
+    if (order === 'date') { setOrder('mine'); say('Releases are now in your own order.'); }
+  };
   return (
     <div className="rel-board">
       <div className="rel-top">
@@ -150,19 +157,22 @@ function ReleaseBoard({ list, open, onToggle }: { list: MusicProject[]; open: Se
           <h4>Upcoming releases</h4>
           <p className="muted">{upcoming.length ? `${upcoming.length} in progress${done.length ? ` · ${done.length} finished` : ''}` : 'Nothing in progress.'}</p>
         </div>
-        <button className="btn primary" onClick={() => setProjectDialog('own-release')}><Icon name="plus" size={14} /> New release</button>
+        <span className="rel-actions">
+          <MiniSelect label="Order releases" value={order} options={[{ id: 'date', label: 'By release date' }, { id: 'mine', label: 'My order (drag)' }]} onChange={(v) => setOrder(v)} />
+          <button className="btn primary" onClick={() => setProjectDialog('own-release')}><Icon name="plus" size={14} /> New release</button>
+        </span>
       </div>
       {list.length === 0 && (
         <button className="rel-empty" onClick={() => setProjectDialog('own-release')}><Icon name="music" size={22} /><b>Start your first release</b><span>Single, EP or album: it gets a step bar from Concept to Art.</span></button>
       )}
-      <div className="rel-grid">
-        {[...upcoming, ...done].map((p) => <ReleaseCard key={p.id} p={p} today={today} open={open.has(p.id)} onToggle={() => onToggle(p.id)} finished={finished(p)} />)}
-      </div>
+      <SortableList grid className="rel-grid" items={[...upcoming, ...done]} label={(p) => p.title} onMove={(_i, _o, ids) => move(ids)}>
+        {(p, grip) => <ReleaseCard p={p} today={today} open={open.has(p.id)} onToggle={() => onToggle(p.id)} finished={finished(p)} grip={grip} />}
+      </SortableList>
     </div>
   );
 }
 
-function ReleaseCard({ p, today, open, onToggle, finished }: { p: MusicProject; today: string; open: boolean; onToggle: () => void; finished: boolean }) {
+function ReleaseCard({ p, today, open, onToggle, finished, grip }: { p: MusicProject; today: string; open: boolean; onToggle: () => void; finished: boolean; grip: React.ReactNode }) {
   const { dispatch } = useStore();
   const { openNote, say } = useUi();
   const menu = useContextMenu();
@@ -183,6 +193,7 @@ function ReleaseCard({ p, today, open, onToggle, finished }: { p: MusicProject; 
           { label: 'Delete release', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'project/remove', projectId: p.id }); say(`Deleted “${p.title}”.`, true); } },
         ])}>
         <button className="rel-hit" aria-expanded={open} aria-label={`${open ? 'Close' : 'Open'} ${p.artist} ${p.title}`} onClick={onToggle} />
+        <span className="rel-grip">{grip}</span>
         <header className="rel-head">
           <span className="rel-dot" />
           <div className="rel-name">
@@ -296,6 +307,12 @@ function ProjectDetail({ p }: { p: MusicProject }) {
   const patchP = (patch: PatchP) => dispatch({ type: 'project/patch', projectId: p.id, patch });
   const [stageSort, setStageSort] = usePersistentState<SortState | null>('prefs.stageSort', null);
   const [widths, setWidths] = usePersistentState<StageWidths>('stage.widths', STAGE_WIDTHS);
+  // Dragging always works: if a column sort is on, the order you see becomes your own order and the sort switches off.
+  const moveStages = (ids: string[]) => {
+    dispatch({ type: 'stage/set-order', projectId: p.id, ids });
+    unsort();
+  };
+  const unsort = () => { if (stageSort) { setStageSort(null); say('Now in your own order.'); } };
   const setWidth = (id: string, w: number) => setWidths((cur) => ({ ...cur, [id]: Math.max(STAGE_MIN[id] ?? 50, Math.min(640, Math.round(w))) }));
 
   const [section, setSection] = usePersistentState<'steps' | 'tracks' | 'details'>(`proj.section.${p.id}`, 'steps');
@@ -348,8 +365,8 @@ function ProjectDetail({ p }: { p: MusicProject }) {
           )}
           {main.length === 0 && <p className="steps-empty">No stages yet. Add one below.</p>}
           {main.length > 0 && <StageHeader sort={stageSort} onSort={(k) => setStageSort((cur) => nextSort(cur, k))} widths={widths} setWidth={setWidth} />}
-          <SortableList items={sortStages(main, stageSort)} disabled={!!stageSort} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
-            {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} />}
+          <SortableList items={sortStages(main, stageSort)} label={(s) => s.name} onMove={(_id, _over, ids) => moveStages(ids)}>
+            {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} onOrdered={unsort} />}
           </SortableList>
           <div className="stage-add">
             <Icon name="plus" size={12} />
@@ -382,8 +399,8 @@ function ProjectDetail({ p }: { p: MusicProject }) {
         <div className="side-track">
           <p className="scope-line">Marketing, MV and other work that runs alongside the release. Tracked here, but never counted in release progress.</p>
           {side.length > 0 && <StageHeader sort={stageSort} onSort={(k) => setStageSort((cur) => nextSort(cur, k))} widths={widths} setWidth={setWidth} />}
-          <SortableList items={sortStages(side, stageSort)} disabled={!!stageSort} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
-            {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} />}
+          <SortableList items={sortStages(side, stageSort)} label={(s) => s.name} onMove={(_id, _over, ids) => moveStages(ids)}>
+            {(st, grip) => <StageRow p={p} st={st} grip={grip} sort={stageSort} onOrdered={unsort} />}
           </SortableList>
           <div className="stage-add">
             <Icon name="plus" size={12} />
@@ -452,7 +469,7 @@ function StageHeader({ sort, onSort, widths, setWidth }: { sort: SortState | nul
   );
 }
 
-function StageRow({ p, st, grip, sort }: { p: MusicProject; st: Stage; grip: React.ReactNode; sort: SortState | null }) {
+function StageRow({ p, st, grip, sort, onOrdered }: { p: MusicProject; st: Stage; grip: React.ReactNode; sort: SortState | null; onOrdered: () => void }) {
   const { dispatch, today } = useStore();
   const { say } = useUi();
   const menu = useContextMenu();
@@ -502,7 +519,7 @@ function StageRow({ p, st, grip, sort }: { p: MusicProject; st: Stage; grip: Rea
         </span>
         <span className="st-date"><DateCell label={`${st.name} end date`} value={st.end} onChange={(v) => patch({ end: v })} done={complete} /></span>
       </div>
-      <SortableList items={items} disabled={!!sort} label={(i) => i.text} onMove={(id, overId) => dispatch({ type: 'item/reorder', projectId: p.id, stageId: st.id, id, overId })}>
+      <SortableList items={items} label={(i) => i.text} onMove={(_id, _over, ids) => { dispatch({ type: 'item/set-order', projectId: p.id, stageId: st.id, ids }); onOrdered(); }}>
         {(i, itemGrip) => (
         <div className={`st-grid step st-item${i.done ? ' done' : ''}`} onContextMenu={(e) => menu(e, [
           { label: i.done ? 'Mark not done' : 'Mark done', icon: 'check', onClick: () => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { done: !i.done } }) },

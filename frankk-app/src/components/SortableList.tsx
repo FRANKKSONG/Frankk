@@ -1,15 +1,18 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Icon } from './Icons';
 
 /** Drag-to-reorder list: each item gets a grip handle (mouse, touch or Space + arrow keys). */
-export function SortableList<T extends { id: string }>({ items, onMove, children, label, disabled }: {
+export function SortableList<T extends { id: string }>({ items, onMove, children, label, disabled, grid, className }: {
   items: T[];
-  /** Sorted views can't be dragged; the grip explains why. */
   disabled?: boolean;
-  onMove: (id: string, overId: string) => void;
+  /** Items laid out in rows and columns (cards) rather than a single list. */
+  grid?: boolean;
+  className?: string;
+  /** `order` is the list as shown after the move, so a sorted view can be dragged too: the shown order becomes your order. */
+  onMove: (id: string, overId: string, order: string[]) => void;
   children: (item: T, grip: ReactNode) => ReactNode;
   label: (item: T) => string;
 }) {
@@ -17,11 +20,19 @@ export function SortableList<T extends { id: string }>({ items, onMove, children
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const onDragEnd = (e: DragEndEvent) => { if (e.over && e.active.id !== e.over.id) onMove(String(e.active.id), String(e.over.id)); };
+  const onDragEnd = (e: DragEndEvent) => {
+    if (!e.over || e.active.id === e.over.id) return;
+    const ids = items.map((i) => i.id);
+    const from = ids.indexOf(String(e.active.id)), to = ids.indexOf(String(e.over.id));
+    const order = [...ids]; order.splice(to, 0, ...order.splice(from, 1));
+    onMove(String(e.active.id), String(e.over.id), order);
+  };
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-      <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-        {items.map((it) => <Row key={it.id} item={it} label={label(it)} disabled={disabled}>{children}</Row>)}
+      <SortableContext items={items.map((i) => i.id)} strategy={grid ? rectSortingStrategy : verticalListSortingStrategy}>
+        {className
+          ? <div className={className}>{items.map((it) => <Row key={it.id} item={it} label={label(it)} disabled={disabled}>{children}</Row>)}</div>
+          : items.map((it) => <Row key={it.id} item={it} label={label(it)} disabled={disabled}>{children}</Row>)}
       </SortableContext>
     </DndContext>
   );
@@ -32,7 +43,7 @@ function Row<T extends { id: string }>({ item, label, children, disabled }: { it
   const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition, position: 'relative', zIndex: isDragging ? 5 : undefined };
   const grip = (
     <button type="button" className={`drag-grip${disabled ? ' off' : ''}`} aria-label={`Reorder ${label}. Space to pick up, arrow keys to move`}
-      title={disabled ? 'Sorted by a column. Click the column again until it says manual order to drag.' : 'Drag to reorder'} {...(disabled ? {} : attributes)} {...(disabled ? {} : listeners)}>
+      title={disabled ? 'Reordering is off here' : 'Drag to reorder'} {...(disabled ? {} : attributes)} {...(disabled ? {} : listeners)}>
       <Icon name="grip" size={12} />
     </button>
   );

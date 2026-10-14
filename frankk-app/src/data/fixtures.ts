@@ -33,10 +33,10 @@ export function buildFixtures(today: ISODate): AppData {
   });
 
   const tasks: Task[] = [
-    task({ id: 't-food', title: 'Clean food box', props: { energy: 'Errand' }, area: 'general', done: false, plan: today, due: d(1), list: 'Home admin', tags: ['home'],
+    task({ id: 't-food', title: 'Clean food box', notes: 'The blue lunch box from the office fridge', props: { energy: 'Errand' }, area: 'general', done: false, plan: today, due: d(1), list: 'Home admin', tags: ['home'],
       steps: steps('t-food', [['Empty box', true], ['Wash & dry', true], ['Put away', false]]), notePath: 'Planning/Tasks/Clean food box.md' }),
-    task({ id: 't-dentist', title: 'Book dentist', area: 'general', done: false, plan: d(2), due: d(4), mode: 'simple', tags: ['health'], notePath: 'Planning/Tasks/Book dentist.md' }),
-    task({ id: 't-budget', title: 'Review budget', props: { energy: 'Deep work' }, area: 'general', done: false, plan: d(2), due: d(6), priority: 'high', list: 'Admin', tags: ['money'],
+    task({ id: 't-dentist', title: 'Book dentist', notes: 'Check-up and cleaning; ask about the back molar', area: 'general', done: false, plan: d(2), due: d(4), mode: 'simple', tags: ['health'], notePath: 'Planning/Tasks/Book dentist.md' }),
+    task({ id: 't-budget', title: 'Review budget', notes: 'October statements; flag subscriptions to cancel', props: { energy: 'Deep work' }, area: 'general', done: false, plan: d(2), due: d(6), priority: 'high', list: 'Admin', tags: ['money'],
       steps: steps('t-budget', [['Export statements', true], ['Categorise spending', false], ['Compare with last month', false], ['Note changes', false]]), notePath: 'Planning/Tasks/Review budget.md' }),
     task({ id: 't-landlord', title: 'Call landlord about the gate', area: 'general', done: false, due: d(-2), priority: 'high', mode: 'simple', tags: ['home', 'urgent'], notePath: 'Planning/Tasks/Call landlord about the gate.md' }),
     task({ id: 't-course', title: 'Finish colour theory course', area: 'general', done: false, plan: d(5), tags: ['learning'],
@@ -48,12 +48,12 @@ export function buildFixtures(today: ISODate): AppData {
     repost('s-rp2', 'Noodle stall clip', 0),
     repost('s-rp3', 'Weekend promo clip', 1),
     repost('s-rp4', 'Customer review clip', 3),
-    task({ id: 's-backend', title: 'Build operations backend', area: 'seround', done: false, due: d(11), brand: sundey, workstream: 'backend', tags: ['systems'],
+    task({ id: 's-backend', title: 'Build operations backend', notes: 'Order tracking + repost schedule in one sheet for the team', area: 'seround', done: false, due: d(11), brand: sundey, workstream: 'backend', tags: ['systems'],
       steps: steps('s-backend', [['List current manual jobs', true], ['Choose data model', false], ['Prototype order sheet', false], ['Test with team', false], ['Roll out', false]]),
       notePath: 'Seround/sundey/Build operations backend.md' }),
-    task({ id: 's-pack', title: 'Review packaging', area: 'seround', done: false, due: d(7), brand: eli, workstream: 'brand', tags: ['design'],
+    task({ id: 's-pack', title: 'Review packaging', notes: 'Final proofs from the printer; match the green to the logo', area: 'seround', done: false, due: d(7), brand: eli, workstream: 'brand', tags: ['design'],
       steps: steps('s-pack', [['Check proofs', true], ['Confirm colours', false], ['Approve print', false]]), notePath: 'Seround/Eli Lao Origin/Review packaging.md' }),
-    task({ id: 's-campaign', title: 'Prepare next campaign', area: 'seround', done: false, due: d(11), brand: reva, workstream: 'brand', tags: ['design'],
+    task({ id: 's-campaign', title: 'Prepare next campaign', notes: 'Holiday gift sets: shoot list, captions, launch date', area: 'seround', done: false, due: d(11), brand: reva, workstream: 'brand', tags: ['design'],
       steps: steps('s-campaign', [['Define goal', false], ['Moodboard', false], ['Shot list', false], ['Copy draft', false], ['Review', false]]), notePath: 'Seround/Reva Gem Cosmentics/Prepare next campaign.md' }),
 
     task({ id: 'h-reset', title: 'House reset', area: 'house', done: false, plan: d(((7 - new Date(today + 'T00:00').getDay()) % 7) || 7), tags: ['home'],

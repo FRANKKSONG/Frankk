@@ -11,17 +11,18 @@ import { usePersistentState } from '../hooks/usePersistentState';
 import { FILTERS, SORTS, SORTABLE, applyFilter, applySort, type Filter, type SortDir, type SortKey } from '../lib/tasks';
 
 export const GENERAL_COLS: ColDef[] = [
-  { id: 'title', label: 'To-do', width: 112, min: 60 },
-  { id: 'progress', label: 'Progress', width: 62, min: 40 },
-  { id: 'plan', label: 'Plan', width: 68, min: 44 },
-  { id: 'due', label: 'Due', width: 70, min: 44 },
-  { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true },
-  { id: 'list', label: 'List', width: 80, min: 40, defaultHidden: true },
+  { id: 'title', label: 'To-do', width: 112, min: 60, focusHidden: false, focusWidth: 280 },
+  { id: 'notes', label: 'Description', width: 240, min: 80, flex: true, defaultHidden: true, focusHidden: false },
+  { id: 'progress', label: 'Progress', width: 62, min: 40, focusWidth: 96 },
+  { id: 'plan', label: 'Plan', width: 68, min: 44, focusWidth: 88 },
+  { id: 'due', label: 'Due', width: 70, min: 44, focusWidth: 88 },
+  { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true, focusHidden: false, focusWidth: 88 },
+  { id: 'list', label: 'List', width: 80, min: 40, defaultHidden: true, focusHidden: false },
 ];
 
 export function GeneralPanel({ focused }: { focused: boolean }) {
   const { data, today } = useStore();
-  const cols = useColumns('general', GENERAL_COLS);
+  const cols = useColumns('general', GENERAL_COLS, focused);
   const [prefs, setPrefs] = usePersistentState<{ filter: Filter; sort: SortKey; dir: SortDir }>('prefs.general', { filter: 'all', sort: 'manual', dir: 'asc' });
   const { setNewTask, tagFilter } = useUi();
 

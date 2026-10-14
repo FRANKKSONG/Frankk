@@ -1476,3 +1476,13 @@ section.today { padding: 4px 12px; } .today-list { gap: 4px 6px; padding: 1px 0;
   background: color-mix(in srgb, var(--warn, #d4a03c) 12%, transparent); }
 .restore-steps b { color: var(--text); font-weight: 600; }
 .restore-steps .btn { margin-left: auto; }
+/* Release cards: drag by the grip in the top-left corner */
+.rel-grid > .sortable-row { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.rel-grid > .sortable-row:has(.rel-detail) { flex-basis: 100%; }
+.rel-grid > .sortable-row > .rel-wrap { display: contents; }
+.rel-grip { position: absolute; top: 8px; left: 2px; z-index: 2; }
+.rel-card:hover .rel-grip .drag-grip, .rel-grip .drag-grip:focus-visible { opacity: 1; }
+.rel-actions { display: flex; align-items: center; gap: 8px; }
+/* Description cells: quiet text, one line, editable in place */
+.cell-desc { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell-desc.empty { opacity: 0; } .task:hover .cell-desc.empty, .trow:hover .cell-desc.empty, .cell-desc:focus-visible { opacity: 1; }

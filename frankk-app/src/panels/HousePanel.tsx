@@ -15,11 +15,12 @@ import { visibleOccurrences, type Occurrence } from '../lib/bills';
 import { monthKey, monthName, relLabel, shortDate } from '../lib/dates';
 
 export const HOUSE_COLS: ColDef[] = [
-  { id: 'title', label: 'Task', width: 100, min: 60 },
-  { id: 'progress', label: 'Status', width: 62, min: 44 },
-  { id: 'plan', label: 'Plan', width: 68, min: 44, defaultHidden: true },
-  { id: 'due', label: 'Due', width: 70, min: 44 },
-  { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true },
+  { id: 'title', label: 'Task', width: 100, min: 60, focusHidden: false, focusWidth: 280 },
+  { id: 'notes', label: 'Description', width: 240, min: 80, flex: true, defaultHidden: true, focusHidden: false },
+  { id: 'progress', label: 'Status', width: 62, min: 44, focusWidth: 96 },
+  { id: 'plan', label: 'Plan', width: 68, min: 44, defaultHidden: true, focusHidden: false, focusWidth: 88 },
+  { id: 'due', label: 'Due', width: 70, min: 44, focusWidth: 88 },
+  { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true, focusHidden: false, focusWidth: 88 },
 ];
 
 type View = 'both' | 'tasks' | 'bills';
@@ -27,7 +28,7 @@ const VIEWS: { id: View; label: string }[] = [{ id: 'both', label: 'Tasks & bill
 
 export function HousePanel({ focused }: { focused: boolean }) {
   const { data, today } = useStore();
-  const cols = useColumns('house', HOUSE_COLS);
+  const cols = useColumns('house', HOUSE_COLS, focused);
   const [view, setView] = usePersistentState<{ v: View; sort: SortKey; dir: SortDir }>('prefs.house', { v: 'both', sort: 'manual', dir: 'asc' });
   const { setNewTask, tagFilter } = useUi();
 
@@ -85,6 +86,7 @@ function BillRow({ o, cols }: { o: Occurrence; cols: Columns }) {
             </div>
           );
           if (c.id === 'progress') return <div key={c.id} className="cell" data-col={c.id}><span className={`pill ${status}`}>{o.paid ? '✓ Paid' : o.missed ? 'Missed' : 'Unpaid'}</span></div>;
+          if (c.id === 'notes') return <div key={c.id} className="cell" data-col={c.id}><Editable className="cell-desc" label={`Payment note for ${label}`} value={o.note ?? ''} allowEmpty placeholder="+ payment note" onSave={(v) => dispatch({ type: 'bill/update', billId: o.bill.id, patch: { note: { month: o.month, text: v.trim() } } })} /></div>;
           if (c.id === 'due') return <div key={c.id} className="cell" data-col={c.id}><span className={`date-static${o.missed ? ' overdue' : ''}`} title={shortDate(o.due, today)}>{relLabel(o.due, today)}</span></div>;
           return <div key={c.id} className="cell" data-col={c.id} />;
         })}

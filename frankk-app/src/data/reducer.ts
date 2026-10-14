@@ -26,6 +26,9 @@ export type Action =
   | { type: 'project/remove'; projectId: string }
   | { type: 'stage/remove'; projectId: string; stageId: string }
   | { type: 'stage/restore-steps'; projectId: string }
+  | { type: 'stage/set-order'; projectId: string; ids: string[] }
+  | { type: 'project/set-order'; ids: string[] }
+  | { type: 'item/set-order'; projectId: string; stageId: string; ids: string[] }
   | { type: 'stage/reorder'; projectId: string; id: string; overId: string }
   | { type: 'item/reorder'; projectId: string; stageId: string; id: string; overId: string }
   | { type: 'step/reorder'; taskId: string; id: string; overId: string }
@@ -61,6 +64,14 @@ const mapStage = (s: AppData, pid: string, sid: string, fn: (st: Stage) => Stage
   ...s,
   projects: s.projects.map((p) => (p.id === pid ? { ...p, stages: p.stages.map((st) => (st.id === sid ? fn(st) : st)) } : p)),
 });
+
+/** Reorder the elements named in `ids` into that order, using the slots they already occupy. */
+export function applyOrder<T extends { id: string }>(list: T[], ids: string[]): T[] {
+  const byId = new Map(list.map((x) => [x.id, x]));
+  const queue = ids.filter((id) => byId.has(id)).map((id) => byId.get(id)!);
+  const set = new Set(ids);
+  return list.map((x) => (set.has(x.id) ? queue.shift()! : x));
+}
 
 /** Move the element with id `id` to the position of `overId`. */
 export function moveById<T extends { id: string }>(list: T[], id: string, overId: string): T[] {
@@ -345,6 +356,13 @@ export function reducer(state: AppData, a: Action): AppData {
         }),
       };
     }
+    case 'project/set-order':
+      return { ...state, projects: applyOrder(state.projects, a.ids) };
+    case 'stage/set-order':
+      // Put the listed stages in this order, keeping every other stage where it was.
+      return { ...state, projects: state.projects.map((p) => (p.id === a.projectId ? { ...p, stages: applyOrder(p.stages, a.ids) } : p)) };
+    case 'item/set-order':
+      return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, items: applyOrder(st.items, a.ids) }));
     case 'stage/restore-steps':
       // Bring back the standard release steps (Concept … Art) that were skipped, moved to other tracks or deleted,
       // keeping their checklists, and put them first in the usual order.
