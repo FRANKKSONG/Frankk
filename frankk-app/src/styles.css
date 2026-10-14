@@ -192,7 +192,7 @@ textarea { resize: vertical; }
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: grid; place-items: center; z-index: 200; } .scrim.top { place-items: start center; padding-top: 12vh; }
 .modal { width: min(460px, 92vw); max-height: 90vh; overflow: auto; background: #232321; border: 1px solid #44423d; border-radius: 14px; padding: 20px; display: grid; gap: 12px; } .modal h2 { font-size: 17px; } .modal p { margin: 0; color: var(--muted); }
 .uri { display: block; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); word-break: break-all; user-select: all; }
-.form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; } .form-actions.left { justify-content: flex-start; }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; } .form-actions.left { justify-content: flex-start; align-items: center; flex-wrap: wrap; }
 .new-form { display: grid; gap: 8px; padding: 10px 8px; border-top: 1px solid var(--line-soft); margin-top: 6px; } .modal-form { border: 0; padding: 0; margin: 0; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .form-row label, .field { display: grid; gap: 3px; font-size: 12px; color: var(--muted); } .field small { color: var(--faint); }
 fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 0; } legend { color: var(--muted); font-size: 12px; padding: 0 4px; }

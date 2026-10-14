@@ -236,8 +236,8 @@ await page.setViewportSize({ width: 1586, height: 992 });
 
 /* ---------- reset ---------- */
 await page.getByRole('button', { name: 'Settings' }).click();
-page.once('dialog', (d) => d.accept());
 await page.getByRole('button', { name: 'Reset sample data' }).click();
+await page.getByRole('button', { name: 'Yes, reset' }).click();
 await page.getByRole('button', { name: 'Home' }).click(); await page.waitForTimeout(500);
 check('Reset sample data restores the originals', !(await titles()).includes('Pay parking fine'));
 

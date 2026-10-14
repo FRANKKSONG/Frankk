@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useStore } from '../data/store';
 import { clearPrefs } from '../hooks/usePersistentState';
 
@@ -28,6 +29,7 @@ const SIM = [
 
 export function SettingsPage() {
   const { resetSampleData } = useStore();
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="page">
       <h1>Settings</h1>
@@ -36,7 +38,13 @@ export function SettingsPage() {
       <h2>Simulated or unavailable</h2><ul className="plain">{SIM.map((r) => <li key={r}>{r}</li>)}</ul>
       <h2>Reset</h2>
       <div className="form-actions left">
-        <button className="btn" onClick={() => { if (confirm('Replace the sample data with the original sample set? Your real notes are not affected.')) resetSampleData(); }}>Reset sample data</button>
+        {confirming ? (
+          <>
+            <span>Replace your changes with the original sample set?</span>
+            <button className="btn primary" onClick={() => { resetSampleData(); setConfirming(false); }}>Yes, reset</button>
+            <button className="btn ghost" onClick={() => setConfirming(false)}>Cancel</button>
+          </>
+        ) : <button className="btn" onClick={() => setConfirming(true)}>Reset sample data</button>}
         <button className="btn" onClick={() => { clearPrefs(); location.reload(); }}>Reset layout and table widths</button>
       </div>
     </div>
