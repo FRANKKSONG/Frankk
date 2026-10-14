@@ -5,15 +5,10 @@ import { StoreProvider } from './data/store';
 import { UiProvider } from './ui';
 import { ContextMenuProvider } from './components/ContextMenu';
 import './styles.css';
+import { installOverlayScrollbars } from './lib/overlayScroll';
 
-// Scrollbars stay hidden until something actually scrolls, then fade away again.
-const scrollTimers = new WeakMap<Element, number>();
-document.addEventListener('scroll', (e) => {
-  const el = e.target instanceof Element ? e.target : document.documentElement;
-  el.classList.add('is-scrolling');
-  window.clearTimeout(scrollTimers.get(el));
-  scrollTimers.set(el, window.setTimeout(() => el.classList.remove('is-scrolling'), 900));
-}, { capture: true, passive: true });
+// Scrollbars are an overlay layer, never part of a box's size (see lib/overlayScroll).
+installOverlayScrollbars();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

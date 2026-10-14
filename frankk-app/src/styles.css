@@ -1579,3 +1579,45 @@ section.today .today-head { flex-direction: column; align-items: flex-start; gap
 .today-item > .today-title { grid-row: 1; grid-column: 3; font-size: 13.5px; font-weight: 500; }
 .today-item > .when { grid-row: 2; grid-column: 2 / 4; justify-self: start; font-size: 11px; }
 section.today { align-items: center !important; } .today-list { height: auto !important; align-items: center !important; } .today-item { height: 58px; }
+
+/* ── Iteration 21: scrollbars are an overlay layer, not part of any box ── */
+html.overlay-scrollbars, html.overlay-scrollbars * { scrollbar-width: none !important; }
+html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+.board-scroll, .panel-body { scrollbar-gutter: auto !important; }
+.overlay-thumb { position: fixed; z-index: 900; border-radius: 4px; background: color-mix(in srgb, var(--text, #eee) 34%, transparent);
+  opacity: 0; pointer-events: none; transition: opacity .25s ease, width .12s, height .12s; display: none; }
+.overlay-thumb.v { width: 5px; } .overlay-thumb.h { height: 5px; }
+.overlay-thumb.on { opacity: 1; pointer-events: auto; cursor: default; }
+.overlay-thumb.v.on:hover, .overlay-thumb.v.on:active { width: 8px; margin-left: -3px; background: color-mix(in srgb, var(--text, #eee) 50%, transparent); }
+.overlay-thumb.h.on:hover, .overlay-thumb.h.on:active { height: 8px; margin-top: -3px; background: color-mix(in srgb, var(--text, #eee) 50%, transparent); }
+/* The scroll indicator never catches clicks, so it can't get in the way of anything underneath */
+.overlay-thumb.on { pointer-events: none !important; }
+/* Task tables: drag a header to move its column */
+.thead .th-btn[draggable='true'] { cursor: grab; }
+.thead .th.col-dragging { opacity: .45; }
+.thead .th.drop-before { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--text) 45%, transparent); }
+.thead .th.drop-after { box-shadow: inset -2px 0 0 color-mix(in srgb, var(--text) 45%, transparent); }
+
+/* ── Iteration 22: the knight assistant patrols the bottom edge; no footer bar taking space ── */
+.assistant-bar { display: none !important; }
+.knight { position: fixed; bottom: 6px; z-index: 450; width: 48px; height: 48px; padding: 0; background: none; border: 0; cursor: pointer;
+  image-rendering: pixelated; filter: drop-shadow(0 2px 0 rgba(0,0,0,.45)); transition: filter .15s; }
+.knight:hover { filter: drop-shadow(0 2px 0 rgba(0,0,0,.45)) drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 70%, transparent)); }
+.knight.walking svg { animation: knight-bob .22s steps(2) infinite; }
+.knight:not(.walking):not(.talking) svg { animation: knight-breathe 2.4s ease-in-out infinite; }
+@keyframes knight-bob { 0% { transform: translateY(0); } 100% { transform: translateY(-2px); } }
+@keyframes knight-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
+.knight-bubble { position: fixed; bottom: 66px; z-index: 460; width: 320px; padding: 12px 14px 14px; border-radius: 14px;
+  background: var(--pop-bg, #1d1915); color: var(--text); box-shadow: 0 14px 40px rgba(0,0,0,.5); border: 1px solid var(--edge, var(--line));
+  font-family: var(--font-body); animation: kb-in .18s ease-out; }
+@keyframes kb-in { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
+.knight-bubble .kb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.knight-bubble .kb-head strong { font: 500 18px var(--font-display); }
+.knight-bubble .kb-note { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+.knight-bubble input { width: 100%; }
+.kb-results { display: grid; gap: 2px; margin-top: 8px; max-height: 220px; overflow: auto; }
+.kb-hit { display: grid; text-align: left; padding: 6px 8px; border-radius: 8px; }
+.kb-hit:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.kb-hit b { font-size: 13px; font-weight: 500; } .kb-hit span { font-size: 11.5px; color: var(--muted); }
+.kb-tail { position: absolute; bottom: -7px; width: 12px; height: 12px; background: inherit; border-right: 1px solid var(--edge, var(--line)); border-bottom: 1px solid var(--edge, var(--line)); transform: translateX(-50%) rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { .knight svg { animation: none !important; } }

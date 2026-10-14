@@ -12,7 +12,7 @@ export interface ColDef {
   flex?: boolean;
 }
 
-interface Saved { widths: Record<string, number>; hidden: string[] }
+interface Saved { widths: Record<string, number>; hidden: string[]; order?: string[] }
 
 const GRIP = 14, CHECK = 20, MENU = 24, GAP = 2;
 
@@ -28,7 +28,24 @@ export function useColumns(tableId: string, defs: ColDef[], focused = false) {
     hidden: defs.filter(hiddenByDefault).map((d) => d.id),
   });
 
-  const visible = useMemo(() => defs.filter((d) => !saved.hidden.includes(d.id)), [defs, saved.hidden]);
+  // Your column order (the name column always stays first); columns you haven't placed keep their default spot.
+  const ordered = useMemo(() => {
+    const rank = (id: string) => (id === 'title' ? -1 : saved.order?.includes(id) ? saved.order.indexOf(id) : 1000 + defs.findIndex((d) => d.id === id));
+    return [...defs].sort((a, b) => rank(a.id) - rank(b.id));
+  }, [defs, saved.order]);
+  const visible = useMemo(() => ordered.filter((d) => !saved.hidden.includes(d.id)), [ordered, saved.hidden]);
+  /** Move column `id` to where `overId` is (never before or onto the name column). */
+  const move = useCallback((id: string, overId: string) => {
+    if (id === 'title' || id === overId) return;
+    const ids = ordered.map((d) => d.id).filter((x) => x !== 'title');
+    const from = ids.indexOf(id);
+    let to = overId === 'title' ? 0 : ids.indexOf(overId);
+    if (from < 0 || to < 0) return;
+    ids.splice(from, 1);
+    if (overId !== 'title' && from < to) to = ids.indexOf(overId) + 1; else if (overId !== 'title') to = ids.indexOf(overId);
+    ids.splice(to, 0, id);
+    setSaved((s) => ({ ...s, order: ids }));
+  }, [ordered, setSaved]);
   const width = useCallback((id: string) => { const d = defs.find((x) => x.id === id)!; return saved.widths[id] ?? (focused ? d.focusWidth ?? d.width : d.width); }, [saved.widths, defs, focused]);
 
   const setWidth = useCallback((id: string, w: number) => {
@@ -44,7 +61,7 @@ export function useColumns(tableId: string, defs: ColDef[], focused = false) {
     setSaved((s) => ({ ...s, hidden: s.hidden.includes(id) ? s.hidden.filter((h) => h !== id) : [...s.hidden, id] }));
   }, [setSaved]);
 
-  const reset = useCallback(() => setSaved({ widths: {}, hidden: defs.filter(hiddenByDefault).map((d) => d.id) }), [defs, setSaved, focused]);
+  const reset = useCallback(() => setSaved({ widths: {}, hidden: defs.filter(hiddenByDefault).map((d) => d.id), order: undefined }), [defs, setSaved, focused]);
 
   const template = useMemo(
     // The name column grows to use spare room (never narrower than its set width); the rest stay where you drag them.
@@ -62,7 +79,7 @@ export function useColumns(tableId: string, defs: ColDef[], focused = false) {
     [visible, width],
   );
 
-  return { visible, hidden: saved.hidden, width, setWidth, resetWidth, toggle, reset, template, minWidth };
+  return { visible, hidden: saved.hidden, width, setWidth, resetWidth, toggle, reset, template, minWidth, move };
 }
 
 export type Columns = ReturnType<typeof useColumns>;

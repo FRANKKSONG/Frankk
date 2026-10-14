@@ -472,6 +472,17 @@ await page.keyboard.press('Escape');
   check('Ctrl+Z undoes a panel resize', resized !== before && (await layoutKey()) === before);
 }
 
+{
+  const g = page.locator('section[aria-label="General"]');
+  await g.locator('.thead .th', { hasText: 'Due' }).locator('.th-btn').dragTo(g.locator('.thead .th', { hasText: 'Prog' }));
+  const hs = (await g.locator('.thead .th').allTextContents()).map((t) => t.replace(/[▲▼↕]/g, '').trim());
+  check('Task tables: drag a header to move its column; To-do stays first', hs[0] === 'To-do' && hs.indexOf('Due') < hs.indexOf('Progress'), hs.join('|'));
+  await page.locator('.knight').click();
+  await page.getByLabel('Ask the knight').last().fill('vocals'); await page.keyboard.press('Enter');
+  check('Knight: click opens a speech bubble that searches your data (and says AI is not connected)', await page.locator('.kb-hit').count() > 0 && (await page.locator('.knight-bubble').textContent()).includes('not connected'));
+  await page.keyboard.press('Escape');
+}
+
 /* ---------- focus mode & narrow ---------- */
 await general.getByRole('button', { name: 'Focus General' }).click();
 check('Focus mode: General fills the main area', (await box(page.locator('.focus > .panel'))).width > 900);

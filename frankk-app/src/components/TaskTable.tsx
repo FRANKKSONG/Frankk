@@ -39,6 +39,10 @@ export function Table({ cols, label, children, sort, onSort, sortable }: { cols:
 }
 
 export function TableHeader({ cols, sort, onSort, sortable }: { cols: Columns; sort?: SortState | null; onSort?: (key: string) => void; sortable?: string[] }) {
+  // Drag a header left or right to move its column; the name column stays first.
+  const [drag, setDrag] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const idx = (id: string) => cols.visible.findIndex((c) => c.id === id);
   return (
     <div className="trow thead" style={{ gridTemplateColumns: cols.template }} role="row">
       <span /><span />
@@ -46,15 +50,23 @@ export function TableHeader({ cols, sort, onSort, sortable }: { cols: Columns; s
         const can = !!onSort && (!sortable || sortable.includes(c.id));
         const active = sort?.key === c.id;
         return (
-          <span key={c.id} className={`th${active ? ' sorted' : ''}`} role="columnheader" data-col={c.id}
-            aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+          <span key={c.id} className={`th${active ? ' sorted' : ''}${drag === c.id ? ' col-dragging' : ''}${over === c.id && drag && drag !== c.id ? (idx(drag) < idx(c.id) ? ' drop-after' : ' drop-before') : ''}`} role="columnheader" data-col={c.id}
+            aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+            onDragOver={(e) => { if (!drag) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (over !== c.id) setOver(c.id); }}
+            onDragLeave={() => setOver((o) => (o === c.id ? null : o))}
+            onDrop={(e) => { e.preventDefault(); if (drag) cols.move(drag, c.id); setDrag(null); setOver(null); }}>
             {can ? (
-              <button type="button" className="th-btn" title={`Sort by ${c.label}${active ? (sort!.dir === 'asc' ? ' (now A→Z / earliest first)' : ' (now Z→A / latest first)') : ''}`}
+              <button type="button" className="th-btn" title={`Sort by ${c.label}${active ? (sort!.dir === 'asc' ? ' (now A→Z / earliest first)' : ' (now Z→A / latest first)') : ''}${c.id !== 'title' ? ' · drag left or right to move' : ''}`}
+                draggable={c.id !== 'title'}
+                onDragStart={(e) => { setDrag(c.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', c.id); }}
+                onDragEnd={() => { setDrag(null); setOver(null); }}
                 onClick={() => onSort!(c.id)}>
                 <span className="th-label">{c.label}</span>
                 <span className="sort-ind" aria-hidden="true">{active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
               </button>
-            ) : <span className="th-label" title={c.label}>{c.label}</span>}
+            ) : <span className="th-label" title={c.label} draggable={c.id !== 'title'}
+                onDragStart={(e) => { setDrag(c.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', c.id); }}
+                onDragEnd={() => { setDrag(null); setOver(null); }}>{c.label}</span>}
             <ResizeHandle label={c.label} value={cols.width(c.id)} onChange={(w) => cols.setWidth(c.id, w)}
               onFit={(el) => {
                 const table = el.closest('.table');

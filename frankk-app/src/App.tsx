@@ -17,6 +17,7 @@ import { NotesPage } from './pages/NotesPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { NewTaskDialog } from './components/NewTaskDialog';
+import { Knight } from './components/Knight';
 import { Initial } from './components/Ornaments';
 import { AppearanceButton } from './components/Appearance';
 import { Dropdown } from './components/Dropdown';
@@ -76,6 +77,7 @@ export default function App() {
       <SearchPalette />
       {projectDialog && <ProjectDialog />}
       <NewTaskDialog />
+      <Knight />
       <div className={`toast${toast ? ' show' : ''}`} role="status" aria-live="polite">
         {toast?.msg}
         {toast?.undo && canUndo && <button className="toast-undo" onClick={() => { undo(); say('Undone.'); }}>Undo</button>}
@@ -170,7 +172,8 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
   };
 
   const touch = hasCoarsePointer();
-  const boardWidth = Math.max(width, MIN_BOARD_WIDTH);
+  // Leave room for the resize handles that sit just outside the right-most panels, so the board never scrolls sideways for nothing.
+  const boardWidth = Math.max(width - 8, MIN_BOARD_WIDTH);
 
   return (
     <div className="home">
@@ -244,13 +247,6 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
             </div>
           )}
       </div>
-      <footer className="assistant-bar">
-        <Popover align="right" trigger={({ toggle, ref }) => (
-          <button ref={ref} className="btn" onClick={toggle}><Icon name="sparkle" size={15} /> Ask assistant</button>
-        )}>
-          {() => <div className="pop-info"><strong>Not available yet</strong><p>AI help comes after the core workflows are reliable. It will propose changes for you to approve; nothing is connected or sent anywhere.</p></div>}
-        </Popover>
-      </footer>
     </div>
   );
 }
