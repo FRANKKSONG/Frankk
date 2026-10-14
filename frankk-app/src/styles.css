@@ -1174,3 +1174,14 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 .qc-save { min-width: 84px; justify-content: center; }
 :is([data-style='gilded'], [data-style='modern']) .capture-drollery { display: none; }
 [data-style='medieval'] .qc-area { border-radius: 0; }
+
+/* ── Iteration 11: flat progress bars (no gradient, no inset shadow, no text glow) ── */
+:is([data-style='gilded'], [data-style='modern']) .pbar { box-shadow: none; border: 0; background: color-mix(in srgb, var(--text) 10%, transparent); }
+:is([data-style='gilded'], [data-style='modern']) .pfill { background: color-mix(in srgb, var(--area, var(--accent)) 78%, var(--bg)); }
+:is([data-style='gilded'], [data-style='modern']) .pbar.full .pfill { background: color-mix(in srgb, var(--ok) 72%, var(--bg)); }
+:is([data-style='gilded'], [data-style='modern']) .plabel { text-shadow: none; color: #fff; mix-blend-mode: normal; }
+/* Home header: greeting left, ask bar centred, actions right */
+.hp-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 480px) minmax(0, 1fr); align-items: center; }
+.hp-head .ask-bar { justify-self: stretch; width: 100%; max-width: none; margin: 0; }
+.hp-head .head-actions { justify-self: end; }
+@media (max-width: 1100px) { .hp-head { grid-template-columns: 1fr auto; } .hp-head .ask-bar { grid-column: 1 / -1; grid-row: 2; } }
