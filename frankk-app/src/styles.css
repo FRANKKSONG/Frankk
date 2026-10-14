@@ -1543,3 +1543,7 @@ section.today .today-head { display: flex; align-items: baseline; gap: 8px; whit
 .rel-grid .sortable-row .rel-card { flex: none; }
 /* make the current-stage glow a touch stronger */
 .stage-badge.current::before { background: radial-gradient(circle, color-mix(in srgb, var(--tone) 90%, transparent) 0%, color-mix(in srgb, var(--tone) 45%, transparent) 45%, transparent 75%); }
+/* Release step bar: one colour for the connecting line, centred exactly on the badges */
+.stepper .node { height: 24px !important; display: grid; place-items: center; }
+.stepper .bar { top: 10.5px !important; height: 3px !important; left: calc(50% + 15px) !important; right: calc(-50% + 15px) !important; border-radius: 2px !important; background: color-mix(in srgb, var(--text) 12%, transparent) !important; }
+.stepper li .bar b, .stepper li.done .bar b, .stepper li.active .bar b { background: var(--accent) !important; }
