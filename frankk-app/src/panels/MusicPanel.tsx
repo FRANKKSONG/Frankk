@@ -284,12 +284,14 @@ function ProjectRow({ p, cols, open, onToggle }: { p: MusicProject; cols: Return
 
 function ProjectDetail({ p }: { p: MusicProject }) {
   const { dispatch } = useStore();
-  const { openNote } = useUi();
+  const { openNote, say } = useUi();
   const job = p.kind === 'artist-job';
   const main = p.stages.filter((s) => s.inScope && s.track !== 'side');
   const side = job ? [] : p.stages.filter((s) => s.inScope && s.track === 'side');
   const outside = p.stages.filter((s) => !s.inScope);
-  const [showOutside, setShowOutside] = useState(false);
+  const [showOutside, setShowOutside] = useState(!job);
+  // Standard release steps that aren't currently in the step bar (skipped, moved to Other tracks, or deleted).
+  const hiddenSteps = job ? [] : RELEASE_STEPS.filter((n) => !main.some((s) => s.name === n));
   const available = STAGE_LIBRARY.filter((n) => !p.stages.some((s) => s.name === n));
   const patchP = (patch: PatchP) => dispatch({ type: 'project/patch', projectId: p.id, patch });
   const [stageSort, setStageSort] = usePersistentState<SortState | null>('prefs.stageSort', null);
@@ -337,6 +339,13 @@ function ProjectDetail({ p }: { p: MusicProject }) {
       {sec === 'steps' && (
         <>
           <p className="scope-line">{job ? 'Only the stages you were hired for count toward your progress.' : 'Every step here makes the step bar above. Drag to reorder, right-click for more.'}</p>
+          {hiddenSteps.length > 0 && (
+            <div className="restore-steps">
+              <Icon name="info" size={13} />
+              <span><b>{hiddenSteps.join(', ')}</b> {hiddenSteps.length === 1 ? 'is' : 'are'} not in the step bar ({hiddenSteps.map((n) => { const st = p.stages.find((x) => x.name === n); return !st ? 'deleted' : !st.inScope ? 'skipped' : 'in Other tracks'; }).filter((v, i, a) => a.indexOf(v) === i).join(' / ')}).</span>
+              <button className="btn small" onClick={() => { dispatch({ type: 'stage/restore-steps', projectId: p.id }); say('Release steps restored.', true); }}>Restore release steps</button>
+            </div>
+          )}
           {main.length === 0 && <p className="steps-empty">No stages yet. Add one below.</p>}
           {main.length > 0 && <StageHeader sort={stageSort} onSort={(k) => setStageSort((cur) => nextSort(cur, k))} widths={widths} setWidth={setWidth} />}
           <SortableList items={sortStages(main, stageSort)} disabled={!!stageSort} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
@@ -358,7 +367,7 @@ function ProjectDetail({ p }: { p: MusicProject }) {
                 <div className="outside-list">
                   <p>{job ? 'These belong to someone else. They don’t reduce my progress and never count as overdue.' : 'Skipped for this release.'}</p>
                   {outside.map((s) => (
-                    <span key={s.id} className="tag">{s.name}
+                    <span key={s.id} className="tag" onContextMenu={(e) => e.stopPropagation()}>{s.name}
                       <button aria-label={`Include ${s.name} in my scope`} onClick={() => dispatch({ type: 'stage/patch', projectId: p.id, stageId: s.id, patch: { inScope: true } })}>Include</button>
                     </span>
                   ))}

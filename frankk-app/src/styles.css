@@ -1472,3 +1472,7 @@ section.today { padding: 4px 12px; } .today-list { gap: 4px 6px; padding: 1px 0;
 .widget.has-grip { position: relative; }
 .widget-grip { position: absolute; top: 4px; left: 1px; z-index: 5; width: 14px; height: 22px; opacity: 0; transition: opacity .12s; }
 .widget.has-grip:hover .widget-grip, .widget-grip:focus-visible { opacity: 1; }
+.restore-steps { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; padding: 8px 12px; border-radius: 10px; font-size: 12.5px; color: var(--muted);
+  background: color-mix(in srgb, var(--warn, #d4a03c) 12%, transparent); }
+.restore-steps b { color: var(--text); font-weight: 600; }
+.restore-steps .btn { margin-left: auto; }

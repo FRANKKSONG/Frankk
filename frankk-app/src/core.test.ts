@@ -206,3 +206,22 @@ describe('markdown', () => {
     expect(wikilinksIn('a [[B]] c [[D|alias]]')).toEqual(['B', 'D']);
   });
 });
+
+describe('restoring release steps', () => {
+  it('brings back skipped, moved and deleted standard steps in order, keeping checklists', () => {
+    let d = buildFixtures('2026-10-14');
+    const p = d.projects.find((x) => x.id === 'p-single')!;
+    const produce = p.stages.find((s) => s.name === 'Produce')!;
+    const concept = p.stages.find((s) => s.name === 'Concept')!;
+    const record = p.stages.find((s) => s.name === 'Record')!;
+    d = reducer(d, { type: 'stage/patch', projectId: p.id, stageId: concept.id, patch: { inScope: false } });
+    d = reducer(d, { type: 'stage/patch', projectId: p.id, stageId: produce.id, patch: { track: 'side' } });
+    d = reducer(d, { type: 'stage/remove', projectId: p.id, stageId: record.id });
+    d = reducer(d, { type: 'stage/restore-steps', projectId: p.id });
+    const after = d.projects.find((x) => x.id === p.id)!;
+    const main = after.stages.filter((s) => s.inScope && s.track !== 'side').map((s) => s.name);
+    expect(main).toEqual(['Concept', 'Lyrics', 'Produce', 'Record', 'Mix & Master', 'Art (Design)']);
+    expect(after.stages.find((s) => s.name === 'Produce')!.items.length).toBe(produce.items.length);
+    expect(after.stages.some((s) => s.name === 'Marketing')).toBe(true);
+  });
+});

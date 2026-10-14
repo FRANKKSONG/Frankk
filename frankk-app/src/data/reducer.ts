@@ -1,6 +1,6 @@
 import { newId } from './fixtures';
 import { uniqueNotePath } from '../lib/obsidian';
-import { PIGMENTS, type AppData, type MusicProject, type Stage, type StageItem, type Task } from './types';
+import { PIGMENTS, RELEASE_STEPS, type AppData, type MusicProject, type Stage, type StageItem, type Task } from './types';
 import type { Dashboard, Entry, FieldDef, Note, TypeDef, ViewDef, WidgetDef } from './schema';
 
 export type Action =
@@ -25,6 +25,7 @@ export type Action =
   | { type: 'task/remove'; id: string }
   | { type: 'project/remove'; projectId: string }
   | { type: 'stage/remove'; projectId: string; stageId: string }
+  | { type: 'stage/restore-steps'; projectId: string }
   | { type: 'stage/reorder'; projectId: string; id: string; overId: string }
   | { type: 'item/reorder'; projectId: string; stageId: string; id: string; overId: string }
   | { type: 'step/reorder'; taskId: string; id: string; overId: string }
@@ -344,6 +345,20 @@ export function reducer(state: AppData, a: Action): AppData {
         }),
       };
     }
+    case 'stage/restore-steps':
+      // Bring back the standard release steps (Concept … Art) that were skipped, moved to other tracks or deleted,
+      // keeping their checklists, and put them first in the usual order.
+      return {
+        ...state,
+        projects: state.projects.map((p) => {
+          if (p.id !== a.projectId) return p;
+          const std = RELEASE_STEPS.map((name) => {
+            const have = p.stages.find((s) => s.name === name);
+            return have ? { ...have, inScope: true, track: 'main' as const } : { id: newId('stage'), name, inScope: true, done: false, items: [], track: 'main' as const };
+          });
+          return { ...p, stages: [...std, ...p.stages.filter((s) => !RELEASE_STEPS.includes(s.name))] };
+        }),
+      };
     case 'stage/add':
       return {
         ...state,
