@@ -44,8 +44,11 @@ export function swapOnDrop(before: LayoutItem[], dropped: LayoutItem): LayoutIte
   const cx = dropped.x + dropped.w / 2;
   const cy = dropped.y + Math.min(dropped.h, 4) / 2;
   const origin = before.find((l) => l.i === dropped.i);
-  const target = before.find((l) => l.i !== dropped.i && cx >= l.x && cx < l.x + l.w && cy >= l.y && cy < l.y + l.h);
+  const target = before.find((l) => l.i !== dropped.i && l.isDraggable !== false && cx >= l.x && cx < l.x + l.w && cy >= l.y && cy < l.y + l.h);
   if (!origin) return before;
+  // Nothing can be dropped above a pinned widget (the Today strip).
+  const pinned = before.filter((l) => l.isDraggable === false).reduce((n, l) => Math.max(n, l.y + l.h), 0);
+  dropped = { ...dropped, y: Math.max(dropped.y, pinned) };
   if (!target) return before.map((l) => (l.i === dropped.i ? { ...l, x: dropped.x, y: dropped.y } : l));
   const slot = (l: LayoutItem) => ({ x: l.x, y: l.y, w: l.w, h: l.h });
   return before.map((l) => {

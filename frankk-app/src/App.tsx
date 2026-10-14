@@ -130,7 +130,11 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
 
   const visible = useMemo(() => {
     const byId = new Map(saved.items.map((l) => [l.i, l]));
-    return WIDGETS.filter((w) => !saved.hidden.includes(w.id)).map((w) => byId.get(w.id) ?? defaultItem(w.id));
+    // The Today strip is pinned: full width across the top, height adjustable from its bottom edge only.
+    return WIDGETS.filter((w) => !saved.hidden.includes(w.id)).map((w) => {
+      const l = byId.get(w.id) ?? defaultItem(w.id);
+      return w.id === 'today' ? { ...l, x: 0, y: 0, w: COLS, isDraggable: false, resizeHandles: ['s' as const] } : l;
+    });
   }, [saved]);
 
   const store = (next: readonly LayoutItem[]) => setSaved((s) => {
@@ -222,8 +226,8 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
                 onLayoutChange={onLayoutChange}
               >
                 {visible.map((l) => {
-                  const area = ['general', 'music', 'seround', 'house'].includes(l.i);
-                  // Area panels carry their own grip in the header; the other widgets get one in their top-left corner.
+                  const area = ['general', 'music', 'seround', 'house', 'today'].includes(l.i);
+                  // Area panels carry their own grip in the header; the pinned Today strip has none; the rest get one in their top-left corner.
                   return (
                     <div key={l.i} className={`widget${area ? '' : ' has-grip'}`}>
                       {!area && <span className="panel-grip widget-grip" title="Drag to move" aria-label={`Move ${WIDGETS.find((w) => w.id === l.i)?.label ?? l.i}`}><Icon name="grip" size={12} /></span>}
