@@ -11,7 +11,7 @@ export function ColumnsMenu({ defs, cols, close }: { defs: ColDef[]; cols: Colum
           {d.label}
         </label>
       ))}
-      <button role="menuitem" onClick={() => { cols.reset(); close(); }}>Reset column widths</button>
+      <button role="menuitem" onClick={() => { cols.reset(); close(); }}>Reset columns (widths, order, shown)</button>
     </>
   );
 }
