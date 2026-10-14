@@ -5,7 +5,7 @@
  * Moving the mouse up to the edge of a scrolling area shows its thumb; the thumb only catches the mouse
  * when the pointer is right on it, so resize handles and buttons next to it keep working.
  */
-interface Bars { el: Element; v: HTMLDivElement; h: HTMLDivElement; timer?: number; dragging?: boolean }
+interface Bars { el: Element; v: HTMLDivElement; h: HTMLDivElement; timer?: number; dragging?: boolean; wasNear?: boolean }
 
 const bars = new Map<Element, Bars>();
 const HIDE_AFTER = 900;
@@ -13,6 +13,20 @@ const MIN_THUMB = 28;
 
 const rootEl = () => (document.scrollingElement ?? document.documentElement) as Element;
 const rectOf = (el: Element) => (el === rootEl() ? new DOMRect(0, 0, window.innerWidth, window.innerHeight) : el.getBoundingClientRect());
+/** The part of a scroll area you can actually see: clipped by the window and by every area it scrolls inside. */
+function visibleRect(el: Element) {
+  const r = rectOf(el);
+  let top = Math.max(r.top, 0), left = Math.max(r.left, 0), bottom = Math.min(r.bottom, window.innerHeight), right = Math.min(r.right, window.innerWidth);
+  if (el !== rootEl()) {
+    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+      const o = getComputedStyle(a);
+      if (o.overflowX === 'visible' && o.overflowY === 'visible') continue;
+      const ar = a.getBoundingClientRect();
+      top = Math.max(top, ar.top); left = Math.max(left, ar.left); bottom = Math.min(bottom, ar.bottom); right = Math.min(right, ar.right);
+    }
+  }
+  return { top, left, bottom, right, width: right - left, height: bottom - top };
+}
 
 function makeThumb(axis: 'v' | 'h', b: () => Bars) {
   const t = document.createElement('div');
@@ -57,17 +71,24 @@ function place(s: Bars) {
   const { el, v, h } = s;
   if (el !== rootEl() && !el.isConnected) { v.remove(); h.remove(); bars.delete(el); return; }
   const r = rectOf(el);
-  const canV = el.scrollHeight > el.clientHeight + 1;
-  const canH = el.scrollWidth > el.clientWidth + 1;
+  const vis = visibleRect(el);
+  const seen = vis.width > 12 && vis.height > 12 && (el === rootEl() || (el as HTMLElement).offsetParent !== null);
+  const canV = seen && el.scrollHeight > el.clientHeight + 1;
+  const canH = seen && el.scrollWidth > el.clientWidth + 1;
   if (canV) {
     const len = Math.max(MIN_THUMB, (el.clientHeight / el.scrollHeight) * r.height);
     const top = r.top + (el.scrollTop / (el.scrollHeight - el.clientHeight || 1)) * (r.height - len);
-    Object.assign(v.style, { top: `${top}px`, left: `${r.right - 8}px`, height: `${len}px`, display: 'block' });
+    // keep the thumb inside the visible part of the area (an edge scrolled out of view takes no thumb with it)
+    const t = Math.max(vis.top, top), b = Math.min(vis.bottom, top + len);
+    if (r.right > vis.right + 1 || b - t < 8) v.style.display = 'none';
+    else Object.assign(v.style, { top: `${t}px`, left: `${r.right - 8}px`, height: `${b - t}px`, display: 'block' });
   } else v.style.display = 'none';
   if (canH) {
     const len = Math.max(MIN_THUMB, (el.clientWidth / el.scrollWidth) * r.width);
     const left = r.left + (el.scrollLeft / (el.scrollWidth - el.clientWidth || 1)) * (r.width - len);
-    Object.assign(h.style, { left: `${left}px`, top: `${r.bottom - 8}px`, width: `${len}px`, display: 'block' });
+    const l = Math.max(vis.left, left), rr = Math.min(vis.right, left + len);
+    if (r.bottom > vis.bottom + 1 || rr - l < 8) h.style.display = 'none';
+    else Object.assign(h.style, { left: `${l}px`, top: `${r.bottom - 8}px`, width: `${rr - l}px`, display: 'block' });
   } else h.style.display = 'none';
 }
 
@@ -79,13 +100,15 @@ function show(s: Bars) {
 
 function hideLater(s: Bars) {
   window.clearTimeout(s.timer);
-  s.timer = window.setTimeout(() => { if (!s.dragging) { s.v.classList.remove('on'); s.h.classList.remove('on'); } }, HIDE_AFTER);
+  s.timer = window.setTimeout(() => { if (!s.dragging) for (const t of [s.v, s.h]) t.classList.remove('on', 'grab'); }, HIDE_AFTER);
 }
 
 export function installOverlayScrollbars() {
   document.documentElement.classList.add('overlay-scrollbars');
   document.addEventListener('scroll', (e) => {
     const el = e.target instanceof Element ? e.target : rootEl();
+    // Thumbs are fixed to the window, so when anything scrolls, every showing thumb is moved to where its area now is.
+    bars.forEach((s) => { if (s.el !== el && (s.v.classList.contains('on') || s.h.classList.contains('on'))) place(s); });
     show(barsFor(el));
   }, { capture: true, passive: true });
   window.addEventListener('resize', () => bars.forEach(place));
@@ -122,10 +145,16 @@ function nearEdge(x: number, y: number, target: EventTarget | null) {
     if (nearV || nearH) show(barsFor(el));
   }
   bars.forEach((s) => {
+    if (s.dragging) return;
+    let near = false;
     for (const t of [s.v, s.h]) {
       const on = inside(t, x, y, 3);
       t.classList.toggle('grab', on);
-      if (on) window.clearTimeout(s.timer);
+      near = near || on;
     }
+    // stay while the pointer is on the thumb, then fade as usual once it moves off
+    if (near) window.clearTimeout(s.timer);
+    else if (s.wasNear) hideLater(s);
+    s.wasNear = near;
   });
 }

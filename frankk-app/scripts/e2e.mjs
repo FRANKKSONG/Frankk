@@ -536,6 +536,23 @@ await page.keyboard.press('Escape');
   }
   check('Scrollbar: move to the edge to show it, then drag the thumb to scroll', !!tb && after > 0, `thumb ${!!tb} scrollTop ${after}`);
   await body.evaluate((e) => { e.scrollTop = 0; });
+  // hover near a thumb, move away: it must fade instead of staying stuck on screen
+  await page.mouse.move(bb.x + bb.width - 4, bb.y + 22); await page.waitForTimeout(150);
+  await page.mouse.move(bb.x + bb.width / 2, bb.y + 22); await page.waitForTimeout(150);
+  await page.mouse.move(5, 500); await page.waitForTimeout(1500);
+  check('Scrollbar: fades after the pointer leaves it', await page.locator('.overlay-thumb.on').count() === 0);
+  // a showing thumb follows its area when the page around it scrolls
+  await page.setViewportSize({ width: 1586, height: 620 }); await page.waitForTimeout(500);
+  await body.evaluate((e) => { e.scrollTop = 10; }); await page.waitForTimeout(100);
+  await page.locator('.board-scroll').evaluate((e) => { e.scrollTop = 120; }); await page.waitForTimeout(100);
+  const fit = await page.evaluate((i) => {
+    const b = document.querySelectorAll('.table-body-scroll')[i].getBoundingClientRect();
+    return [...document.querySelectorAll('.overlay-thumb.v.on')].filter((t) => t.style.display !== 'none').map((t) => t.getBoundingClientRect())
+      .some((t) => Math.abs(t.right - (b.right - 3)) < 2 && t.top >= Math.max(b.top, 0) - 1 && t.bottom <= Math.min(b.bottom, innerHeight) + 1);
+  }, idx);
+  check('Scrollbar: stays on its own area when the page around it scrolls', fit);
+  await page.locator('.board-scroll').evaluate((e) => { e.scrollTop = 0; });
+  await page.setViewportSize({ width: 1586, height: 992 }); await page.waitForTimeout(400);
 }
 
 /* ---------- focus mode & narrow ---------- */
