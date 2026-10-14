@@ -37,12 +37,15 @@ export default function App() {
   const { page, focusArea, setFocusArea, setPalette, paletteOpen, noteDialog, drawerTaskId, projectDialog, toast, say } = useUi();
   const { undo, canUndo } = useStore();
   const [theme, setTheme] = usePersistentState<ThemePrefs>('theme.v3', DEFAULT_THEME);
+  const [nav, setNav] = usePersistentState<{ collapsed: boolean }>('nav', { collapsed: typeof window !== 'undefined' && window.innerWidth < 1280 });
+  const toggleNav = () => setNav((n) => ({ collapsed: !n.collapsed }));
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = !!(e.target as HTMLElement).closest?.('input,select,textarea');
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPalette(true); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === '\\') { e.preventDefault(); setNav((n) => ({ collapsed: !n.collapsed })); }
       else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing) {
         e.preventDefault();
         if (canUndo) { undo(); say('Undone.'); }
@@ -51,11 +54,11 @@ export default function App() {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [focusArea, paletteOpen, noteDialog, drawerTaskId, projectDialog, setPalette, setFocusArea, canUndo, undo, say]);
+  }, [focusArea, paletteOpen, noteDialog, drawerTaskId, projectDialog, setPalette, setFocusArea, canUndo, undo, say, setNav]);
 
   return (
-    <div className="app">
-      <Sidebar />
+    <div className={`app${nav.collapsed ? ' nav-collapsed' : ''}`}>
+      <Sidebar collapsed={nav.collapsed} onToggle={toggleNav} />
       <main className="main">
         {page === 'home' && <HomePage theme={theme} setTheme={setTheme} />}
         {page === 'tasks' && <TasksBoard theme={theme} setTheme={setTheme} />}

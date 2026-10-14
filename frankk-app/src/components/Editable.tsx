@@ -22,7 +22,7 @@ export function Editable({ value, onSave, placeholder = '—', label, className 
 
   if (editing) {
     return (
-      <input autoFocus className={`edit-input ${className}`} aria-label={label} type={type} value={draft} lang={lang}
+      <input autoFocus className={`edit-input editable editing ${className}`} aria-label={label} type={type} value={draft} lang={lang}
         onChange={(e) => setDraft(e.target.value)}
         onFocus={(e) => e.target.select()}
         onKeyDown={(e) => {

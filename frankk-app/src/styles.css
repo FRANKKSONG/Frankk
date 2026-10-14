@@ -407,13 +407,13 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 .color-row input { width: 26px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; cursor: pointer; }
 
 /* ---------- narrow windows ---------- */
-@media (max-width: 1440px) {
-  .app { grid-template-columns: 56px 1fr; }
-  .sidebar { padding: 14px 6px; align-items: center; }
-  .sidebar .wordmark { font-size: 11px; letter-spacing: .04em; padding: 4px 0 6px; } .sidebar .wordmark::after { letter-spacing: .1em; }
-  .sidebar button span, .vault-box, .tiny { display: none; } .sidebar button { justify-content: center; padding: 9px 0; }
-  .search-btn { width: 170px; }
-}
+@media (max-width: 1440px) { .search-btn { width: 170px; } }
+/* Collapsed sidebar (toggle at the bottom of the sidebar, or Ctrl+\) */
+.app.nav-collapsed { grid-template-columns: 60px 1fr; }
+.nav-collapsed .sidebar { padding: 14px 6px; align-items: stretch; }
+.nav-collapsed .sidebar button span, .nav-collapsed .vault-box, .nav-collapsed .side-drollery { display: none; }
+.nav-collapsed .sidebar button { justify-content: center; padding: 9px 0; }
+.nav-collapsed .sidebar li.sub button { padding: 6px 0; }
 @media (max-width: 1100px) { .search-btn span, .search-btn kbd { display: none; } .search-btn { width: auto; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 .vault-badge { display: flex; align-items: center; gap: 8px; border: 1px dashed var(--line); border-radius: var(--radius); padding: 3px 10px; color: var(--muted); }
@@ -865,7 +865,7 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 [data-style='gilded'] .capture h3, [data-style='gilded'] .coming h3, [data-style='gilded'] .minical h3 { font: 500 18px var(--font-display); letter-spacing: 0; text-transform: none; color: var(--text); }
 [data-style='gilded'] .group-label::before { content: '❧ '; color: var(--accent); }
 [data-style='gilded'] .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-@media (max-width: 1440px) { [data-style='gilded'] .wordmark { display: none; } .sidebar li.sub button { padding: 6px 0; } }
+
 @media (max-width: 1200px) { .notes { grid-template-columns: 200px minmax(0, 1fr); } .note-side { grid-column: 1 / -1; position: static; } .library, .settings { grid-template-columns: 1fr; } .lib-types, .set-nav { position: static; display: flex; flex-wrap: wrap; } }
 .w-stat-num { font-size: 34px; }
 .kind-stat .w-body { padding-bottom: 10px; }
@@ -1298,3 +1298,32 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 body:has(.react-grid-item.resizing) { user-select: none; }
 
 .qc-write textarea { font: 400 13.5px/1.5 var(--font-body); padding: 8px 10px; }
+
+/* ── Iteration 15: collapsible sidebar, logo centred either way ── */
+.app { grid-template-columns: 196px 1fr; transition: grid-template-columns .18s ease; }
+.brand { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 4px 0 2px; }
+.app:not(.nav-collapsed) .brand { justify-content: flex-start; padding-left: 8px; }
+.nav-collapsed .brand .wordmark { display: none; }
+.nav-collapsed .brand .arch-emblem { width: 34px; height: 42px; }
+.brand .arch-emblem { flex: none; }
+.nav-toggle { color: var(--faint) !important; }
+.nav-toggle svg { transition: transform .18s ease; }
+[data-style='medieval'] .app.nav-collapsed { grid-template-columns: 84px 1fr; }
+/* Editing text keeps the same font, size and colour as the text itself: just a caret and a soft underline */
+input.editable.editing { background: color-mix(in srgb, var(--text) 6%, transparent) !important; border: 0 !important; box-shadow: none !important; outline: none;
+  border-radius: 6px; field-sizing: content; min-width: 4ch; max-width: 100%; color: inherit; }
+.panel-title input.editable.editing { color: var(--area); }
+:is([data-style='gilded'], [data-style='modern']) .panel-title input.editable.editing { color: var(--text); }
+input.editable.editing:focus, input.editable.editing:focus-visible { outline: none !important; box-shadow: none !important; border: 0 !important; }
+/* Library tables: drag a column header to move it */
+.dv-table th.movable { cursor: grab; }
+.dv-table th.col-dragging { opacity: .45; }
+.dv-table th.drop-before { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--text) 45%, transparent); }
+.dv-table th.drop-after { box-shadow: inset -2px 0 0 color-mix(in srgb, var(--text) 45%, transparent); }
+
+/* Library header: even spacing */
+:is([data-style='gilded'], [data-style='modern']) .lib-main { padding: 18px 22px 16px; gap: 14px; }
+.lib-head { gap: 12px 14px; padding-bottom: 14px; border-bottom: 1px solid var(--edge, var(--line-soft)); }
+.lib-head .lib-folder { margin-left: -4px; }
+.lib-head .seg { margin-left: auto; }
+.lib-head .dv-spacer { display: none; }

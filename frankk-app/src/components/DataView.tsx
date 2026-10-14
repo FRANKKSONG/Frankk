@@ -131,6 +131,15 @@ function TableLayout({ type, recs, fields, onOpen, view, patch }: { type: TypeDe
   const w = (k: string) => view.widths?.[k] ?? (k === 'title' ? 200 : 140);
   const sort = view.sort ? { key: view.sort.field, dir: view.sort.dir } : null;
   const tableRef = useRef<HTMLTableElement>(null);
+  // Drag a column header left or right to reorder it. Name always stays first.
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+  const moveCol = (from: string, to: string) => {
+    const order = view.fields.filter((k) => k !== from);
+    const at = to === 'title' ? 0 : order.indexOf(to) + (view.fields.indexOf(from) < view.fields.indexOf(to) ? 1 : 0);
+    order.splice(Math.max(0, at), 0, from);
+    patch({ fields: order });
+  };
   const setW = (k: string, px: number) => patch({ widths: { ...view.widths, [k]: Math.max(60, Math.min(600, Math.round(px))) } });
   const fit = (k: string, label: string) => {
     const cells = [...(tableRef.current?.querySelectorAll<HTMLElement>(`[data-col="${k}"] > *`) ?? [])];
@@ -143,7 +152,15 @@ function TableLayout({ type, recs, fields, onOpen, view, patch }: { type: TypeDe
         <thead><tr>{cols.map((f) => {
           const active = sort?.key === f.key;
           return (
-            <th key={f.key} aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={active ? 'sorted' : ''}>
+            <th key={f.key} aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              className={`${active ? 'sorted' : ''}${f.key !== 'title' ? ' movable' : ''}${dragKey === f.key ? ' col-dragging' : ''}${overKey === f.key && dragKey && dragKey !== f.key ? (view.fields.indexOf(dragKey) < view.fields.indexOf(f.key) ? ' drop-after' : ' drop-before') : ''}`}
+              draggable={f.key !== 'title'}
+              title={f.key !== 'title' ? 'Drag left or right to move this column' : undefined}
+              onDragStart={(e) => { if (f.key === 'title') return; setDragKey(f.key); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', f.key); }}
+              onDragOver={(e) => { if (!dragKey) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overKey !== f.key) setOverKey(f.key); }}
+              onDragLeave={() => setOverKey((k) => (k === f.key ? null : k))}
+              onDrop={(e) => { e.preventDefault(); if (dragKey && dragKey !== f.key) moveCol(dragKey, f.key); setDragKey(null); setOverKey(null); }}
+              onDragEnd={() => { setDragKey(null); setOverKey(null); }}>
               <button type="button" className="th-btn" title={`Sort by ${f.name}`} onClick={() => { const n = nextSort(sort, f.key); patch({ sort: n ? { field: n.key, dir: n.dir } : undefined }); }}>
                 {f.key !== 'title' && <span className="kind-ico">{KIND_ICON[f.kind]}</span>}<span className="th-label">{f.name}</span>
                 <span className="sort-ind" aria-hidden="true">{active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕'}</span>

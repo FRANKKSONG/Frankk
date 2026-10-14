@@ -15,7 +15,7 @@ const NAV: { id: string; label: string; icon: IconName; page: Page; area?: Area;
   { id: 'calendar', label: 'Calendar', icon: 'calendar', page: 'calendar' },
 ];
 
-export function Sidebar() {
+export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { focusArea, setFocusArea, page, go } = useUi();
   const active = (n: (typeof NAV)[number]) => (n.area ? page === 'tasks' && focusArea === n.area : n.id === 'tasks' ? page === 'tasks' && !focusArea : page === n.page);
   return (
@@ -38,6 +38,9 @@ export function Sidebar() {
           <button className="btn small" onClick={() => go('settings')} title="See Vault & storage in Settings">Not connected</button>
         </div>
         <button className={page === 'settings' ? 'active' : ''} onClick={() => go('settings')} title="Settings"><Icon name="settings" size={18} /><span>Settings</span></button>
+        <button className="nav-toggle" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? 'Expand menu' : 'Collapse menu'} title={`${collapsed ? 'Expand' : 'Collapse'} menu (Ctrl+\\)`}>
+          <Icon name="chevronR" size={16} style={{ transform: collapsed ? undefined : 'rotate(180deg)' }} /><span>Collapse</span>
+        </button>
       </div>
     </nav>
   );

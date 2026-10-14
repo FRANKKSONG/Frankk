@@ -52,6 +52,14 @@ check('Home: dashboard changes persist after restart', (await page.locator('.wca
 await page.getByRole('button', { name: 'Library', exact: true }).click();
 await page.locator('.lib-type', { hasText: 'People' }).click();
 check('Library: People table lists 4 people', (await page.locator('.dv-table tbody tr').count()) === 4);
+{
+  const heads = async () => (await page.locator('.dv-table thead .th-label').allTextContents());
+  const h0 = await heads();
+  await page.locator('.dv-table thead th', { hasText: 'Role' }).dragTo(page.locator('.dv-table thead th', { hasText: 'First name' }));
+  const h1 = await heads();
+  check('Library: drag a column header to move it (Name stays first)', h1[0] === 'Name' && h1.indexOf('Role') < h0.indexOf('Role') && h1.length === h0.length, `${h0.join(',')} → ${h1.join(',')}`);
+  check('Library: Name column cannot be dragged', await page.locator('.dv-table thead th').first().getAttribute('draggable') === 'false');
+}
 await page.getByRole('tab', { name: /Fields/ }).click();
 await page.getByLabel('New field name').fill('Followers');
 const detected = await page.locator('.field-add select').inputValue();
