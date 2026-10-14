@@ -32,6 +32,9 @@ import { usePersistentState } from './hooks/usePersistentState';
 import { COLS, DEFAULT_LAYOUT, DEFAULT_ROWS, MARGIN, MIN_BOARD_WIDTH, WIDGETS, defaultItem, swapOnDrop, type WidgetId } from './layout';
 import type { Area } from './data/types';
 
+/** Height of the Today strip in pixels: one line of two-row cards. */
+const TODAY_PX = 76;
+
 const hasCoarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export default function App() {
@@ -130,12 +133,14 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
 
   const visible = useMemo(() => {
     const byId = new Map(saved.items.map((l) => [l.i, l]));
-    // The Today strip is pinned: full width across the top, height adjustable from its bottom edge only.
+    // The Today strip is pinned: full width across the top, and always exactly tall enough for its cards
+    // (in grid rows that depends on the window height), so nothing is ever cut off.
+    const todayRows = Math.max(1, Math.ceil((TODAY_PX + MARGIN[1]) / (rowHeight + MARGIN[1])));
     return WIDGETS.filter((w) => !saved.hidden.includes(w.id)).map((w) => {
       const l = byId.get(w.id) ?? defaultItem(w.id);
-      return w.id === 'today' ? { ...l, x: 0, y: 0, w: COLS, isDraggable: false, resizeHandles: ['s' as const] } : l;
+      return w.id === 'today' ? { ...l, x: 0, y: 0, w: COLS, h: todayRows, minH: todayRows, maxH: todayRows, isDraggable: false, isResizable: false } : l;
     });
-  }, [saved]);
+  }, [saved, rowHeight]);
 
   const store = (next: readonly LayoutItem[]) => setSaved((s) => {
     const merged = new Map(s.items.map((l) => [l.i, l]));
