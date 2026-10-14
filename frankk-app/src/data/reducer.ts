@@ -1,6 +1,6 @@
 import { newId } from './fixtures';
 import { uniqueNotePath } from '../lib/obsidian';
-import type { AppData, MusicProject, Stage, StageItem, Task } from './types';
+import { PIGMENTS, type AppData, type MusicProject, type Stage, type StageItem, type Task } from './types';
 
 export type Action =
   | { type: 'task/add'; title: string; area?: Task['area']; extra?: Partial<Task> }
@@ -14,7 +14,12 @@ export type Action =
   | { type: 'bill/patch'; billId: string; patch: { title?: string; dueDay?: number } }
   | { type: 'brand/add'; name: string }
   | { type: 'brand/rename'; from: string; to: string }
-  | { type: 'project/patch'; projectId: string; patch: Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label' | 'roles' | 'targetRelease'>> }
+  | { type: 'brand/color'; name: string; color: string }
+  | { type: 'tag/create'; name: string; color?: string }
+  | { type: 'tag/update'; name: string; patch: { name?: string; color?: string } }
+  | { type: 'task/tags'; id: string; tags: string[] }
+  | { type: 'project/tags'; projectId: string; tags: string[] }
+  | { type: 'project/patch'; projectId: string; patch: Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label' | 'roles' | 'targetRelease' | 'start' | 'color' | 'notes' | 'releaseType'>> }
   | { type: 'item/remove'; projectId: string; stageId: string; itemId: string }
   | { type: 'bill/pay'; billId: string; month: string; paid: boolean }
   | { type: 'bill/update'; billId: string; patch: { reminderDays?: number; note?: { month: string; text: string } } }
@@ -22,7 +27,7 @@ export type Action =
   | { type: 'project/add'; project: MusicProject }
   | { type: 'stage/patch'; projectId: string; stageId: string; patch: Partial<Stage> }
   | { type: 'stage/move'; projectId: string; stageId: string; dir: -1 | 1 }
-  | { type: 'stage/add'; projectId: string; name: string }
+  | { type: 'stage/add'; projectId: string; name: string; track?: 'main' | 'side' }
   | { type: 'item/add'; projectId: string; stageId: string; text: string }
   | { type: 'item/patch'; projectId: string; stageId: string; itemId: string; patch: Partial<StageItem> }
   | { type: 'replace'; data: AppData };
@@ -34,6 +39,16 @@ const mapStage = (s: AppData, pid: string, sid: string, fn: (st: Stage) => Stage
   projects: s.projects.map((p) => (p.id === pid ? { ...p, stages: p.stages.map((st) => (st.id === sid ? fn(st) : st)) } : p)),
 });
 
+export const tagKey = (s: string) => s.trim().replace(/^#/, '').replace(/\s+/g, '-').toLowerCase();
+
+/** Make sure every tag name exists in the registry, giving new ones the next pigment colour. */
+export function ensureTags(state: AppData, names: string[]): AppData {
+  const known = new Set(state.tags.map((t) => t.name));
+  const add = [...new Set(names.map(tagKey).filter((n) => n && !known.has(n)))];
+  if (!add.length) return state;
+  return { ...state, tags: [...state.tags, ...add.map((name, i) => ({ name, color: PIGMENTS[(state.tags.length + i) % PIGMENTS.length].color }))] };
+}
+
 export function reducer(state: AppData, a: Action): AppData {
   switch (a.type) {
     case 'replace':
@@ -43,10 +58,12 @@ export function reducer(state: AppData, a: Action): AppData {
       const title = a.title.trim();
       if (!title) return state;
       const task: Task = {
-        id: newId('t'), title, area: a.area ?? 'general', done: false, steps: [], priority: 'normal',
+        id: newId('t'), title, area: a.area ?? 'general', done: false, steps: [], priority: 'normal', mode: 'progress', tags: [],
         notePath: uniqueNotePath(title, new Set(state.tasks.map((t) => t.notePath))),
         ...a.extra,
       };
+      task.tags = [...new Set(task.tags.map(tagKey).filter(Boolean))];
+      state = ensureTags(state, task.tags);
       // New tasks go to the top of their area's manual order.
       const firstOfArea = state.tasks.findIndex((t) => t.area === task.area);
       const tasks = [...state.tasks];
@@ -96,7 +113,10 @@ export function reducer(state: AppData, a: Action): AppData {
     case 'brand/add': {
       const name = a.name.trim();
       if (!name || state.brands.includes(name)) return state;
-      return { ...state, brands: [...state.brands, name] };
+      return {
+        ...state, brands: [...state.brands, name],
+        brandColors: { ...state.brandColors, [name]: PIGMENTS[(state.brands.length + 3) % PIGMENTS.length].color },
+      };
     }
     case 'brand/rename': {
       const to = a.to.trim();
@@ -104,8 +124,38 @@ export function reducer(state: AppData, a: Action): AppData {
       return {
         ...state,
         brands: state.brands.map((b) => (b === a.from ? to : b)),
+        brandColors: Object.fromEntries(Object.entries(state.brandColors).map(([k, v]) => [k === a.from ? to : k, v])),
         tasks: state.tasks.map((t) => (t.brand === a.from ? { ...t, brand: to } : t)),
       };
+    }
+
+    case 'brand/color':
+      return { ...state, brandColors: { ...state.brandColors, [a.name]: a.color } };
+
+    case 'tag/create': {
+      const s2 = ensureTags(state, [a.name]);
+      const name = tagKey(a.name);
+      return a.color ? { ...s2, tags: s2.tags.map((t) => (t.name === name ? { ...t, color: a.color as string } : t)) } : s2;
+    }
+    case 'tag/update': {
+      const to = a.patch.name !== undefined ? tagKey(a.patch.name) : a.name;
+      if (!to || (to !== a.name && state.tags.some((t) => t.name === to))) return state;
+      const swap = (list: string[]) => list.map((n) => (n === a.name ? to : n));
+      return {
+        ...state,
+        tags: state.tags.map((t) => (t.name === a.name ? { name: to, color: a.patch.color ?? t.color } : t)),
+        tasks: to === a.name ? state.tasks : state.tasks.map((t) => (t.tags.includes(a.name) ? { ...t, tags: swap(t.tags) } : t)),
+        projects: to === a.name ? state.projects : state.projects.map((p) => (p.tags.includes(a.name) ? { ...p, tags: swap(p.tags) } : p)),
+      };
+    }
+    case 'task/tags': {
+      const tags = [...new Set(a.tags.map(tagKey).filter(Boolean))];
+      return mapTask(ensureTags(state, tags), a.id, (t) => ({ ...t, tags }));
+    }
+    case 'project/tags': {
+      const tags = [...new Set(a.tags.map(tagKey).filter(Boolean))];
+      const s2 = ensureTags(state, tags);
+      return { ...s2, projects: s2.projects.map((p) => (p.id === a.projectId ? { ...p, tags } : p)) };
     }
 
     case 'bill/pay':
@@ -139,8 +189,10 @@ export function reducer(state: AppData, a: Action): AppData {
         }],
       };
     }
-    case 'project/add':
-      return { ...state, projects: [a.project, ...state.projects] };
+    case 'project/add': {
+      const s2 = ensureTags(state, a.project.tags);
+      return { ...s2, projects: [a.project, ...s2.projects] };
+    }
     case 'project/patch': {
       const p = a.patch;
       return {
@@ -175,7 +227,7 @@ export function reducer(state: AppData, a: Action): AppData {
         ...state,
         projects: state.projects.map((p) =>
           p.id === a.projectId && !p.stages.some((s) => s.name === a.name)
-            ? { ...p, stages: [...p.stages, { id: newId('stage'), name: a.name, inScope: true, done: false, items: [] }] }
+            ? { ...p, stages: [...p.stages, { id: newId('stage'), name: a.name, inScope: true, done: false, items: [], track: a.track }] }
             : p),
       };
     case 'item/add': {

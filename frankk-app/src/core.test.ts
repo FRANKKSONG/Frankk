@@ -132,3 +132,27 @@ describe('misc', () => {
     );
   });
 });
+
+describe('iteration 3 rules', () => {
+  it('own release progress counts only the main step bar, never Marketing/MV/Streaming', () => {
+    const p = fresh().projects.find((x) => x.id === 'p-single')!;
+    const main = projectProgress(p);
+    const withSideDone = { ...p, stages: p.stages.map((s) => (s.track === 'side' ? { ...s, done: true } : s)) };
+    expect(projectProgress(withSideDone)).toEqual(main);
+    expect(p.stages.filter((s) => s.track === 'main').map((s) => s.name)).toEqual(['Concept', 'Lyrics', 'Produce', 'Record', 'Mix & Master', 'Art (Design)']);
+  });
+  it('new tags are registered with a colour; renaming a tag renames it everywhere', () => {
+    let s = reducer(fresh(), { type: 'task/add', title: 'Call bank', extra: { tags: ['#Bank Stuff'] } });
+    expect(s.tags.find((t) => t.name === 'bank-stuff')?.color).toMatch(/^#/);
+    s = reducer(s, { type: 'tag/update', name: 'home', patch: { name: 'house' } });
+    expect(s.tasks.find((t) => t.id === 't-food')!.tags).toContain('house');
+    expect(s.tags.some((t) => t.name === 'home')).toBe(false);
+  });
+  it('repost queue items are simple to-dos', () => {
+    expect(fresh().tasks.filter((t) => t.workstream === 'content').every((t) => t.mode === 'simple' && t.steps.length === 0)).toBe(true);
+  });
+  it('renaming a brand keeps its colour', () => {
+    const s = reducer(fresh(), { type: 'brand/rename', from: 'Eli Lao Origin', to: 'Eli Lao' });
+    expect(s.brandColors['Eli Lao']).toBe('#3f9a80');
+  });
+});

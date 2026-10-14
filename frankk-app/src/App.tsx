@@ -12,6 +12,10 @@ import { TaskDrawer } from './components/TaskDrawer';
 import { NoteDialog } from './components/NoteDialog';
 import { SearchPalette } from './components/SearchPalette';
 import { Placeholder, SettingsPage } from './components/Pages';
+import { NewTaskDialog } from './components/NewTaskDialog';
+import { AppearanceButton } from './components/Appearance';
+import { Dropdown } from './components/Dropdown';
+import { applyTheme, DEFAULT_THEME, type ThemePrefs } from './lib/theme';
 import { GeneralPanel } from './panels/GeneralPanel';
 import { MusicPanel, ProjectDialog } from './panels/MusicPanel';
 import { SeroundPanel } from './panels/SeroundPanel';
@@ -29,6 +33,8 @@ export default function App() {
   const [view, setView] = useState<View>('home');
   const { focusArea, setFocusArea, setPalette, paletteOpen, noteDialog, drawerTaskId, projectDialog, toast, say } = useUi();
   const { undo, canUndo } = useStore();
+  const [theme, setTheme] = usePersistentState<ThemePrefs>('theme', DEFAULT_THEME);
+  useEffect(() => { applyTheme(theme); }, [theme]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -48,8 +54,8 @@ export default function App() {
     <div className="app">
       <Sidebar view={view} setView={setView} />
       <main className="main">
-        {view === 'home' && <Home />}
-        {view === 'settings' && <SettingsPage />}
+        {view === 'home' && <Home theme={theme} setTheme={setTheme} />}
+        {view === 'settings' && <SettingsPage theme={theme} setTheme={setTheme} />}
         {view === 'library' && <Placeholder title="Library" milestone="a later milestone">References, links and attachments from your vault will appear here. Nothing is linked yet.</Placeholder>}
         {view === 'calendar' && <Placeholder title="Calendar" milestone="Milestone 6">A full calendar needs an explicitly chosen, read-only calendar first. The Home mini calendar is a date overview only.</Placeholder>}
       </main>
@@ -57,6 +63,7 @@ export default function App() {
       <NoteDialog />
       <SearchPalette />
       {projectDialog && <ProjectDialog />}
+      <NewTaskDialog />
       <div className={`toast${toast ? ' show' : ''}`} role="status" aria-live="polite">
         {toast?.msg}
         {toast?.undo && canUndo && <button className="toast-undo" onClick={() => { undo(); say('Undone.'); }}>Undo</button>}
@@ -78,9 +85,10 @@ function PanelFor({ area, focused }: { area: Area; focused: boolean }) {
 // on release it swaps with the panel it was dropped on (see swapOnDrop).
 const floatingCompactor: Compactor = { ...verticalCompactor, allowOverlap: true, compact: (l: Layout) => l };
 
-function Home() {
-  const { focusArea } = useUi();
-  const { setPalette } = useUi();
+function Home({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
+  const { focusArea, setPalette, tagFilter, setTagFilter } = useUi();
+  const { data } = useStore();
+  const g = greeting();
   const [day, setDay] = useState<string | null>(null);
   const [saved, setSaved] = usePersistentState<{ items: LayoutItem[]; hidden: WidgetId[] }>('layout.board', { items: DEFAULT_LAYOUT, hidden: [] });
   const { width, containerRef, mounted } = useContainerWidth();
@@ -141,11 +149,17 @@ function Home() {
     <div className="home">
       <header className="home-head">
         <div>
-          <h1>{greeting()}, FRANKK</h1>
+          <h1><span className="dropcap" aria-hidden="true">{g[0]}</span><span className="sr-only">{g[0]}</span>{g.slice(1)}, FRANKK</h1>
           <p className="tagline">A little structure. More room to create.</p>
         </div>
         <div className="head-actions">
           <button className="search-btn" onClick={() => setPalette(true)} aria-label="Search (Ctrl+K)"><Icon name="search" /><span>Search anything…</span><kbd>Ctrl</kbd><kbd>K</kbd></button>
+          <span className={`tag-filter${tagFilter ? ' active' : ''}`}>
+            <Dropdown ariaLabel="Filter by tag" icon="tag" value={tagFilter ?? ''} onChange={(v) => setTagFilter(v || null)}
+              options={[{ id: '', label: 'All tags' }, ...data.tags.map((t) => ({ id: t.name, label: `#${t.name}` }))]} />
+            {tagFilter && <button className="icon-btn tiny" aria-label="Clear tag filter" onClick={() => setTagFilter(null)}><Icon name="close" size={11} /></button>}
+          </span>
+          <AppearanceButton prefs={theme} setPrefs={setTheme} />
           <Popover align="right" trigger={({ toggle, ref, open }) => (
             <button ref={ref} className="btn" aria-haspopup="menu" aria-expanded={open} onClick={toggle}><Icon name="layout" size={15} /> Edit layout</button>
           )}>

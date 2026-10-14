@@ -28,11 +28,15 @@ export function stageComplete(stage: Stage): boolean {
  * Progress counts ONLY stages that are in scope. Stages outside the user's scope
  * never reduce progress and never count as overdue work.
  */
-export function projectProgress(project: Pick<MusicProject, 'stages'>): Progress {
+/** For my own release, only the main step bar counts; side tracks (Marketing, MV...) are tracked separately. */
+export const countsTowardProgress = (project: Pick<MusicProject, 'kind'>, st: Stage) =>
+  st.inScope && !(project.kind === 'own-release' && st.track === 'side');
+
+export function projectProgress(project: Pick<MusicProject, 'stages'> & Partial<Pick<MusicProject, 'kind'>>): Progress {
   let done = 0;
   let total = 0;
   for (const st of project.stages) {
-    if (!st.inScope) continue;
+    if (!countsTowardProgress({ kind: project.kind ?? 'artist-job' }, st)) continue;
     const u = stageUnits(st);
     done += u.done;
     total += u.total;

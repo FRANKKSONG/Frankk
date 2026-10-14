@@ -1,0 +1,11 @@
+import { chromium } from 'playwright-core';
+const b = await chromium.launch({ executablePath: process.env.CHROME, args: ['--no-sandbox'] });
+const p = await b.newPage({ viewport: { width: 1536, height: 900 } });
+await p.goto('http://127.0.0.1:5173/?today=2026-10-14'); await p.waitForTimeout(1200);
+await p.getByRole('button', { name: 'New project or artist job' }).first().click(); await p.waitForTimeout(300);
+await p.locator('#np-artist').fill('FRANKK'); await p.locator('#np-title').fill('Night Drive');
+await p.screenshot({ path: 'docs/screens/new-project.png' });
+await p.keyboard.press('Escape');
+await p.getByRole('button', { name: 'New General task' }).click(); await p.waitForTimeout(300);
+await p.screenshot({ path: 'docs/screens/new-task.png' });
+await b.close();

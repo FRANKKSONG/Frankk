@@ -81,10 +81,10 @@ export function todayItems(data: AppData, today: ISODate): AgendaItem[] {
 }
 
 /** Every date a task/bill/stage touches, for the mini calendar markers (plan and due both count). */
-export function datedMarkers(data: AppData, today: ISODate): Map<ISODate, number> {
-  const m = new Map<ISODate, number>();
-  const add = (d?: ISODate) => d && m.set(d, (m.get(d) ?? 0) + 1);
-  for (const t of data.tasks) if (!t.done) { add(t.plan); if (t.due !== t.plan) add(t.due); }
-  for (const i of buildAgenda(data, today)) if (i.kind === 'bill' || i.kind === 'stage') add(i.date);
+export function datedMarkers(data: AppData, today: ISODate): Map<ISODate, Set<Area>> {
+  const m = new Map<ISODate, Set<Area>>();
+  const add = (area: Area, d?: ISODate) => { if (d) m.set(d, (m.get(d) ?? new Set<Area>()).add(area)); };
+  for (const t of data.tasks) if (!t.done) { add(t.area, t.plan); add(t.area, t.due); }
+  for (const i of buildAgenda(data, today)) if (i.kind === 'bill' || i.kind === 'stage') add(i.area, i.date);
   return m;
 }

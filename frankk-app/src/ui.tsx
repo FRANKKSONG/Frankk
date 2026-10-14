@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Area } from './data/types';
+import type { Area, TaskArea } from './data/types';
 
 interface Ui {
   drawerTaskId: string | null;
@@ -17,6 +17,11 @@ interface Ui {
   revealRow: (kind: 'task' | 'project', id: string) => void;
   projectDialog: boolean;
   setProjectDialog: (v: boolean) => void;
+  /** Board-wide tag filter. */
+  tagFilter: string | null;
+  setTagFilter: (t: string | null) => void;
+  newTask: { area: TaskArea; brand?: string } | null;
+  setNewTask: (v: { area: TaskArea; brand?: string } | null) => void;
 }
 
 const Ctx = createContext<Ui | null>(null);
@@ -29,6 +34,8 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const [focusArea, setFocusArea] = useState<Area | null>(null);
   const [reveal, setReveal] = useState<Ui['reveal']>(null);
   const [projectDialog, setProjectDialog] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [newTask, setNewTask] = useState<Ui['newTask']>(null);
   const timer = useRef<number | undefined>(undefined);
   const n = useRef(0);
 
@@ -41,8 +48,8 @@ export function UiProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Ui>(() => ({
     drawerTaskId, openTask, noteDialog, openNote, toast, say, paletteOpen, setPalette, focusArea, setFocusArea,
-    reveal, revealRow, projectDialog, setProjectDialog,
-  }), [drawerTaskId, noteDialog, toast, say, paletteOpen, focusArea, reveal, revealRow, projectDialog]);
+    reveal, revealRow, projectDialog, setProjectDialog, tagFilter, setTagFilter, newTask, setNewTask,
+  }), [drawerTaskId, noteDialog, toast, say, paletteOpen, focusArea, reveal, revealRow, projectDialog, tagFilter, newTask]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

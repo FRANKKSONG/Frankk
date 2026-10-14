@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Panel } from '../components/Panel';
 import { Table, TaskRows } from '../components/TaskTable';
 import { Editable } from '../components/Editable';
-import { NewTaskForm } from '../components/NewTaskForm';
 import { ColumnsMenu } from '../components/ColumnsMenu';
 import { Dropdown } from '../components/Dropdown';
 import { Popover } from '../components/Popover';
@@ -15,7 +14,7 @@ import { visibleOccurrences, type Occurrence } from '../lib/bills';
 import { monthKey, monthName, relLabel, shortDate } from '../lib/dates';
 
 export const HOUSE_COLS: ColDef[] = [
-  { id: 'title', label: 'Task', width: 86, min: 60 },
+  { id: 'title', label: 'Task', width: 100, min: 60 },
   { id: 'progress', label: 'Status', width: 58, min: 44 },
   { id: 'plan', label: 'Plan', width: 52, min: 40, defaultHidden: true },
   { id: 'due', label: 'Due', width: 48, min: 40 },
@@ -29,19 +28,19 @@ export function HousePanel({ focused }: { focused: boolean }) {
   const { data, today } = useStore();
   const cols = useColumns('house', HOUSE_COLS);
   const [view, setView] = usePersistentState<{ v: View }>('prefs.house', { v: 'both' });
-  const [adding, setAdding] = useState<null | 'task' | 'bill'>(null);
+  const { setNewTask, tagFilter } = useUi();
 
   const occurrences = useMemo(
     () => data.bills.flatMap((b) => visibleOccurrences(b, today)).sort((a, b) => a.due.localeCompare(b.due)),
     [data.bills, today],
   );
-  const tasks = data.tasks.filter((t) => t.area === 'house');
+  const tasks = data.tasks.filter((t) => t.area === 'house' && (!tagFilter || t.tags.includes(tagFilter)));
 
   return (
-    <Panel area="house" title="House" icon="house" focused={focused} onAdd={() => setAdding('task')} addLabel="New household task or bill"
+    <Panel area="house" title="House" icon="house" focused={focused} onAdd={() => setNewTask({ area: 'house' })} addLabel="New household task or bill"
       menu={(close) => <ColumnsMenu defs={HOUSE_COLS} cols={cols} close={close} />}
       toolbar={<Dropdown ariaLabel="Show" value={view.v} options={VIEWS} onChange={(v) => setView({ v })} />}
-      footer={adding ? undefined : <button className="foot-add" onClick={() => setAdding('task')}><Icon name="plus" size={14} /> Task or bill</button>}>
+      footer={<button className="foot-add" onClick={() => setNewTask({ area: 'house' })}><Icon name="plus" size={14} /> Task or bill</button>}>
       <Table cols={cols} label="House tasks and bills">
         {view.v !== 'tasks' && (
           <div className="group">
@@ -57,15 +56,6 @@ export function HousePanel({ focused }: { focused: boolean }) {
           </div>
         )}
       </Table>
-      {adding && (
-        <div>
-          <div className="seg" role="tablist" aria-label="What to add">
-            <button role="tab" aria-selected={adding === 'task'} onClick={() => setAdding('task')}>Task</button>
-            <button role="tab" aria-selected={adding === 'bill'} onClick={() => setAdding('bill')}>Recurring bill</button>
-          </div>
-          {adding === 'task' ? <NewTaskForm area="house" onDone={() => setAdding(null)} /> : <NewBillForm onDone={() => setAdding(null)} />}
-        </div>
-      )}
     </Panel>
   );
 }
@@ -122,32 +112,5 @@ function BillRow({ o, cols }: { o: Occurrence; cols: Columns }) {
         </Popover>
       </div>
     </div>
-  );
-}
-
-function NewBillForm({ onDone }: { onDone: () => void }) {
-  const { dispatch, today } = useStore();
-  const { say } = useUi();
-  const [title, setTitle] = useState('');
-  const [day, setDay] = useState(1);
-  const [remind, setRemind] = useState(2);
-  const submit = () => {
-    if (!title.trim()) return;
-    dispatch({ type: 'bill/add', title, dueDay: day, reminderDays: remind, start: monthKey(today) });
-    say('Recurring bill added (sample data). No amount is stored.');
-    onDone();
-  };
-  return (
-    <form className="new-form" onSubmit={(e) => { e.preventDefault(); submit(); }} onKeyDown={(e) => { if (e.key === 'Escape') onDone(); }}>
-      <input autoFocus placeholder="Bill name (e.g. Gas bill)" aria-label="Bill name" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <div className="form-row">
-        <label>Due day each month<input type="number" min={1} max={31} value={day} onChange={(e) => setDay(Number(e.target.value))} /></label>
-        <label>Remind<select value={remind} onChange={(e) => setRemind(Number(e.target.value))}>{[0, 1, 2, 3, 5, 7].map((n) => <option key={n} value={n}>{n === 0 ? 'On the day' : `${n} days before`}</option>)}</select></label>
-      </div>
-      <div className="form-actions">
-        <button type="button" className="btn ghost" onClick={onDone}>Cancel</button>
-        <button type="submit" className="btn primary" disabled={!title.trim()}>Save bill</button>
-      </div>
-    </form>
   );
 }

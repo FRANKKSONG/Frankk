@@ -24,8 +24,10 @@ export function DateCell({ value, onChange, label, kind, done, placeholder = 'â€
     }
   }, [editing]);
 
-  const overdue = kind === 'due' && !done && value && diffDays(value, today) < 0;
+  const diff = value ? diffDays(value, today) : null;
+  const overdue = kind === 'due' && !done && diff !== null && diff < 0;
   const isToday = value === today;
+  const soon = !done && diff !== null && diff > 0 && diff <= 2;
 
   if (editing) {
     return (
@@ -40,7 +42,7 @@ export function DateCell({ value, onChange, label, kind, done, placeholder = 'â€
     );
   }
   return (
-    <button className={`date-btn${overdue ? ' overdue' : ''}${isToday && !done ? ' today' : ''}${value ? '' : ' empty'}`}
+    <button className={`date-btn${overdue ? ' overdue' : ''}${isToday && !done ? ' today' : ''}${soon ? ' soon' : ''}${value ? '' : ' empty'}`}
       aria-label={`${label}: ${value ? relLabel(value, today) : 'not set'}. Click to change`} onClick={() => setEditing(true)}>
       {value ? relLabel(value, today) : placeholder}
     </button>

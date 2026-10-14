@@ -1,6 +1,6 @@
 import { todayISO } from '../lib/dates';
 import { buildFixtures } from './fixtures';
-import { BRANDS, type AppData } from './types';
+import type { AppData } from './types';
 
 /**
  * Milestone 1: the only repository. Data lives in browser localStorage and is
@@ -13,7 +13,7 @@ export interface Repository {
   reset(): AppData;
 }
 
-const KEY = 'esther.proto.data.v1';
+const KEY = 'esther.proto.data.v2';
 
 export class FixtureRepository implements Repository {
   readonly kind = 'fixture' as const;
@@ -23,7 +23,7 @@ export class FixtureRepository implements Repository {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as AppData;
-        if (parsed.version === 1 && Array.isArray(parsed.tasks)) return { ...parsed, brands: parsed.brands ?? [...BRANDS] };
+        if (parsed.version === 1 && Array.isArray(parsed.tasks) && Array.isArray(parsed.tags)) return parsed;
       }
     } catch {
       /* corrupt or unavailable storage: fall back to the sample data */

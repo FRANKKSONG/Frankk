@@ -21,7 +21,7 @@ const music = page.locator('section[aria-label="Music"]');
 const seround = page.locator('section[aria-label="Seround"]');
 const house = page.locator('section[aria-label="House"]');
 const titles = async () => (await general.locator('.task .task-title').allTextContents()).map((s) => s.trim());
-const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.data.v1')));
+const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.data.v2')));
 const box = async (loc) => (await loc.boundingBox());
 const reload = async () => { await page.reload(); await page.waitForSelector('section[aria-label="General"]'); await page.waitForTimeout(900); };
 
@@ -29,10 +29,10 @@ await page.goto(BASE); await page.waitForSelector('section[aria-label="General"]
 
 /* ---------- General: create ---------- */
 await general.getByRole('button', { name: 'New task' }).click();
-await page.getByLabel('Task name', { exact: true }).fill('Pay parking fine');
-await page.getByRole('textbox', { name: 'Steps', exact: true }).fill('Find ticket\nPay online');
-await page.locator('.new-form input[type=date]').nth(1).fill('2026-10-20');
-await page.getByRole('button', { name: 'Save task' }).click();
+await page.locator('#nt-title').fill('Pay parking fine');
+await page.locator('#nt-steps').fill('Find ticket\nPay online');
+await page.locator('#nt-due').fill('2026-10-20');
+await page.getByRole('button', { name: 'Add task' }).click();
 check('General: new task appears at top', (await titles())[0] === 'Pay parking fine', JSON.stringify(await titles()));
 check('General: new task has steps 0/2 and due date saved', (await store()).tasks.find((t) => t.title === 'Pay parking fine')?.steps.length === 2);
 
@@ -189,6 +189,7 @@ check('Ctrl+Z undoes the brand rename', (await store()).brands.includes('Eli Lao
 
 /* ---------- Music ---------- */
 const jz = music.locator('[data-project="p-jzero"]');
+await jz.getByRole('button', { name: /Expand JZero/ }).click();
 check('Music: JZero shows Artist job pill + Mix/Master only', (await jz.textContent()).includes('Artist job') && (await jz.textContent()).includes('Mix / Master only'));
 check('Music: JZero starts at 50% (1 of 2), % printed on bar', (await jz.locator('.plabel').first().textContent()) === '50%');
 check('Music: only assigned stages listed as work (Mix, Master)', (await jz.locator('.stage-name').allTextContents()).join() === 'Mix,Master', (await jz.locator('.stage-name').allTextContents()).join());
@@ -197,13 +198,17 @@ check('Music: out-of-scope stages are in a separate, labelled list (6)', (await 
 await jz.getByLabel('Master done').check();
 check('Music: JZero reaches 2/2 with the rest of the release out of scope', (await jz.locator('.plabel').first().textContent()) === '100%');
 const single = music.locator('[data-project="p-single"]');
-await single.getByRole('button', { name: /Expand FRANKK/ }).click();
-check('Music: own release shows timeline and full-release wording', (await single.locator('.timeline li').count()) >= 5 && (await single.textContent()).includes('Full release'));
-await single.getByLabel('Mark MV outside').count();
+const stepNames = (await single.locator('.stepper .name').allTextContents()).join(' → ');
+check('Music: own release shows a step bar Concept → … → Art (Design)', stepNames === 'Concept → Lyrics → Produce → Record → Mix & Master → Art (Design)', stepNames);
+check('Music: Marketing/MV are separate tracks, not steps', (await single.locator('.side-track .stage-name').allTextContents()).join() === 'Marketing,Streaming' && !stepNames.includes('Marketing'));
+const before2 = await single.locator('.mini-steps em').textContent();
+await single.locator('.side-track .stage').first().getByLabel('Marketing done').check();
+check('Music: finishing a separate track does not move the release step bar', (await single.locator('.mini-steps em').textContent()) === before2);
 await music.getByRole('button', { name: 'New project or artist job' }).click();
-await page.getByLabel('Artist / client').fill('Nok'); await page.getByLabel('Project / release').fill('Demo');
-await page.locator('.chip-check', { hasText: 'Mix' }).click();
-await page.getByRole('button', { name: 'Add', exact: true }).click();
+await page.getByRole('radio', { name: /Artist job/ }).click();
+await page.locator('#np-artist').fill('Nok'); await page.locator('#np-title').fill('Demo');
+await page.locator('.stage-pick').filter({ has: page.getByText('Mix', { exact: true }) }).locator('.check').click();
+await page.getByRole('button', { name: 'Create', exact: true }).click();
 const nok = (await store()).projects.find((p) => p.artist === 'Nok');
 check('Music: new artist job with only chosen stage in scope', nok && nok.stages.filter((s) => s.inScope).map((s) => s.name).join() === 'Mix' && nok.kind === 'artist-job');
 
@@ -217,6 +222,30 @@ await page.getByRole('menuitemradio', { name: 'All brands' }).click();
 await seround.getByRole('button', { name: /Office calendar/ }).click();
 check('Seround: office calendar says Not connected', (await page.getByText('Not connected').first().isVisible()));
 await page.keyboard.press('Escape');
+
+/* ---------- Seround repost queue ---------- */
+const queueBefore = (await store()).tasks.filter((t) => t.workstream === 'content').length;
+await seround.getByLabel(/Add to sundey .* repost queue/).fill('Night market clip');
+await seround.getByLabel(/Add to sundey .* repost queue/).press('Enter');
+const q = (await store()).tasks.filter((t) => t.workstream === 'content');
+check('Seround: repost queue is a simple to-do list (one-line add, no progress bar)', q.length === queueBefore + 1 && q.every((t) => t.mode === 'simple')
+  && (await seround.locator('.queue .pbar').count()) === 0);
+
+/* ---------- Tags ---------- */
+await page.getByLabel('Quick capture text').fill('Call bank #money #errand');
+await page.getByRole('button', { name: 'Save capture' }).click();
+const bank = (await store()).tasks.find((t) => t.title === 'Call bank');
+check('Tags: "#tag" in quick capture tags the task and creates new tags', bank && bank.tags.join() === 'money,errand' && (await store()).tags.some((t) => t.name === 'errand'));
+await general.locator('.tag-chip', { hasText: '#money' }).first().click();
+const filtered = await titles();
+check('Tags: clicking a tag filters the board', filtered.length > 0 && filtered.every((t) => ['Review budget', 'Call bank'].includes(t)), filtered.join('|'));
+await page.getByRole('button', { name: 'Clear tag filter' }).click();
+await general.locator('[data-task="t-dentist"]').hover();
+await general.locator('[data-task="t-dentist"]').getByRole('button', { name: /Tags for/ }).click();
+await page.getByLabel('Tag name', { exact: true }).fill('Weekend');
+await page.keyboard.press('Enter');
+await page.keyboard.press('Escape');
+check('Tags: add a new tag to a row from its tag button', (await store()).tasks.find((t) => t.id === 't-dentist').tags.includes('weekend'));
 
 /* ---------- House: bills ---------- */
 const elec = house.locator('[data-bill="b-elec:2026-10"]');
@@ -245,6 +274,16 @@ await page.screenshot({ path: 'docs/screens/wide-after.png' });
 const today = await page.locator('.today-item').allTextContents();
 check('Today strip: today + overdue work shown, no invented items', today.length >= 3 && today.some((t) => /Record vocals/.test(t)) && !today.some((t) => /Review budget/.test(t)), today.join(' / '));
 
+/* ---------- themes ---------- */
+await page.getByRole('button', { name: 'Appearance' }).click();
+await page.getByRole('radio', { name: /Parchment/ }).click();
+const bgP = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+await page.getByRole('radio', { name: /Modern/ }).click();
+const lookM = await page.evaluate(() => document.documentElement.dataset.look);
+await page.getByRole('radio', { name: /Manuscript/ }).click();
+await page.keyboard.press('Escape');
+check('Themes: switch between Manuscript, Parchment and Modern', bgP !== '' && lookM === 'modern' && (await page.evaluate(() => document.documentElement.dataset.look)) === 'manuscript');
+
 /* ---------- focus mode & narrow ---------- */
 await general.getByRole('button', { name: 'Focus General' }).click();
 check('Focus mode: General fills the main area', (await box(page.locator('.focus > .panel'))).width > 900);
@@ -260,7 +299,7 @@ await page.setViewportSize({ width: 1586, height: 992 });
 await page.getByRole('button', { name: 'Settings' }).click();
 await page.getByRole('button', { name: 'Reset sample data' }).click();
 await page.getByRole('button', { name: 'Yes, reset' }).click();
-await page.getByRole('button', { name: 'Home' }).click(); await page.waitForTimeout(500);
+await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.waitForTimeout(500);
 check('Reset sample data restores the originals', !(await titles()).includes('Pay parking fine'));
 await page.screenshot({ path: 'docs/screens/after-reset.png' });
 

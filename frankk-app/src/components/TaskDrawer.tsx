@@ -4,6 +4,7 @@ import { Icon } from './Icons';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { checklistProgress } from '../lib/progress';
+import { TagChips, TagPicker } from './Tags';
 import type { ContentInfo, Task } from '../data/types';
 
 /** Detail drawer. Field edits are a draft with Save/Cancel; ticking steps or completing applies immediately. */
@@ -18,13 +19,13 @@ export function TaskDrawer() {
 function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
   const { dispatch, data } = useStore();
   const { openNote, say } = useUi();
-  const [d, setD] = useState({ title: task.title, plan: task.plan ?? '', due: task.due ?? '', priority: task.priority, list: task.list ?? '', brand: task.brand ?? '', workstream: task.workstream ?? '' });
+  const [d, setD] = useState({ title: task.title, plan: task.plan ?? '', due: task.due ?? '', priority: task.priority, list: task.list ?? '', brand: task.brand ?? '', workstream: task.workstream ?? '', notes: task.notes ?? '' });
   const [c, setC] = useState<ContentInfo>(task.content ?? {});
   const [step, setStep] = useState('');
   const ref = useRef<HTMLElement>(null);
   const prog = checklistProgress(task.steps);
   const dirty = d.title !== task.title || d.plan !== (task.plan ?? '') || d.due !== (task.due ?? '') || d.priority !== task.priority
-    || d.list !== (task.list ?? '') || d.brand !== (task.brand ?? '') || d.workstream !== (task.workstream ?? '') || JSON.stringify(c) !== JSON.stringify(task.content ?? {});
+    || d.list !== (task.list ?? '') || d.notes !== (task.notes ?? '') || d.brand !== (task.brand ?? '') || d.workstream !== (task.workstream ?? '') || JSON.stringify(c) !== JSON.stringify(task.content ?? {});
 
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
@@ -38,7 +39,7 @@ function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
     dispatch({
       type: 'task/update', id: task.id,
       patch: {
-        title: d.title, plan: d.plan || undefined, due: d.due || undefined, priority: d.priority, list: d.list || undefined,
+        title: d.title, plan: d.plan || undefined, due: d.due || undefined, priority: d.priority, list: d.list || undefined, notes: d.notes.trim() || undefined,
         ...(task.area === 'seround' ? { brand: d.brand || undefined, workstream: (d.workstream || undefined) as Task['workstream'], content: task.workstream === 'content' || d.workstream === 'content' ? c : task.content } : {}),
       },
     });
@@ -72,6 +73,16 @@ function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
           </label>
           <label className="field">List / group<input value={d.list} placeholder="Optional" onChange={(e) => setD({ ...d, list: e.target.value })} /></label>
         </div>
+        <div className="field">Type
+          <div className="seg slim" role="radiogroup" aria-label="Task type">
+            <button type="button" role="radio" aria-checked={task.mode === 'simple'} onClick={() => dispatch({ type: 'task/update', id: task.id, patch: { mode: 'simple' } })}>Simple to-do</button>
+            <button type="button" role="radio" aria-checked={task.mode === 'progress'} onClick={() => dispatch({ type: 'task/update', id: task.id, patch: { mode: 'progress' } })}>With steps</button>
+          </div>
+        </div>
+        <div className="field">Tags
+          <span className="tag-line"><TagChips names={task.tags} /><TagPicker value={task.tags} onChange={(tags) => dispatch({ type: 'task/tags', id: task.id, tags })} label="Edit tags" /></span>
+        </div>
+        <label className="field">Notes<textarea rows={3} value={d.notes} placeholder="Anything to remember" onChange={(e) => setD({ ...d, notes: e.target.value })} /></label>
         <div className="form-row">
           <label className="field">Repeat<select disabled><option>Not available yet</option></select></label>
           <label className="field">Reminder<select disabled><option>Not available yet</option></select></label>
@@ -82,7 +93,7 @@ function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
             <label className="field">Brand<select value={d.brand} onChange={(e) => setD({ ...d, brand: e.target.value })}>{data.brands.map((b) => <option key={b}>{b}</option>)}</select></label>
             <label className="field">Workstream
               <select value={d.workstream} onChange={(e) => setD({ ...d, workstream: e.target.value })}>
-                <option value="">—</option><option value="content">Content queue</option><option value="backend">Backend development</option><option value="brand">Brand work</option>
+                <option value="">—</option><option value="content">Repost queue</option><option value="backend">Backend development</option><option value="brand">Brand work</option>
               </select>
             </label>
           </div>
@@ -106,7 +117,7 @@ function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
           </fieldset>
         )}
 
-        <div className="drawer-steps">
+        {task.mode === 'progress' && <div className="drawer-steps">
           <h4>Steps {prog.pct !== null && <span className="muted">{prog.done}/{prog.total}</span>}</h4>
           {task.steps.length === 0 && <p className="steps-empty">No steps yet.</p>}
           {task.steps.map((s) => (
@@ -119,7 +130,7 @@ function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
               onKeyDown={(e) => { if (e.key === 'Enter' && step.trim()) { dispatch({ type: 'step/add', taskId: task.id, text: step }); setStep(''); } }} />
           </div>
           <p className="hint">Steps save as you tick them. Finishing every step never completes the task by itself.</p>
-        </div>
+        </div>}
 
         <div className="note-link">
           <code>{task.notePath}</code>

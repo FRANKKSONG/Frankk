@@ -7,6 +7,7 @@ import { DateCell } from './DateCell';
 import { ProgressCell } from './ProgressBar';
 import { Popover } from './Popover';
 import { Editable, MiniSelect } from './Editable';
+import { TagChips, TagPicker } from './Tags';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { checklistProgress } from '../lib/progress';
@@ -135,14 +136,19 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
       case 'title':
         return (
           <div key={id} className="cell title-cell">
-            <button className={`chev${open ? ' open' : ''}`} aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} steps of ${task.title}`} onClick={onToggleOpen}>
-              <Icon name="chevronR" size={12} />
-            </button>
-            <Editable className="task-title" label="Task name" value={task.title} onSave={(v) => update({ title: v })} lang={task.brand?.startsWith('sundey') ? 'lo' : undefined} />
-            {task.priority === 'high' && !task.done && !cols.visible.some((c) => c.id === 'priority') && <span className="prio" title="High priority">!</span>}
+            {task.mode === 'progress'
+              ? <button className={`chev${open ? ' open' : ''}`} aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} steps of ${task.title}`} onClick={onToggleOpen}><Icon name="chevronR" size={12} /></button>
+              : <span className="chev" aria-hidden="true" />}
+            <span className="tt">
+              <Editable className="task-title" label="Task name" value={task.title} onSave={(v) => update({ title: v })} lang={task.brand?.startsWith('sundey') ? 'lo' : undefined} />
+              {task.tags.length > 0 && <TagChips names={task.tags} small />}
+            </span>
+            <span className="row-tools">
+              <TagPicker compact value={task.tags} onChange={(tags) => dispatch({ type: 'task/tags', id: task.id, tags })} label={`Tags for ${task.title}`} />
+            </span>
           </div>
         );
-      case 'progress': return <div key={id} className="cell"><ProgressCell p={prog} done={task.done} /></div>;
+      case 'progress': return <div key={id} className="cell">{task.mode === 'simple' ? <span className="simple-state">{task.done ? 'Done' : ''}</span> : <ProgressCell p={prog} done={task.done} />}</div>;
       case 'plan': return <div key={id} className="cell"><DateCell kind="plan" label={`Task date of ${task.title}`} value={task.plan} done={task.done} onChange={(v) => update({ plan: v })} /></div>;
       case 'due': return <div key={id} className="cell"><DateCell kind="due" label={`Due date of ${task.title}`} value={task.due} done={task.done} onChange={(v) => update({ due: v })} /></div>;
       case 'priority': return <div key={id} className="cell"><MiniSelect label={`Priority of ${task.title}`} value={task.priority} options={PRIORITIES} onChange={(v) => update({ priority: v })} /></div>;
@@ -154,7 +160,7 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
   };
 
   return (
-    <div ref={setNodeRef} className={`task${isDragging ? ' dragging' : ''}${task.done ? ' is-done' : ''}${open ? ' is-open' : ''}`} data-task={task.id}
+    <div ref={setNodeRef} className={`task prio-${task.priority}${isDragging ? ' dragging' : ''}${task.done ? ' is-done' : ''}${open ? ' is-open' : ''}`} data-task={task.id}
       style={{ transform: CSS.Transform.toString(transform), transition }}>
       <div className="trow" style={{ gridTemplateColumns: cols.template }} role="row">
         <button className={`row-grip${manual ? '' : ' off'}`} aria-label={`Reorder ${task.title}. Space to pick up, arrows to move, or Alt+Up and Alt+Down`}
@@ -179,7 +185,10 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
           {(close) => (
             <>
               <button role="menuitem" onClick={() => { close(); openTask(task.id); }}>Open details</button>
-              <button role="menuitem" onClick={() => { close(); onToggleOpen(); }}>{open ? 'Hide steps' : 'Show steps'}</button>
+              {task.mode === 'progress' && <button role="menuitem" onClick={() => { close(); onToggleOpen(); }}>{open ? 'Hide steps' : 'Show steps'}</button>}
+              <button role="menuitem" onClick={() => { close(); update({ mode: task.mode === 'simple' ? 'progress' : 'simple' }); }}>
+                <Icon name={task.mode === 'simple' ? 'steps' : 'check'} size={13} /> {task.mode === 'simple' ? 'Turn into checklist with progress' : 'Turn into simple to-do'}
+              </button>
               <button role="menuitem" onClick={() => { close(); openNote(task.notePath); }}><Icon name="external" size={13} /> Open in Obsidian</button>
               <button role="menuitem" disabled={!manual || first} onClick={() => { close(); onNudge(task.id, -1); }}><Icon name="up" size={13} /> Move up</button>
               <button role="menuitem" disabled={!manual || last} onClick={() => { close(); onNudge(task.id, 1); }}><Icon name="down" size={13} /> Move down</button>
@@ -188,7 +197,7 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
           )}
         </Popover>
       </div>
-      {open && <Steps task={task} />}
+      {open && task.mode === 'progress' && <Steps task={task} />}
     </div>
   );
 }

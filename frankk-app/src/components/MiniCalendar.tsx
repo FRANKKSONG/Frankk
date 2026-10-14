@@ -27,9 +27,9 @@ export function MiniCalendar({ day, onDay }: { day: string | null; onDay: (d: st
       <div className="cal-grid" role="grid">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <span key={d} className="dow" role="columnheader">{d}</span>)}
         {cells.map((c, i) => c ? (
-          <button key={c} role="gridcell" className={`day${c === today ? ' today' : ''}${c === day ? ' picked' : ''}`} aria-label={`${c}${markers.get(c) ? `, ${markers.get(c)} items` : ''}`}
+          <button key={c} role="gridcell" className={`day${c === today ? ' today' : ''}${c === day ? ' picked' : ''}`} aria-label={`${c}${markers.get(c) ? `, has ${[...markers.get(c)!].join(', ')} items` : ''}`}
             aria-pressed={c === day} onClick={() => onDay(c === day ? null : c)}>
-            {Number(c.slice(8))}{markers.has(c) && <i />}
+            {Number(c.slice(8))}{markers.has(c) && <span className="marks">{[...markers.get(c)!].map((a) => <i key={a} className={`area-${a}`} />)}</span>}
           </button>
         ) : <span key={`e${i}`} />)}
       </div>

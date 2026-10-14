@@ -22,7 +22,10 @@ export function QuickCapture() {
     // A rapid double-click / double-Enter must not create the same task twice.
     if (last.current.text === t && now - last.current.at < 800) return;
     last.current = { text: t, at: now };
-    dispatch({ type: 'task/add', title: t, area, extra: area === 'seround' ? { brand: data.brands[0] } : undefined });
+    // "#tag" words become tags: "Call bank #money" -> task "Call bank" tagged money.
+    const tags = (t.match(/#[\p{L}\p{N}_-]+/gu) ?? []).map((x) => x.slice(1));
+    const title = t.replace(/#[\p{L}\p{N}_-]+/gu, '').replace(/\s+/g, ' ').trim() || t;
+    dispatch({ type: 'task/add', title, area, extra: { tags, mode: 'simple', ...(area === 'seround' ? { brand: data.brands[0] } : {}) } });
     setText('');
     say(`Added to ${area === 'general' ? 'General' : area === 'house' ? 'House' : `Seround · ${data.brands[0]}`}.`, true);
   };
@@ -31,7 +34,7 @@ export function QuickCapture() {
     <section className="capture" aria-label="Quick capture">
       <h3><Icon name="bolt" size={15} /> Quick capture</h3>
       <div className="capture-row">
-        <input value={text} placeholder="Write a task…" aria-label="Quick capture text" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save(); }} />
+        <input value={text} placeholder="Write a task… add #tags to tag it" aria-label="Quick capture text" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save(); }} />
         <select aria-label="Category" value={area} onChange={(e) => setArea(e.target.value as typeof area)}>
           <option value="general">General</option>
           <option value="seround">Seround</option>

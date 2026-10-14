@@ -8,7 +8,7 @@ It never reads or writes your Obsidian vault. All records are sample data kept i
 npm install
 npm run dev        # http://127.0.0.1:5173   (add ?today=2026-10-14 to pin the date)
 npm test           # unit tests (rules: progress, scope, bills, agenda)
-npm run e2e        # 55 browser checks (needs the dev server running and Chromium)
+npm run e2e        # 62 browser checks (needs the dev server running and Chromium)
 ```
 
 ## What works (real)
@@ -38,3 +38,12 @@ Screenshots: `docs/screens/`.
 - Bento: fits the window height, panels swap places when dropped on each other, resize from left, right, bottom or corners.
 - Thick progress bars with the percentage printed on them.
 - Click to edit: task names, steps (and remove), panel names, brand names (add/rename), bill names and due day, music artist/project/client/roles/target date, stage and item names. Ctrl+Z or the toast's Undo reverts the last 50 changes.
+
+## Iteration 3
+- Themes: **Manuscript** (candlelit oak, gold leaf, pigment colours), **Parchment** (light vellum) and **Modern**, with adjustable accent and area colours (Appearance button or Settings). Sources: `docs/DESIGN-RESOURCES.md`.
+- Own releases use a **step bar** (Concept → Lyrics → Produce → Record → Mix & Master → Art (Design)); Marketing, MV and Streaming are separate tracks that never count toward release progress.
+- sundey **repost queue** is a simple to-do list with one-line add.
+- Every task can be a **simple to-do** or **with steps** (progress bar); switch any time.
+- **Tags**: coloured, add from any row or with `#tag` in quick capture, click a tag to filter the board, rename/recolour in Settings.
+- Full **New task** and **New project** windows that ask for everything.
+- More colour coding: priority stripes, brand colours, project colours, date pills (today, soon, overdue), calendar dots by area.
