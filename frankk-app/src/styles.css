@@ -1452,3 +1452,12 @@ input.editable.editing::selection { background: color-mix(in srgb, var(--accent)
 .rel-seg.now i { background: color-mix(in srgb, var(--tone, var(--row)) 22%, transparent); }
 .mini-steps i.done b, .mini-steps i.active b { background: var(--tone, var(--ok)); }
 .mini-steps .stage-badge { margin-left: 4px; }
+
+/* ── Iteration 18: round calendar days; sticky table headers sit flush with the panel top ── */
+.cal-grid { justify-items: center; align-items: center; }
+.cal-grid .day { width: min(34px, 100%); height: auto; aspect-ratio: 1; max-height: 100%; border-radius: 50% !important; display: grid; place-items: center; padding: 0 !important; transition: background .12s; }
+.cal-grid .day:hover:not(.today) { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.cal-grid .day .marks { bottom: -1px; }
+.panel-body { padding-top: 0 !important; }
+.panel-body > .table > .thead, .panel-body .thead { top: 0; box-shadow: 0 -12px 0 0 var(--panel-solid, rgb(25 22 19)); }
+.cal-grid .day .marks { bottom: 4px; } .cal-grid .day { line-height: 1; padding-bottom: 4px !important; }
