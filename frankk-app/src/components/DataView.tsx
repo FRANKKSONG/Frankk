@@ -154,14 +154,14 @@ function TableLayout({ type, recs, fields, onOpen, view, patch }: { type: TypeDe
           return (
             <th key={f.key} aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
               className={`${active ? 'sorted' : ''}${f.key !== 'title' ? ' movable' : ''}${dragKey === f.key ? ' col-dragging' : ''}${overKey === f.key && dragKey && dragKey !== f.key ? (view.fields.indexOf(dragKey) < view.fields.indexOf(f.key) ? ' drop-after' : ' drop-before') : ''}`}
-              draggable={f.key !== 'title'}
-              title={f.key !== 'title' ? 'Drag left or right to move this column' : undefined}
-              onDragStart={(e) => { if (f.key === 'title') return; setDragKey(f.key); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', f.key); }}
               onDragOver={(e) => { if (!dragKey) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overKey !== f.key) setOverKey(f.key); }}
               onDragLeave={() => setOverKey((k) => (k === f.key ? null : k))}
               onDrop={(e) => { e.preventDefault(); if (dragKey && dragKey !== f.key) moveCol(dragKey, f.key); setDragKey(null); setOverKey(null); }}
               onDragEnd={() => { setDragKey(null); setOverKey(null); }}>
-              <button type="button" className="th-btn" title={`Sort by ${f.name}`} onClick={() => { const n = nextSort(sort, f.key); patch({ sort: n ? { field: n.key, dir: n.dir } : undefined }); }}>
+              <button type="button" className="th-btn" title={f.key !== 'title' ? `Sort by ${f.name} · drag left or right to move` : `Sort by ${f.name}`}
+                draggable={f.key !== 'title'}
+                onDragStart={(e) => { if (f.key === 'title') return; setDragKey(f.key); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', f.key); }}
+                onClick={() => { const n = nextSort(sort, f.key); patch({ sort: n ? { field: n.key, dir: n.dir } : undefined }); }}>
                 {f.key !== 'title' && <span className="kind-ico">{KIND_ICON[f.kind]}</span>}<span className="th-label">{f.name}</span>
                 <span className="sort-ind" aria-hidden="true">{active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
               </button>

@@ -99,7 +99,7 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
   const { focusArea, setPalette, tagFilter, setTagFilter, say } = useUi();
   const { data } = useStore();
   const [day, setDay] = useState<string | null>(null);
-  const [saved, setSaved] = usePersistentState<{ items: LayoutItem[]; hidden: WidgetId[] }>('layout.board.v2', { items: DEFAULT_LAYOUT, hidden: [] });
+  const [saved, setSaved] = usePersistentState<{ items: LayoutItem[]; hidden: WidgetId[] }>('layout.board.v3', { items: DEFAULT_LAYOUT, hidden: [] });
   const { width, containerRef, mounted } = useContainerWidth();
   const [height, setHeight] = useState(800);
   const [dragging, setDragging] = useState(false);

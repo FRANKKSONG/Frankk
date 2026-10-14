@@ -24,12 +24,12 @@ export const WIDGETS: { id: WidgetId; label: string; secondary: boolean }[] = [
  * with the calendar, coming-up list and quick capture stacked down the right.
  */
 export const DEFAULT_LAYOUT: LayoutItem[] = [
-  { i: 'today', x: 0, y: 0, w: 48, h: 2, minW: 16, minH: 2, maxH: 10 },
-  { i: 'general', x: 0, y: 2, w: 17, h: 9, minW: 8, minH: 5 },
-  { i: 'music', x: 17, y: 2, w: 18, h: 9, minW: 10, minH: 5 },
+  { i: 'today', x: 0, y: 0, w: 48, h: 1, minW: 16, minH: 1, maxH: 4 },
+  { i: 'general', x: 0, y: 1, w: 17, h: 10, minW: 8, minH: 5 },
+  { i: 'music', x: 17, y: 1, w: 18, h: 10, minW: 10, minH: 5 },
   { i: 'seround', x: 0, y: 11, w: 17, h: 9, minW: 8, minH: 5 },
   { i: 'house', x: 17, y: 11, w: 18, h: 9, minW: 7, minH: 5 },
-  { i: 'calendar', x: 35, y: 2, w: 13, h: 7, minW: 10, minH: 5 },
+  { i: 'calendar', x: 35, y: 1, w: 13, h: 8, minW: 10, minH: 5 },
   { i: 'coming', x: 35, y: 9, w: 13, h: 5, minW: 9, minH: 4 },
   { i: 'capture', x: 35, y: 14, w: 13, h: 6, minW: 10, minH: 5 },
 ];

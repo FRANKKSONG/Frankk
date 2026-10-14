@@ -1486,3 +1486,60 @@ section.today { padding: 4px 12px; } .today-list { gap: 4px 6px; padding: 1px 0;
 /* Description cells: quiet text, one line, editable in place */
 .cell-desc { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cell-desc.empty { opacity: 0; } .task:hover .cell-desc.empty, .trow:hover .cell-desc.empty, .cell-desc:focus-visible { opacity: 1; }
+.st-grid { grid-template-columns: 16px 20px 20px var(--st-name, 170px) var(--st-desc-track, minmax(260px, 1fr)) var(--st-progress, 90px) var(--st-date, 112px) var(--st-tail, 0px) !important; }
+@container (max-width: 560px) { .st-grid { grid-template-columns: 16px 20px 20px minmax(0, 1fr) 0 0 auto 0 !important; } }
+/* Library table headers are each sticky (own stacking layer), so keep the resize handle inside its own cell */
+.dv-table th .col-resizer { right: 0 !important; width: 10px; z-index: 6; }
+.dv-table th .col-resizer::after { left: auto !important; right: 0; }
+.dv-table th .th-btn { padding-right: 12px; }
+/* Today strip: a single line, earliest on the left; the wheel scrolls it sideways */
+section.today { align-items: center; padding: 0 12px; gap: 14px; }
+section.today .today-head { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+:is([data-style='gilded'], [data-style='modern']) section.today .today-head strong { font-size: 20px; }
+.today-list { flex-wrap: nowrap !important; overflow-x: auto; overflow-y: hidden; align-content: center; align-items: center; max-height: none; scroll-behavior: smooth; }
+.today-item { flex: none; }
+.rel-card { align-content: start; } .rel-grid { align-items: flex-start !important; } .rel-grid > .sortable-row { align-self: flex-start; }
+/* Library: the card never spills past the page; wide tables scroll inside it. Roomier header. */
+.library { min-width: 0; }
+.lib-main { min-width: 0; overflow: hidden; }
+.lib-main > * { min-width: 0; }
+.dataview, .dv-table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
+:is([data-style='gilded'], [data-style='modern']) .lib-main { padding: 24px 28px 20px; gap: 16px; }
+.lib-head { gap: 14px 18px; padding-bottom: 18px; }
+.lib-head .lib-icon { width: 46px; height: 46px; border-radius: 12px; }
+
+/* ── Iteration 19: stage badges shine like a game rank. The stage you're on pulses and glows;
+   higher stages glow brighter, and the gold rank gets rotating rays. Calm when reduced motion is on. ── */
+.stage-badge { position: relative; isolation: isolate; overflow: visible; }
+.stage-badge::before, .stage-badge::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
+/* sheen sweep across the face */
+.stage-badge::after { inset: 0; opacity: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.65) 48%, rgba(255,255,255,.15) 55%, transparent 65%) no-repeat;
+  background-size: 260% 100%; background-position: 160% 0; mix-blend-mode: overlay; }
+.stage-badge.current::after, .stage-badge.tier-5.done::after { opacity: 1; animation: badge-sheen 3s ease-in-out infinite; }
+/* glow halo behind the badge */
+.stage-badge.current::before { inset: -4px; z-index: -1;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tone) 75%, transparent) 0%, color-mix(in srgb, var(--tone) 30%, transparent) 45%, transparent 72%);
+  animation: badge-glow 2.2s ease-in-out infinite; }
+.stage-badge.current { outline: none; animation: badge-pulse 2.2s ease-in-out infinite; }
+.stage-badge.current.tier-3::before, .stage-badge.current.tier-4::before { inset: -6px; animation-duration: 1.8s; }
+/* gold rank: rotating rays + brighter glow */
+.stage-badge.tier-5.current::before { inset: -9px;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, #ffd970 70%, transparent) 0deg 8deg, transparent 8deg 30deg);
+  -webkit-mask: radial-gradient(circle, #000 30%, transparent 72%); mask: radial-gradient(circle, #000 30%, transparent 72%);
+  animation: badge-rays 6s linear infinite, badge-glow 2s ease-in-out infinite; }
+.stage-badge.tier-5.done { box-shadow: 0 0 0 1.5px var(--bg-2, #111), 0 0 0 3px #c99a3a, 0 0 10px 1px rgba(255, 210, 110, .45), inset 0 1px 0 rgba(255,255,255,.55); }
+@keyframes badge-sheen { 0%, 55% { background-position: 160% 0; } 100% { background-position: -70% 0; } }
+@keyframes badge-glow { 0%, 100% { opacity: .55; transform: scale(.92); } 50% { opacity: 1; transform: scale(1.12); } }
+@keyframes badge-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes badge-rays { to { rotate: 360deg; } }
+/* a quick celebratory pop when a stage is completed */
+.stage-badge.done { animation: badge-pop .45s cubic-bezier(.3, 1.6, .5, 1) 1; }
+@keyframes badge-pop { 0% { transform: scale(.6); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .stage-badge, .stage-badge::before, .stage-badge::after { animation: none !important; }
+  .stage-badge.current::before { opacity: .8; }
+}
+.rel-grid .sortable-row .rel-card { flex: none; }
+/* make the current-stage glow a touch stronger */
+.stage-badge.current::before { background: radial-gradient(circle, color-mix(in srgb, var(--tone) 90%, transparent) 0%, color-mix(in srgb, var(--tone) 45%, transparent) 45%, transparent 75%); }

@@ -70,7 +70,7 @@ export function TableHeader({ cols, sort, onSort, sortable }: { cols: Columns; s
   );
 }
 
-export function ResizeHandle({ label, value, onChange, onFit }: { label: string; value: number; onChange: (w: number) => void; onFit: (el: HTMLElement) => void }) {
+export function ResizeHandle({ label, value, onChange, onFit, offset = 0 }: { label: string; value: number; onChange: (w: number) => void; onFit: (el: HTMLElement) => void; offset?: number }) {
   const start = useRef<{ x: number; w: number } | null>(null);
   const end = () => { start.current = null; document.body.classList.remove('col-resizing'); };
   return (
@@ -79,7 +79,8 @@ export function ResizeHandle({ label, value, onChange, onFit }: { label: string;
       onPointerDown={(e) => {
         e.preventDefault(); e.stopPropagation();
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        start.current = { x: e.clientX, w: value };
+        // Start from the width you can see (a stretched column may be wider than its stored width).
+        start.current = { x: e.clientX, w: ((e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().width - offset) || value };
         document.body.classList.add('col-resizing');
       }}
       onPointerMove={(e) => { if (start.current) onChange(start.current.w + e.clientX - start.current.x); }}

@@ -55,10 +55,10 @@ check('Library: People table lists 4 people', (await page.locator('.dv-table tbo
 {
   const heads = async () => (await page.locator('.dv-table thead .th-label').allTextContents());
   const h0 = await heads();
-  await page.locator('.dv-table thead th', { hasText: 'Role' }).dragTo(page.locator('.dv-table thead th', { hasText: 'First name' }));
+  await page.locator('.dv-table thead th', { hasText: 'Role' }).locator('.th-btn').dragTo(page.locator('.dv-table thead th', { hasText: 'First name' }));
   const h1 = await heads();
   check('Library: drag a column header to move it (Name stays first)', h1[0] === 'Name' && h1.indexOf('Role') < h0.indexOf('Role') && h1.length === h0.length, `${h0.join(',')} → ${h1.join(',')}`);
-  check('Library: Name column cannot be dragged', await page.locator('.dv-table thead th').first().getAttribute('draggable') === 'false');
+  check('Library: Name column cannot be dragged', await page.locator('.dv-table thead th .th-btn').first().getAttribute('draggable') === 'false');
 }
 await page.getByRole('tab', { name: /Fields/ }).click();
 await page.getByLabel('New field name').fill('Followers');
@@ -243,7 +243,7 @@ await page.mouse.move(rb.x + 9, rb.y + 9); await page.mouse.down(); await page.m
 const hb2 = await box(page.locator('.react-grid-item:has(section[aria-label="House"])'));
 check('Panel resize: House made taller via corner handle', hb2.height > hb.height + 20, `${hb.height} → ${hb2.height}`);
 await page.waitForTimeout(500);
-const layoutKey = () => page.evaluate(() => localStorage.getItem('esther.proto.v1.layout.board.v2'));
+const layoutKey = () => page.evaluate(() => localStorage.getItem('esther.proto.v1.layout.board.v3'));
 const lay1 = JSON.parse(await layoutKey()).items;
 await reload();
 const lay2 = JSON.parse(await layoutKey()).items;

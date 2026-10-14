@@ -49,10 +49,13 @@ export function useColumns(tableId: string, defs: ColDef[], focused = false) {
   const template = useMemo(
     // The name column grows to use spare room (never narrower than its set width); the rest stay where you drag them.
     () => {
-      const grow = visible.find((d) => d.flex)?.id ?? 'title';
-      return [`${GRIP}px`, `${CHECK}px`, ...visible.map((d) => (d.id === grow ? `minmax(${width(d.id)}px, 1fr)` : `${width(d.id)}px`)), '0px', `${MENU}px`].join(' ');
+      // One column stretches to fill spare room (and gives it back first when you widen others) until you size it yourself;
+      // then it keeps your width and any gap goes to the end.
+      const flexId = visible.find((d) => d.flex)?.id ?? 'title';
+      const grow = saved.widths[flexId] === undefined ? flexId : null;
+      return [`${GRIP}px`, `${CHECK}px`, ...visible.map((d) => (d.id === grow ? `minmax(${d.min}px, 1fr)` : `${width(d.id)}px`)), grow ? '0px' : 'minmax(0, 1fr)', `${MENU}px`].join(' ');
     },
-    [visible, width],
+    [visible, width, saved.widths],
   );
   const minWidth = useMemo(
     () => GRIP + CHECK + MENU + visible.reduce((n, d) => n + width(d.id), 0) + GAP * (visible.length + 3) + 8,

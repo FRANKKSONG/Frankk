@@ -313,7 +313,7 @@ function ProjectDetail({ p }: { p: MusicProject }) {
     unsort();
   };
   const unsort = () => { if (stageSort) { setStageSort(null); say('Now in your own order.'); } };
-  const setWidth = (id: string, w: number) => setWidths((cur) => ({ ...cur, [id]: Math.max(STAGE_MIN[id] ?? 50, Math.min(640, Math.round(w))) }));
+  const setWidth = (id: string, w: number) => setWidths((cur) => ({ ...cur, [id]: Math.max(STAGE_MIN[id] ?? 50, Math.min(1400, Math.round(w))), ...(id === 'desc' ? { descSet: true } : {}) }));
 
   const [section, setSection] = usePersistentState<'steps' | 'tracks' | 'details'>(`proj.section.${p.id}`, 'steps');
   const sec = job && section === 'tracks' ? 'steps' : section;
@@ -324,7 +324,7 @@ function ProjectDetail({ p }: { p: MusicProject }) {
   ];
 
   return (
-    <div className="project-detail" style={{ '--st-name': `${widths.name}px`, '--st-desc': `${widths.desc}px`, '--st-progress': `${widths.progress}px`, '--st-date': `${widths.date}px` } as React.CSSProperties}>
+    <div className="project-detail" style={{ '--st-name': `${widths.name}px`, '--st-desc': `${widths.desc}px`, '--st-progress': `${widths.progress}px`, '--st-date': `${widths.date}px`, '--st-desc-track': widths.descSet ? `${widths.desc}px` : `minmax(${STAGE_MIN.desc}px, 1fr)`, '--st-tail': widths.descSet ? 'minmax(0, 1fr)' : '0px' } as React.CSSProperties}>
       {!job && <ReleaseStepper project={p} />}
 
       <div className="pd-tabs" role="tablist" aria-label={`${p.title} sections`}>
@@ -417,10 +417,10 @@ function ProjectDetail({ p }: { p: MusicProject }) {
 
 /* ---------- stage list: Explorer-style columns (Name · Progress · Date), sortable, right-click for actions ---------- */
 
-type StageWidths = Record<'name' | 'desc' | 'progress' | 'date', number>;
+type StageWidths = Record<'name' | 'desc' | 'progress' | 'date', number> & { descSet?: boolean };
 const STAGE_WIDTHS: StageWidths = { name: 170, desc: 260, progress: 90, date: 112 };
 const STAGE_MIN: Record<string, number> = { name: 80, desc: 60, progress: 60, date: 90 };
-const STAGE_COLS: { id: keyof StageWidths; label: string }[] = [{ id: 'name', label: 'Name' }, { id: 'desc', label: 'Description' }, { id: 'progress', label: 'Progress' }, { id: 'date', label: 'Date' }];
+const STAGE_COLS: { id: 'name' | 'desc' | 'progress' | 'date'; label: string }[] = [{ id: 'name', label: 'Name' }, { id: 'desc', label: 'Description' }, { id: 'progress', label: 'Progress' }, { id: 'date', label: 'Date' }];
 
 /** Sort by one column. Empty values always go last, like Explorer and Finder. */
 function sortBy<T>(list: T[], get: (x: T) => string | number | undefined, sort: SortState | null): T[] {
@@ -456,7 +456,7 @@ function StageHeader({ sort, onSort, widths, setWidth }: { sort: SortState | nul
               <span className="th-label">{c.label}</span>
               <span className="sort-ind" aria-hidden="true">{active ? (sort!.dir === 'asc' ? '▲' : '▼') : ''}</span>
             </button>
-            <ResizeHandle label={c.label} value={widths[c.id]} onChange={(w) => setWidth(c.id, w)}
+            <ResizeHandle label={c.label} value={widths[c.id]} offset={c.id === 'name' ? 24 : 0} onChange={(w) => setWidth(c.id, w)}
               onFit={(el) => {
                 const sel = c.id === 'name' ? '.stage-name, .step-text' : c.id === 'desc' ? '.st-desc' : c.id === 'progress' ? '.st-progress' : '.st-date > *';
                 const cells = [...(el.closest('.project-detail')?.querySelectorAll<HTMLElement>(sel) ?? [])];

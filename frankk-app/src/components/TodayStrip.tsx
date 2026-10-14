@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Icon, type IconName } from './Icons';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
@@ -25,7 +25,21 @@ export function TodayStrip() {
   const { data, today } = useStore();
   const { openTask, revealRow, setFocusArea } = useUi();
   const toggle = useToggleAgenda();
-  const items = useMemo(() => todayItems(data, today), [data, today]);
+  // One line, earliest on the left: the most overdue first, then today's.
+  const items = useMemo(() => [...todayItems(data, today)].sort((a, b) => a.date.localeCompare(b.date)), [data, today]);
+  const listRef = useRef<HTMLUListElement>(null);
+  // The mouse wheel scrolls the line sideways.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [items.length]);
 
   const open = (i: AgendaItem) => {
     if (i.ref.type === 'task') openTask(i.ref.id);
@@ -37,7 +51,7 @@ export function TodayStrip() {
     <section className="today" aria-label="Today">
       <div className="today-head"><strong>Today</strong><span>{longToday(today)}</span></div>
       {items.length === 0 ? <p className="today-empty">Nothing is due or planned for today.</p> : (
-        <ul className="today-list">
+        <ul className="today-list" ref={listRef}>
           {items.map((i) => (
             <li key={i.key} className={`today-item area-${i.area}`}>
               <label className="check no-drag"><input type="checkbox" checked={false} aria-label={`Complete ${i.title}`} onChange={() => toggle(i)} /><span className="box" /></label>
