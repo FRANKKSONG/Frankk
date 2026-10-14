@@ -6,34 +6,104 @@ import { Icon } from './Icons';
 /* A little pixel-art knight that patrols the bottom of the window. Click him to ask something.
    He isn't connected to an AI yet, and says so; meanwhile he searches your Esther data. */
 
+/* Esther's crusader: great helm with a red cross, white tabard, an upright sword, and a lapis shield
+   with Esther's gold cross. 24×24 pixels; four-frame walk (step, pass, step, pass) and a blink. */
 const PALETTE: Record<string, string> = {
-  k: '#1b1612', s: '#9aa3ad', l: '#d9dee3', v: '#2a2f36', r: '#c94a3a', g: '#d4a03c', b: '#3f6fb0', w: '#6b4a2f', f: '#f2d6b3',
+  k: '#1b1612', H: '#e2e6eb', h: '#acb4be', d: '#707983', v: '#121014', e: '#78beff',
+  g: '#e2b64e', G: '#aa7a2c', w: '#f0e8d4', W: '#ccc0a6', r: '#cc4838',
+  b: '#3a5fa8', B: '#243c70', s: '#969ea8', S: '#6e7680', n: '#6e4c30', N: '#4c3421', y: '#f6d680',
 };
-const BODY = [
-  '......rr........',
-  '.....rrr........',
-  '....kkkkk.......',
-  '...klllllk......',
-  '...klvvvlk......',
-  '...klllllk......',
-  '....kkkkk.......',
-  '..kkssssskk.....',
-  '.kbbksslsskg....',
-  '.kbgbsslssk.g...',
-  '.kbbbsssssk..g..',
-  '..kkkssssk......',
-];
-const LEGS = {
-  idle: ['....ksk.ksk.....', '....ksk.ksk.....', '....kwk.kwk.....', '...kwwk.kwwk....'],
-  a: ['....ksk..ksk....', '...ksk....ksk...', '...kwk....kwk...', '..kwwk....kwwk..'],
-  b: ['.....kssk.......', '.....kssk.......', '.....kwwk.......', '....kwwwk.......'],
+const FRAMES = {
+  stand: [
+  '...k.......kgk..........',
+  '..kHk.....kgygk.........',
+  '..kHk...kkkkgkkkk.......',
+  '..kHk..kHHHHHHHHhdk.....',
+  '..kHk.kHHHHHHHHHhhdk....',
+  '..kHk.kHHHHHHHHhhhdk....',
+  '..kHk.kgggggggggggGk....',
+  '..kHk.kHvevHHHvevhdk....',
+  '..kHk.kHHHHHrHHHhhdk....',
+  '..kHk.kHHHHrrrHHhhdk....',
+  '..kHk.kHkHHHrHHkhhdk....',
+  '..kHk..kkkkkkkkkkkk.....',
+  '.kgggk.kwwwwrwwww.......',
+  '..knk.kswwwrrrwkkkkkkkkk',
+  '..ksSkkswwwwrwwkgggggggk',
+  '..kgk.kggggggggkgbbybbgk',
+  '...k..kwwwwwwwwkgyyyyygk',
+  '......kwwwwwwwwkgbbybbgk',
+  '.......kkkkkkkkkgbbybbgk',
+  '........ksk.ksk.kgbybgk.',
+  '........ksk.ksk..kgygk..',
+  '........kNk.kNk...kgk...',
+  '.......kNNk.kNNk...k....',
+  '.......kkkk.kkkk........',
+],
+  lup: [
+  '..kHk.....kgygk.........',
+  '..kHk...kkkkgkkkk.......',
+  '..kHk..kHHHHHHHHhdk.....',
+  '..kHk.kHHHHHHHHHhhdk....',
+  '..kHk.kHHHHHHHHhhhdk....',
+  '..kHk.kgggggggggggGk....',
+  '..kHk.kHvevHHHvevhdk....',
+  '..kHk.kHHHHHrHHHhhdk....',
+  '..kHk.kHHHHrrrHHhhdk....',
+  '..kHk.kHkHHHrHHkhhdk....',
+  '..kHk..kkkkkkkkkkkk.....',
+  '.kgggk.kwwwwrwwww.......',
+  '..knk.kswwwrrrwkkkkkkkkk',
+  '..ksSkkswwwwrwwkgggggggk',
+  '..kgk.kggggggggkgbbybbgk',
+  '...k..kwwwwwwwwkgyyyyygk',
+  '......kwwwwwwwwkgbbybbgk',
+  '.......kkkkkkkkkgbbybbgk',
+  '.......kkkkkkkkkgbbybbgk',
+  '........kNk.ksk.kgbybgk.',
+  '.......kNNk.ksk..kgygk..',
+  '.......kkkk.kNk...kgk...',
+  '............kNNk...k....',
+  '............kkkk........',
+],
+  rup: [
+  '..kHk.....kgygk.........',
+  '..kHk...kkkkgkkkk.......',
+  '..kHk..kHHHHHHHHhdk.....',
+  '..kHk.kHHHHHHHHHhhdk....',
+  '..kHk.kHHHHHHHHhhhdk....',
+  '..kHk.kgggggggggggGk....',
+  '..kHk.kHvevHHHvevhdk....',
+  '..kHk.kHHHHHrHHHhhdk....',
+  '..kHk.kHHHHrrrHHhhdk....',
+  '..kHk.kHkHHHrHHkhhdk....',
+  '..kHk..kkkkkkkkkkkk.....',
+  '.kgggk.kwwwwrwwww.......',
+  '..knk.kswwwrrrwkkkkkkkkk',
+  '..ksSkkswwwwrwwkgggggggk',
+  '..kgk.kggggggggkgbbybbgk',
+  '...k..kwwwwwwwwkgyyyyygk',
+  '......kwwwwwwwwkgbbybbgk',
+  '.......kkkkkkkkkgbbybbgk',
+  '.......kkkkkkkkkgbbybbgk',
+  '........ksk.kNk.kgbybgk.',
+  '........ksk.kNNk.kgygk..',
+  '........kNk.kkkk..kgk...',
+  '.......kNNk........k....',
+  '.......kkkk.............',
+],
 };
+type FrameName = keyof typeof FRAMES;
+const WALK: FrameName[] = ['lup', 'stand', 'rup', 'stand'];
 
-function Sprite({ frame }: { frame: keyof typeof LEGS }) {
-  const rows = [...BODY, ...LEGS[frame]];
+function Sprite({ frame, blink }: { frame: FrameName; blink?: boolean }) {
+  const rows = FRAMES[frame];
   return (
-    <svg viewBox="0 0 16 16" width="48" height="48" shapeRendering="crispEdges" aria-hidden="true">
-      {rows.flatMap((row, y) => [...row].map((c, x) => (PALETTE[c] ? <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" fill={PALETTE[c]} /> : null)))}
+    <svg viewBox="0 0 24 24" width="60" height="60" shapeRendering="crispEdges" aria-hidden="true">
+      {rows.flatMap((row, y) => [...row].map((c, x) => {
+        const ch = blink && c === 'e' ? 'v' : c;
+        return PALETTE[ch] ? <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" fill={PALETTE[ch]} /> : null;
+      }))}
     </svg>
   );
 }
@@ -46,7 +116,8 @@ export function Knight() {
   const [x, setX] = useState(() => Math.max(120, window.innerWidth - 220));
   const [dir, setDir] = useState<1 | -1>(-1);
   const [moving, setMoving] = useState(false);
-  const [frame, setFrame] = useState<'a' | 'b'>('a');
+  const [step, setStep] = useState(0);
+  const [blink, setBlink] = useState(false);
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
   const [q, setQ] = useState('');
@@ -68,7 +139,7 @@ export function Knight() {
         s.target = min + Math.random() * (max - min);
       } else {
         s.dir = s.target > s.x ? 1 : -1;
-        s.x = Math.max(min, Math.min(max, s.x + s.dir * 34 * dt));
+        s.x = Math.max(min, Math.min(max, s.x + s.dir * 30 * dt));
         setX(s.x); setDir(s.dir as 1 | -1); setMoving(true);
       }
       raf = requestAnimationFrame(tick);
@@ -79,8 +150,17 @@ export function Knight() {
 
   useEffect(() => {
     if (!moving) return;
-    const t = window.setInterval(() => setFrame((f) => (f === 'a' ? 'b' : 'a')), 220);
+    const t = window.setInterval(() => setStep((n) => (n + 1) % WALK.length), 150);
     return () => window.clearInterval(t);
+  }, [moving]);
+
+  // A little blink now and then while he stands guard.
+  useEffect(() => {
+    if (moving) return;
+    let t = 0;
+    const loop = () => { t = window.setTimeout(() => { setBlink(true); window.setTimeout(() => setBlink(false), 140); loop(); }, 2500 + Math.random() * 3000); };
+    loop();
+    return () => window.clearTimeout(t);
   }, [moving]);
 
   useEffect(() => {
@@ -113,7 +193,7 @@ export function Knight() {
       <button type="button" className={`knight${moving ? ' walking' : ''}${open ? ' talking' : ''}`} style={{ left: x, transform: `translateX(-50%) scaleX(${dir === 1 ? 1 : -1})` }}
         aria-label="Ask Esther's knight" title="Ask me something" aria-expanded={open}
         onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onClick={() => setOpen((o) => !o)}>
-        <Sprite frame={moving ? frame : 'idle'} />
+        <Sprite frame={moving ? WALK[step] : 'stand'} blink={blink && !moving} />
       </button>
       {open && (
         <div className="knight-bubble" role="dialog" aria-label="Ask the knight" style={{ left: bubbleLeft }}>
