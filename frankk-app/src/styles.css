@@ -1672,3 +1672,5 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .st-now small { color: var(--muted); font-variant-numeric: tabular-nums; }
 .st-now .st-of { margin-left: auto; color: var(--faint); }
 .st-done-mark { color: var(--ok); font-weight: 700; }
+/* Step bar line: each link blends from one stage's rank colour into the next (green → blue → violet → amber → red → gold) */
+.stepper li .bar b, .stepper li.done .bar b, .stepper li.active .bar b { background: linear-gradient(90deg, var(--tone), var(--tone-next, var(--tone))) !important; background-size: var(--bar-span, 100%) 100% !important; }

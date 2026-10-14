@@ -62,9 +62,9 @@ export function ReleaseStepper({ project, compact }: { project: MusicProject; co
       {steps.map((s, i) => {
         const st = state(s);
         return (
-          <li key={s.id} className={`${st.cls}${s === current ? ' current' : ''}`} style={{ '--tone': stageTone(i) } as React.CSSProperties}>
+          <li key={s.id} className={`${st.cls}${s === current ? ' current' : ''}`} style={{ '--tone': stageTone(i), '--tone-next': stageTone(i + 1) } as React.CSSProperties}>
             <span className="node"><StageBadge index={i} state={st.cls === 'done' ? 'done' : s === current ? 'current' : 'todo'} size={24} /></span>
-            <span className="bar"><b style={{ width: `${st.fill * 100}%` }} /></span>
+            <span className="bar"><b style={{ width: `${st.fill * 100}%`, '--bar-span': `${st.fill > 0 ? 100 / st.fill : 100}%` } as React.CSSProperties} /></span>
             <span className="name">{s.name}</span>
             {s.end && <span className="step-when">{relLabel(s.end)}</span>}
           </li>
