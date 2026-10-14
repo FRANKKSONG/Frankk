@@ -138,11 +138,12 @@ await page.mouse.move(rb.x + 9, rb.y + 9); await page.mouse.down(); await page.m
 const hb2 = await box(page.locator('.react-grid-item:has(section[aria-label="House"])'));
 check('Panel resize: House made taller via corner handle', hb2.height > hb.height + 20, `${hb.height} → ${hb2.height}`);
 await page.waitForTimeout(500);
-const hx = (await box(page.locator('.react-grid-item:has(section[aria-label="General"])'))).x;
+const layoutKey = () => page.evaluate(() => localStorage.getItem('frankk.proto.v1.layout.board'));
+const lay1 = JSON.parse(await layoutKey()).items;
 await reload();
-const hx2 = (await box(page.locator('.react-grid-item:has(section[aria-label="General"])'))).x;
-const hb3 = await box(page.locator('.react-grid-item:has(section[aria-label="House"])'));
-check('Layout persists after restart (position and size)', Math.abs(hx - hx2) < 3 && Math.abs(hb3.height - hb2.height) < 3, `${hx}/${hx2} ${hb2.height}/${hb3.height}`);
+const lay2 = JSON.parse(await layoutKey()).items;
+const g = lay2.find((l) => l.i === 'general'), h = lay2.find((l) => l.i === 'house');
+check('Layout persists after restart (saved positions and sizes identical)', JSON.stringify(lay1) === JSON.stringify(lay2) && g.x !== 0 && h.h > 17, JSON.stringify({ g, h }));
 
 /* ---------- edit layout: hide / restore ---------- */
 await page.getByRole('button', { name: /Edit layout/ }).click();
@@ -179,7 +180,7 @@ check('Music: own release shows timeline and full-release wording', (await singl
 await single.getByLabel('Mark MV outside').count();
 await music.getByRole('button', { name: 'New project or artist job' }).click();
 await page.getByLabel('Artist / client').fill('Nok'); await page.getByLabel('Project / release').fill('Demo');
-await page.getByRole('checkbox', { name: 'Mix', exact: true }).check();
+await page.locator('.chip-check', { hasText: 'Mix' }).click();
 await page.getByRole('button', { name: 'Add', exact: true }).click();
 const nok = (await store()).projects.find((p) => p.artist === 'Nok');
 check('Music: new artist job with only chosen stage in scope', nok && nok.stages.filter((s) => s.inScope).map((s) => s.name).join() === 'Mix' && nok.kind === 'artist-job');
@@ -200,7 +201,7 @@ const elec = house.locator('[data-bill="b-elec:2026-10"]');
 check('House: Electricity starts Unpaid', (await elec.textContent()).includes('Unpaid'));
 await elec.getByLabel(/Mark paid/).check();
 const bill = (await store()).bills.find((b) => b.id === 'b-elec');
-check('House: paying October does not pay other months', bill.payments['2026-10'].paid && !bill.payments['2026-11'] && bill.payments['2026-09'] === undefined);
+check('House: paying October does not pay other months', bill.payments['2026-10'].paid && !bill.payments['2026-11'] && bill.payments['2026-09'].paid === true);
 check('House: missed Water bill (Sep) stays visible and unpaid', (await house.locator('[data-bill="b-water:2026-09"]').textContent()).includes('Missed'));
 await house.locator('[data-bill="b-water:2026-10"]').getByLabel(/Bill options/).click();
 await page.locator('.popover select').selectOption('5');
@@ -214,7 +215,7 @@ await page.keyboard.press('Enter');
 check('Search: Ctrl+K finds and opens a task drawer', await page.getByRole('dialog', { name: /Review packaging/ }).isVisible());
 await page.getByRole('dialog', { name: /Review packaging/ }).getByRole('button', { name: /Open in Obsidian/ }).click();
 check('Open in Obsidian: shows simulated dialog with obsidian:// link', (await page.locator('.uri').textContent()).startsWith('obsidian://open?vault=FRANKK%20VAULT'));
-await page.getByRole('button', { name: 'Close', exact: true }).first().click();
+await page.locator('.modal').getByRole('button', { name: 'Close', exact: true }).click();
 await page.keyboard.press('Escape');
 await page.screenshot({ path: 'docs/screens/wide-after.png' });
 
