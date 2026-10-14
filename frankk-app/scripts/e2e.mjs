@@ -243,7 +243,7 @@ await page.mouse.move(rb.x + 9, rb.y + 9); await page.mouse.down(); await page.m
 const hb2 = await box(page.locator('.react-grid-item:has(section[aria-label="House"])'));
 check('Panel resize: House made taller via corner handle', hb2.height > hb.height + 20, `${hb.height} → ${hb2.height}`);
 await page.waitForTimeout(500);
-const layoutKey = () => page.evaluate(() => localStorage.getItem('esther.proto.v1.layout.board.v3'));
+const layoutKey = () => page.evaluate(() => localStorage.getItem('esther.proto.v1.layout.board.v4'));
 const lay1 = JSON.parse(await layoutKey()).items;
 await reload();
 const lay2 = JSON.parse(await layoutKey()).items;

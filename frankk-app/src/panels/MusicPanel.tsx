@@ -22,25 +22,25 @@ import { PIGMENTS, RELEASE_STEPS, SIDE_STAGES, STAGE_LIBRARY, type MusicProject,
 import { newId } from '../data/fixtures';
 
 export const MUSIC_COLS: ColDef[] = [
-  { id: 'title', label: 'Artist / Project', width: 106, min: 70 },
-  { id: 'type', label: 'Role / Type', width: 78, min: 50 },
-  { id: 'progress', label: 'Progress', width: 84, min: 50 },
-  { id: 'next', label: 'Next', width: 54, min: 40 },
+  { id: 'title', label: 'Artist / Project', width: 106, min: 70, focusWidth: 300 },
+  { id: 'type', label: 'Role / Type', width: 78, min: 50, focusWidth: 200 },
+  { id: 'progress', label: 'Progress', width: 84, min: 50, focusWidth: 180 },
+  { id: 'next', label: 'Next date', width: 54, min: 40, focusWidth: 100 },
 ];
 
 type Tab = 'own-release' | 'artist-job' | 'all';
 
 const REL_COLS: ColDef[] = [
-  { id: 'title', label: 'Release', width: 150, min: 80 },
-  { id: 'type', label: 'Format', width: 70, min: 50 },
-  { id: 'progress', label: 'Release steps', width: 150, min: 80 },
-  { id: 'next', label: 'Next date', width: 70, min: 46 },
+  { id: 'title', label: 'Release', width: 150, min: 80, focusWidth: 300 },
+  { id: 'type', label: 'Format', width: 70, min: 50, focusWidth: 150 },
+  { id: 'progress', label: 'Release steps', width: 150, min: 80, focusWidth: 200 },
+  { id: 'next', label: 'Next date', width: 70, min: 46, focusWidth: 100 },
 ];
 const JOB_COLS: ColDef[] = [
-  { id: 'title', label: 'Artist / client', width: 150, min: 80 },
-  { id: 'type', label: 'My roles', width: 90, min: 50 },
-  { id: 'progress', label: 'My progress', width: 110, min: 60 },
-  { id: 'next', label: 'Next date', width: 70, min: 46 },
+  { id: 'title', label: 'Artist / client', width: 150, min: 80, focusWidth: 300 },
+  { id: 'type', label: 'My roles', width: 78, min: 50, focusWidth: 200 },
+  { id: 'progress', label: 'My progress', width: 92, min: 60, focusWidth: 180 },
+  { id: 'next', label: 'Next date', width: 70, min: 46, focusWidth: 100 },
 ];
 const RELEASE_TYPES = [{ id: 'single', label: 'Single' }, { id: 'ep', label: 'EP' }, { id: 'album', label: 'Album' }, { id: 'other', label: 'Other' }] as const;
 type PatchP = Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label' | 'roles' | 'targetRelease' | 'start' | 'color' | 'notes' | 'releaseType'>>;
@@ -48,9 +48,9 @@ type PatchP = Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label'
 export function MusicPanel({ focused }: { focused: boolean }) {
   const { data } = useStore();
   const { setProjectDialog, reveal, tagFilter } = useUi();
-  const relCols = useColumns('music.rel', REL_COLS);
-  const jobCols = useColumns('music.job', JOB_COLS);
-  const allCols = useColumns('music', MUSIC_COLS);
+  const relCols = useColumns('music.rel', REL_COLS, focused);
+  const jobCols = useColumns('music.job', JOB_COLS, focused);
+  const allCols = useColumns('music', MUSIC_COLS, focused);
   const [prefs, setPrefs] = usePersistentState<{ tab: Tab; sort: SortState | null }>('prefs.music.v2', { tab: 'own-release', sort: null });
   const [open, setOpen] = useState<Set<string>>(new Set(['p-single']));
   const tab = prefs.tab;
