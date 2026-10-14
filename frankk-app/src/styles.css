@@ -1232,3 +1232,69 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 /* Description stretches to fill spare room, so Progress and Date sit at the far right */
 .st-grid { grid-template-columns: 16px 20px 20px var(--st-name, 170px) minmax(var(--st-desc, 260px), 1fr) var(--st-progress, 90px) var(--st-date, 112px); }
 .st-head .st-desc { font-size: inherit; color: inherit; }
+
+/* ── Iteration 13: My releases dashboard ── */
+.music-bar { display: flex; align-items: center; gap: 10px; justify-content: space-between; margin: 2px 4px 6px; }
+.music-bar .music-hint { margin: 0; }
+.rel-board { display: grid; gap: 12px; padding: 4px 4px 8px; }
+.rel-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rel-top h4 { font: 500 22px/1.1 var(--font-display); margin: 0; }
+.rel-top p { margin: 2px 0 0; font-size: 12.5px; }
+.rel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; align-items: start; }
+.rel-wrap { display: contents; }
+.rel-detail { grid-column: 1 / -1; border-radius: 12px; padding: 4px 12px 10px; background: color-mix(in srgb, var(--text) 3%, transparent); }
+.rel-card { position: relative; display: grid; gap: 10px; padding: 14px 16px; border-radius: 12px; cursor: pointer;
+  background: color-mix(in srgb, var(--row) 9%, color-mix(in srgb, var(--text) 4%, transparent)); transition: background .12s; }
+.rel-card:hover { background: color-mix(in srgb, var(--row) 15%, color-mix(in srgb, var(--text) 5%, transparent)); }
+.rel-card.open { background: color-mix(in srgb, var(--row) 20%, color-mix(in srgb, var(--text) 5%, transparent)); }
+.rel-card.finished { opacity: .7; }
+.rel-hit { position: absolute; inset: 0; border-radius: inherit; z-index: 1; }
+.rel-hit:focus-visible { outline: 2px solid color-mix(in srgb, var(--text) 40%, transparent); outline-offset: 2px; }
+.rel-head { display: flex; align-items: flex-start; gap: 10px; }
+.rel-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--row); margin-top: 9px; flex: none; }
+.rel-name { flex: 1; min-width: 0; }
+.rel-name h5 { margin: 0; font: 500 24px/1.1 var(--font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rel-name span { font-size: 12.5px; color: var(--muted); }
+.rel-count { display: grid; justify-items: end; line-height: 1.1; flex: none; }
+.rel-count b { font: 600 22px var(--font-body); font-variant-numeric: tabular-nums; }
+.rel-count small { font-size: 11.5px; color: var(--muted); }
+.rel-count .late, .rel-now .late { color: #e0705a; }
+.rel-steps { display: flex; gap: 4px; }
+.rel-steps i { flex: 1; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.rel-steps i b { display: block; height: 100%; background: var(--row); opacity: .55; }
+.rel-steps i.done b { opacity: 1; }
+.rel-steps i.now { box-shadow: none; background: color-mix(in srgb, var(--row) 22%, transparent); }
+.rel-now, .rel-then { display: flex; align-items: baseline; gap: 8px; font-size: 13px; min-width: 0; }
+.rel-now strong { font-size: 15px; }
+.rel-then { color: var(--muted); font-size: 12.5px; }
+.rel-label { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); width: 34px; flex: none; }
+.rel-of { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rel-empty { display: grid; justify-items: center; gap: 4px; padding: 28px; border-radius: 12px; color: var(--muted); background: color-mix(in srgb, var(--text) 4%, transparent); }
+.rel-empty b { color: var(--text); font-size: 15px; }
+.rel-empty:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+[data-style='medieval'] :is(.rel-card, .rel-detail, .rel-empty) { border-radius: 0; }
+
+/* ── Iteration 14: roomier Tasks board, window-style resizing, quieter capture text ── */
+.home { padding: 16px 22px 8px; }
+:is([data-style='gilded'], [data-style='modern']) .panel-head { padding: 12px 14px 6px 12px; gap: 6px; }
+:is([data-style='gilded'], [data-style='modern']) .panel-toolbar { padding: 2px 14px 10px; gap: 6px; }
+:is([data-style='gilded'], [data-style='modern']) .panel-body { padding: 2px 10px 8px; }
+:is([data-style='gilded'], [data-style='modern']) .panel-foot { padding: 6px 14px 10px; }
+:is([data-style='gilded'], [data-style='modern']) .trow:not(.thead) { min-height: 34px; }
+
+/* Resize from any edge or corner, like a window. Hit zones straddle the edge; nothing is drawn until you drag. */
+.react-grid-item > .react-resizable-handle { position: absolute !important; margin: 0 !important; transform: none !important; background: none !important; z-index: 7 !important; }
+.react-grid-item > .react-resizable-handle-n, .react-grid-item > .react-resizable-handle-s { left: 16px !important; right: 16px !important; width: auto !important; height: 12px !important; cursor: ns-resize !important; }
+.react-grid-item > .react-resizable-handle-n { top: -7px !important; bottom: auto !important; } .react-grid-item > .react-resizable-handle-s { bottom: -7px !important; top: auto !important; }
+.react-grid-item > .react-resizable-handle-e, .react-grid-item > .react-resizable-handle-w { top: 16px !important; bottom: 16px !important; height: auto !important; width: 12px !important; cursor: ew-resize !important; }
+.react-grid-item > .react-resizable-handle-e { right: -7px !important; left: auto !important; } .react-grid-item > .react-resizable-handle-w { left: -7px !important; right: auto !important; }
+.react-grid-item > :is(.react-resizable-handle-ne, .react-resizable-handle-nw, .react-resizable-handle-se, .react-resizable-handle-sw) { width: 22px !important; height: 22px !important; }
+.react-grid-item > .react-resizable-handle-ne { top: -7px !important; right: -7px !important; left: auto !important; bottom: auto !important; cursor: nesw-resize !important; }
+.react-grid-item > .react-resizable-handle-nw { top: -7px !important; left: -7px !important; right: auto !important; bottom: auto !important; cursor: nwse-resize !important; }
+.react-grid-item > .react-resizable-handle-se { bottom: -7px !important; right: -7px !important; left: auto !important; top: auto !important; cursor: nwse-resize !important; }
+.react-grid-item > .react-resizable-handle-sw { bottom: -7px !important; left: -7px !important; right: auto !important; top: auto !important; cursor: nesw-resize !important; }
+.react-grid-item.resizing { z-index: 20; }
+.react-grid-placeholder { background: color-mix(in srgb, var(--text) 10%, transparent) !important; border-radius: 12px; opacity: 1 !important; }
+body:has(.react-grid-item.resizing) { user-select: none; }
+
+.qc-write textarea { font: 400 13.5px/1.5 var(--font-body); padding: 8px 10px; }

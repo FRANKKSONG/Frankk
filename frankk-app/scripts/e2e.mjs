@@ -302,11 +302,11 @@ const stepNames = (await single.locator('.stepper .name').allTextContents()).joi
 check('Music: own release shows a step bar of its release steps (in your order)', stepNames.split(' → ').sort().join() === ['Art (Design)', 'Concept', 'Lyrics', 'Mix & Master', 'Produce', 'Record'].sort().join() && stepNames.startsWith('Concept'), stepNames);
 await single.getByRole('tab', { name: /Other tracks/ }).click();
 check('Music: Marketing/MV are separate tracks, not steps', (await single.locator('.side-track .stage-name').allTextContents()).join() === 'Marketing,Streaming' && !stepNames.includes('Marketing'));
-const before2 = await single.locator('.mini-steps em').textContent();
+const before2 = await single.locator('.rel-now').textContent();
 await single.locator('.side-track .stage').first().getByLabel('Marketing done').check();
-check('Music: finishing a separate track does not move the release step bar', (await single.locator('.mini-steps em').textContent()) === before2);
+check('Music: finishing a separate track does not move the release step bar', (await single.locator('.rel-now').textContent()) === before2);
 await single.getByRole('tab', { name: /Release steps/ }).click();
-await music.getByRole('button', { name: 'New release' }).click();
+await music.getByRole('button', { name: 'New release' }).first().click();
 await page.getByRole('radio', { name: /Artist job/ }).click();
 await page.locator('#np-artist').fill('Nok'); await page.locator('#np-title').fill('Demo');
 await page.locator('.stage-pick').filter({ has: page.getByText('Mix', { exact: true }) }).locator('.check').click();

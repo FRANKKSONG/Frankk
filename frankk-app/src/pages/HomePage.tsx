@@ -59,7 +59,7 @@ export function HomePage({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t:
           <ReactGridLayout width={width} layout={dash.layout.filter((l) => dash.widgets.some((w) => w.id === l.i))}
             gridConfig={{ cols: 24, rowHeight: 30, margin: [12, 12], containerPadding: [0, 0] }}
             dragConfig={{ enabled: editing, handle: '.w-grip', cancel: 'input,select,textarea,button,a,.no-drag' }}
-            resizeConfig={{ enabled: editing, handles: ['e', 'w', 's', 'se', 'sw'] }}
+            resizeConfig={{ enabled: editing, handles: ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'] }}
             compactor={verticalCompactor} onLayoutChange={onLayout}>
             {dash.widgets.map((w) => (
               <div key={w.id} className={`wcard kind-${w.kind}${editing ? ' editing' : ''}`} style={{ '--wc': w.color ?? 'var(--accent)' } as React.CSSProperties} data-widget={w.id}>

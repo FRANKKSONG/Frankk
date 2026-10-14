@@ -171,7 +171,7 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
             {(close) => (
               <div className="pop-form">
                 <strong>Layout</strong>
-                <p className="menu-note">Drag a panel’s dotted grip to move it. Drag an edge or corner to resize it.</p>
+                <p className="menu-note">Drag a panel’s dotted grip to move it. Drag any edge or corner to resize it, like a window.</p>
                 {WIDGETS.filter((w) => w.secondary).map((w) => (
                   <label key={w.id} className="menu-check"><input type="checkbox" checked={!saved.hidden.includes(w.id)} onChange={() => toggleWidget(w.id)} />{w.label}</label>
                 ))}
@@ -193,7 +193,7 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
                 layout={visible}
                 gridConfig={{ cols: COLS, rowHeight, margin: MARGIN, containerPadding: [0, 0] }}
                 dragConfig={{ enabled: !touch, handle: '.panel-grip', cancel: 'input,select,textarea,button,a,.no-drag' }}
-                resizeConfig={{ enabled: true, handles: ['e', 'w', 's', 'se', 'sw'] }}
+                resizeConfig={{ enabled: true, handles: ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'] }}
                 compactor={dragging ? floatingCompactor : verticalCompactor}
                 onDragStart={() => { before.current = visible.map((l) => ({ ...l })); setDragging(true); }}
                 onDragStop={(_l, _old, item) => {

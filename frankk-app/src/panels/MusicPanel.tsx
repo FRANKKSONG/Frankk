@@ -8,7 +8,7 @@ import { Modal } from '../components/Modal';
 import { ColumnsMenu } from '../components/ColumnsMenu';
 import { Table, ResizeHandle, nextSort, type SortState } from '../components/TaskTable';
 import { Editable, MiniSelect } from '../components/Editable';
-import { ReleaseStepper } from '../components/Stepper';
+import { ReleaseStepper, mainSteps } from '../components/Stepper';
 import { SortableList } from '../components/SortableList';
 import { useContextMenu } from '../components/ContextMenu';
 import { TagChips, TagPicker } from '../components/Tags';
@@ -17,7 +17,7 @@ import { useUi } from '../ui';
 import { useColumns, type ColDef } from '../hooks/useColumns';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { nextProjectDate, projectProgress, stageComplete, stageUnits } from '../lib/progress';
-import { relLabel } from '../lib/dates';
+import { diffDays, relLabel, shortDate } from '../lib/dates';
 import { PIGMENTS, RELEASE_STEPS, SIDE_STAGES, STAGE_LIBRARY, type MusicProject, type Stage } from '../data/types';
 import { newId } from '../data/fixtures';
 
@@ -108,11 +108,17 @@ export function MusicPanel({ focused }: { focused: boolean }) {
         </div>
       }
       footer={<button className="foot-add" onClick={() => setProjectDialog(newKind)}><Icon name="plus" size={13} /> {tab === 'artist-job' ? 'Artist job' : tab === 'own-release' ? 'Release' : 'Project or artist job'}</button>}>
-      {tab !== 'all' && <p className="music-hint">{TABS.find((t) => t.id === tab)!.hint}</p>}
+      {tab === 'own-release' ? (
+        <ReleaseBoard list={visible.filter((p) => p.kind === 'own-release')} open={open} onToggle={toggle} />
+      ) : (<>
+      <div className="music-bar">
+        <p className="music-hint">{TABS.find((t) => t.id === tab)!.hint}</p>
+        <button className="btn primary small" onClick={() => setProjectDialog(newKind)}><Icon name="plus" size={13} /> {newLabel}</button>
+      </div>
       <Table cols={cols} label="Music projects" sort={prefs.sort} onSort={(col) => setPrefs((p) => ({ ...p, sort: nextSort(p.sort, col) }))}>
         {groups.length === 0 && (
           <div className="empty">
-            {tab === 'artist-job' ? 'No artist jobs yet.' : tab === 'own-release' ? 'No releases yet.' : 'Nothing here yet.'}{' '}
+            {tab === 'artist-job' ? 'No artist jobs yet.' : 'Nothing here yet.'}{' '}
             <button className="link-btn" onClick={() => setProjectDialog(newKind)}>{newLabel}</button>
           </div>
         )}
@@ -123,7 +129,92 @@ export function MusicPanel({ focused }: { focused: boolean }) {
           </div>
         ))}
       </Table>
+      </>)}
     </Panel>
+  );
+}
+
+/* ---------- My releases: a dashboard of what's coming out and where each one stands ---------- */
+
+function ReleaseBoard({ list, open, onToggle }: { list: MusicProject[]; open: Set<string>; onToggle: (id: string) => void }) {
+  const { today } = useStore();
+  const { setProjectDialog } = useUi();
+  const finished = (p: MusicProject) => mainSteps(p).length > 0 && mainSteps(p).every(stageComplete);
+  const byDate = (a: MusicProject, b: MusicProject) => (a.targetRelease ?? '9999').localeCompare(b.targetRelease ?? '9999');
+  const upcoming = list.filter((p) => !finished(p)).sort(byDate);
+  const done = list.filter(finished).sort(byDate);
+  return (
+    <div className="rel-board">
+      <div className="rel-top">
+        <div>
+          <h4>Upcoming releases</h4>
+          <p className="muted">{upcoming.length ? `${upcoming.length} in progress${done.length ? ` · ${done.length} finished` : ''}` : 'Nothing in progress.'}</p>
+        </div>
+        <button className="btn primary" onClick={() => setProjectDialog('own-release')}><Icon name="plus" size={14} /> New release</button>
+      </div>
+      {list.length === 0 && (
+        <button className="rel-empty" onClick={() => setProjectDialog('own-release')}><Icon name="music" size={22} /><b>Start your first release</b><span>Single, EP or album: it gets a step bar from Concept to Art.</span></button>
+      )}
+      <div className="rel-grid">
+        {[...upcoming, ...done].map((p) => <ReleaseCard key={p.id} p={p} today={today} open={open.has(p.id)} onToggle={() => onToggle(p.id)} finished={finished(p)} />)}
+      </div>
+    </div>
+  );
+}
+
+function ReleaseCard({ p, today, open, onToggle, finished }: { p: MusicProject; today: string; open: boolean; onToggle: () => void; finished: boolean }) {
+  const { dispatch } = useStore();
+  const { openNote, say } = useUi();
+  const menu = useContextMenu();
+  const steps = mainSteps(p);
+  const doneN = steps.filter(stageComplete).length;
+  const idx = steps.findIndex((s) => !stageComplete(s));
+  const now = idx >= 0 ? steps[idx] : undefined;
+  const then = idx >= 0 ? steps[idx + 1] : undefined;
+  const days = p.targetRelease ? diffDays(p.targetRelease, today) : undefined;
+  const fmt = RELEASE_TYPES.find((r) => r.id === p.releaseType)?.label ?? 'Release';
+  const late = now?.end && now.end < today;
+  return (
+    <div className="rel-wrap" data-project={p.id}>
+      <article className={`rel-card${open ? ' open' : ''}${finished ? ' finished' : ''}`} style={{ '--row': p.color ?? 'var(--music)' } as React.CSSProperties}
+        onContextMenu={(e) => menu(e, [
+          { label: open ? 'Close' : 'Open', icon: 'chevronR', onClick: onToggle },
+          { label: 'Open in Obsidian', icon: 'external', onClick: () => openNote(p.notePath) },
+          { label: 'Delete release', icon: 'trash', danger: true, sep: true, onClick: () => { dispatch({ type: 'project/remove', projectId: p.id }); say(`Deleted “${p.title}”.`, true); } },
+        ])}>
+        <button className="rel-hit" aria-expanded={open} aria-label={`${open ? 'Close' : 'Open'} ${p.artist} ${p.title}`} onClick={onToggle} />
+        <header className="rel-head">
+          <span className="rel-dot" />
+          <div className="rel-name">
+            <h5>{p.title}</h5>
+            <span>{p.artist} · {fmt}{p.label ? ` · ${p.label}` : ''}</span>
+          </div>
+          <div className="rel-count">
+            {finished ? <b>Done</b> : days === undefined ? <small>No release date</small>
+              : days < 0 ? <><b className="late">{-days}d</b><small>past {shortDate(p.targetRelease!, today)}</small></>
+              : <><b>{days === 0 ? 'Today' : `${days}d`}</b><small>out {shortDate(p.targetRelease!, today)}</small></>}
+          </div>
+        </header>
+        <div className="rel-steps" role="img" aria-label={`Step ${Math.min(doneN + 1, steps.length)} of ${steps.length}`}>
+          {steps.map((s, i) => {
+            const u = stageUnits(s);
+            const fill = stageComplete(s) ? 1 : u.total ? u.done / u.total : 0;
+            return <i key={s.id} title={s.name} className={stageComplete(s) ? 'done' : i === idx ? 'now' : ''}><b style={{ width: `${fill * 100}%` }} /></i>;
+          })}
+        </div>
+        <div className="rel-now">
+          {now ? (
+            <>
+              <span className="rel-label">Now</span><strong>{now.name}</strong>
+              {now.end && <span className={late ? 'late' : 'muted'}>{late ? 'was due' : 'due'} {relLabel(now.end, today)}</span>}
+              <span className="rel-of">{doneN}/{steps.length}</span>
+            </>
+          ) : <span className="muted">All release steps done.</span>}
+        </div>
+        {then && <div className="rel-then"><span className="rel-label">Then</span>{then.name}{then.end && <span className="muted"> · {relLabel(then.end, today)}</span>}</div>}
+      </article>
+      {open && <div className="rel-detail"><ProjectDetail p={p} /></div>}
+    </div>
   );
 }
 

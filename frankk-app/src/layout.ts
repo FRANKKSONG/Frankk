@@ -1,7 +1,7 @@
 import type { LayoutItem } from 'react-grid-layout';
 
 export const COLS = 48;
-export const MARGIN: [number, number] = [8, 8];
+export const MARGIN: [number, number] = [14, 14];
 /** Below this container width the board keeps its proportions and scrolls sideways instead of squashing text. */
 export const MIN_BOARD_WIDTH = 960;
 /** Rows in the default layout; the row height is sized so these fill the window. */
