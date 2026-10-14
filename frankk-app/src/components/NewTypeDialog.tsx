@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal } from './Modal';
 import { Icon, type IconName } from './Icons';
+import { ColorSelect } from './ColorSelect';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { PIGMENTS } from '../data/types';
@@ -56,9 +57,7 @@ export function NewTypeDialog({ onClose, onCreated }: { onClose: () => void; onC
         <div className="field">Icon<span className="icon-row">{ICONS.map((i) => (
           <button key={i} type="button" className={`icon-pick${icon === i ? ' on' : ''}`} aria-label={`Icon ${i}`} onClick={() => setIcon(i)}><Icon name={i} size={16} /></button>
         ))}</span></div>
-        <div className="field">Colour<span className="swatch-row">{PIGMENTS.map((c) => (
-          <button key={c.color} type="button" className={`sw${color === c.color ? ' on' : ''}`} style={{ background: c.color }} aria-label={`Colour ${c.name}`} onClick={() => setColor(c.color)} />
-        ))}</span></div>
+        <div className="field">Colour<ColorSelect label="Type colour" value={color} onChange={setColor} /></div>
         <fieldset>
           <legend>Starter fields {name && <span className="muted">· suggested for “{name}”</span>}</legend>
           <div className="chips">

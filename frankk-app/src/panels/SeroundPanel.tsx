@@ -7,6 +7,7 @@ import { Dropdown } from '../components/Dropdown';
 import { Popover } from '../components/Popover';
 import { Editable } from '../components/Editable';
 import { Icon } from '../components/Icons';
+import { ColorSelect } from '../components/ColorSelect';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { useColumns, type ColDef } from '../hooks/useColumns';
@@ -90,10 +91,8 @@ export function SeroundPanel({ focused }: { focused: boolean }) {
                 </button>
                 <Editable label="Brand name" value={g.brand} lang={g.brand.startsWith('sundey') ? 'lo' : undefined}
                   onSave={(v) => { dispatch({ type: 'brand/rename', from: g.brand, to: v }); say(`Renamed to “${v.trim()}”.`, true); }} />
-                <label className="brand-swatch" title="Brand colour">
-                  <input type="color" aria-label={`Colour for ${g.brand}`} value={data.brandColors[g.brand] ?? '#d4a03c'}
-                    onChange={(e) => dispatch({ type: 'brand/color', name: g.brand, color: e.target.value })} />
-                </label>
+                <ColorSelect compact label={`Colour for ${g.brand}`} value={data.brandColors[g.brand] ?? '#d4a03c'}
+                  onChange={(color) => dispatch({ type: 'brand/color', name: g.brand, color })} />
                 <span className="count">{[...g.queue, ...g.tasks].filter((t) => !t.done).length} open</span>
               </div>
               {!closed && (

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '../components/Icons';
+import { ColorSelect } from '../components/ColorSelect';
 import { Editable } from '../components/Editable';
 import { DataView } from '../components/DataView';
 import { FieldsPanel } from '../components/FieldsPanel';
@@ -58,9 +59,7 @@ export function LibraryPage() {
         <header className="lib-head">
           <span className="lib-icon"><Icon name={type.icon} size={20} /></span>
           <Editable className="lib-title" label="Type name" value={type.plural} onSave={(v) => dispatch({ type: 'type/update', id: type.id, patch: { plural: v.trim() } })} />
-          <span className="swatch-row small">{PIGMENTS.slice(0, 8).map((c) => (
-            <button key={c.color} type="button" className={`sw${type.color === c.color ? ' on' : ''}`} style={{ background: c.color }} aria-label={`Colour ${c.name}`} onClick={() => dispatch({ type: 'type/update', id: type.id, patch: { color: c.color } })} />
-          ))}</span>
+          <ColorSelect label="Type colour" value={type.color ?? PIGMENTS[0].color} onChange={(color) => dispatch({ type: 'type/update', id: type.id, patch: { color } })} />
           <code className="lib-folder" title="Vault folder">{type.folder || '(by folder)'}/</code>
           <span className="dv-spacer" />
           <div className="seg slim" role="tablist">

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Icon, type IconName } from '../components/Icons';
+import { ColorSelect } from '../components/ColorSelect';
 import { AppearancePanel } from '../components/Appearance';
 import { Editable } from '../components/Editable';
 import { useStore } from '../data/store';
@@ -234,7 +235,7 @@ function Tags() {
       <div className="tag-admin">
         {data.tags.map((t) => (
           <span key={t.name} className="tag-admin-row" style={{ '--tag': t.color } as React.CSSProperties}>
-            <label className="brand-swatch"><input type="color" aria-label={`Colour for ${t.name}`} value={t.color} onChange={(e) => dispatch({ type: 'tag/update', name: t.name, patch: { color: e.target.value } })} /></label>
+            <ColorSelect compact label={`Colour for ${t.name}`} value={t.color} onChange={(color) => dispatch({ type: 'tag/update', name: t.name, patch: { color } })} />
             <span className="hash">#</span><Editable label="Tag name" value={t.name} onSave={(v) => dispatch({ type: 'tag/update', name: t.name, patch: { name: v } })} />
             <span className="muted">{data.tasks.filter((x) => x.tags.includes(t.name)).length + data.projects.filter((x) => x.tags.includes(t.name)).length + data.entries.filter((x) => x.tags.includes(t.name)).length + data.notes.filter((x) => x.tags.includes(t.name)).length}</span>
           </span>

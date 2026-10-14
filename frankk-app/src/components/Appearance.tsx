@@ -3,6 +3,7 @@ import { Icon } from './Icons';
 import { Popover } from './Popover';
 import { COLOR_KEYS, DEFAULT_WINDOW, THEMES, themeColor, themeOf, type ThemeId, type ThemePrefs, type WindowPrefs } from '../lib/theme';
 import { artPresets, downscaleImage } from '../lib/art';
+import { ColorSelect } from './ColorSelect';
 
 export function AppearancePanel({ prefs, setPrefs }: { prefs: ThemePrefs; setPrefs: (p: ThemePrefs) => void }) {
   const win = { ...DEFAULT_WINDOW, ...prefs.window };
@@ -38,7 +39,7 @@ export function AppearancePanel({ prefs, setPrefs }: { prefs: ThemePrefs; setPre
       </div>
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) setWin({ background: await downscaleImage(f) }); }} />
       <div className="sliders">
-        <label className="color-row"><input type="color" value={win.color} onChange={(e) => setWin({ color: e.target.value })} />Window colour</label>
+        <div className="color-row">Window colour<ColorSelect label="Window colour" value={win.color} onChange={(c) => setWin({ color: c })} /></div>
         <label className="slider">Panel translucency<input type="range" min={0.35} max={1} step={0.01} value={win.opacity} onChange={(e) => setWin({ opacity: Number(e.target.value) })} /><span>{Math.round((1 - win.opacity) * 100)}%</span></label>
         <label className="slider">Background blur<input type="range" min={0} max={40} step={1} value={win.blur} onChange={(e) => setWin({ blur: Number(e.target.value) })} /><span>{win.blur}px</span></label>
         <label className="slider">Darken art<input type="range" min={0} max={0.95} step={0.01} value={win.dim} onChange={(e) => setWin({ dim: Number(e.target.value) })} /><span>{Math.round(win.dim * 100)}%</span></label>
@@ -47,10 +48,9 @@ export function AppearancePanel({ prefs, setPrefs }: { prefs: ThemePrefs; setPre
       <h4 className="ap-h">Colours</h4>
       <div className="color-rows">
         {COLOR_KEYS.map(({ key, label }) => (
-          <label key={key} className="color-row">
-            <input type="color" value={themeColor(prefs, key)} onChange={(e) => setPrefs({ ...prefs, colors: { ...prefs.colors, [key]: e.target.value } })} />
-            {label}
-          </label>
+          <div key={key} className="color-row">{label}
+            <ColorSelect label={label} value={themeColor(prefs, key)} onChange={(c) => setPrefs({ ...prefs, colors: { ...prefs.colors, [key]: c } })} />
+          </div>
         ))}
       </div>
       <div className="form-actions left">

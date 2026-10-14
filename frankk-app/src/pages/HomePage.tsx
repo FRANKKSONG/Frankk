@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import ReactGridLayout, { useContainerWidth, verticalCompactor, type LayoutItem } from 'react-grid-layout';
 import { Icon } from '../components/Icons';
+import { ColorSelect } from '../components/ColorSelect';
 import { Popover } from '../components/Popover';
 import { Initial } from '../components/Ornaments';
 import { Editable } from '../components/Editable';
@@ -113,9 +114,7 @@ function WidgetFrame({ w, editing }: { w: WidgetDef; editing: boolean }) {
                   <label>Caption<input defaultValue={w.config.caption ?? ''} onBlur={(e) => update({ config: { caption: e.target.value } })} /></label>
                 </>
               )}
-              <div className="field">Accent<span className="swatch-row">{PIGMENTS.slice(0, 8).map((c) => (
-                <button key={c.color} type="button" className={`sw${w.color === c.color ? ' on' : ''}`} style={{ background: c.color }} aria-label={`Colour ${c.name}`} onClick={() => update({ color: c.color })} />
-              ))}</span></div>
+              <div className="field">Accent<ColorSelect label="Widget accent" value={w.color ?? PIGMENTS[0].color} onChange={(color) => update({ color })} /></div>
               <button onClick={() => { dispatch({ type: 'dash/remove-widget', dashId, widgetId: w.id }); close(); }}><Icon name="trash" size={13} /> Remove widget</button>
             </div>
           )}

@@ -1080,3 +1080,42 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 :is([data-style='gilded'], [data-style='modern']) :is(.date-btn.today, .date-btn.overdue) { border-color: transparent !important; }
 :is([data-style='gilded'], [data-style='modern']) .type.on { border-color: var(--edge); background: var(--hl); }
 :is([data-style='gilded'], [data-style='modern']) .type { border-color: var(--edge); }
+
+/* ── Iteration 8: no hover streaks, dropdown colour picker, quiet scrollbars ── */
+/* Panel resize handles: invisible until you actually resize; the cursor tells you they're there. */
+.react-grid-item > .react-resizable-handle { opacity: 1; background: none; }
+.react-grid-item > .react-resizable-handle::after, .react-grid-item:hover > .react-resizable-handle::after,
+.react-grid-item > .react-resizable-handle:hover::after { background: none !important; border-color: transparent !important; }
+.react-grid-item.resizing > .react-resizable-handle-e::after, .react-grid-item.resizing > .react-resizable-handle-w::after,
+.react-grid-item.resizing > .react-resizable-handle-s::after { background: color-mix(in srgb, var(--text) 22%, transparent) !important; }
+.react-grid-item.resizing { box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent); border-radius: var(--radius, 10px); }
+
+/* Colour dropdown */
+.color-select { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 8px 0 7px; border-radius: 7px; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); font-size: 12.5px; min-width: 112px; cursor: pointer; }
+.color-select:hover, .color-select[aria-expanded='true'] { background: color-mix(in srgb, var(--text) 11%, transparent); }
+.color-select span { flex: 1; text-align: left; }
+.color-select svg { color: var(--muted); }
+.color-select.compact { min-width: 0; width: 22px; height: 22px; padding: 0; justify-content: center; background: none; border-radius: 50%; }
+.color-select.compact:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.cs-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 25%, transparent); }
+.color-select.compact .cs-dot { width: 12px; height: 12px; }
+.cs-dot.rainbow { background: conic-gradient(#c94a3a, #d4a03c, #7a9a4a, #3f7fae, #7a5aa6, #c94a3a); }
+.cs-list { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 2px; width: 260px; max-height: min(320px, 60vh); overflow: auto; padding: 4px; }
+.cs-row { position: relative; display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--text); text-align: left; cursor: pointer; background: none; width: 100%; }
+.cs-row span { flex: 1; }
+.cs-row:hover, .cs-row:focus-visible { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.cs-row[aria-selected='true'] { background: var(--hl, color-mix(in srgb, var(--accent) 14%, transparent)); }
+.cs-custom { grid-column: 1 / -1; margin-top: 3px; border-top: 1px solid var(--edge, var(--line)); border-radius: 0 0 6px 6px; }
+.cs-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.color-row { gap: 8px; }
+[data-style='medieval'] .cs-dot, [data-style='medieval'] .color-select.compact { border-radius: 0; }
+
+/* Scrollbars fade in only while scrolling (or hovering the scroll area's edge). */
+* { scrollbar-color: transparent transparent; }
+.is-scrolling { scrollbar-color: color-mix(in srgb, var(--text) 28%, transparent) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+*::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; }
+.is-scrolling::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text) 28%, transparent); }
+.board-scroll { scrollbar-gutter: auto; }
+/* Column resizers: a quiet neutral hairline, not an accent streak. */
+.col-resizer:hover::after, .col-resizer:focus-visible::after, .col-resizer:active::after { background: color-mix(in srgb, var(--text) 30%, transparent) !important; width: 1px; }

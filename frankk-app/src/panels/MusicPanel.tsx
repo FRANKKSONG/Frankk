@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Panel } from '../components/Panel';
 import { Dropdown } from '../components/Dropdown';
 import { Icon } from '../components/Icons';
+import { ColorSelect } from '../components/ColorSelect';
 import { DateCell } from '../components/DateCell';
 import { ProgressCell } from '../components/ProgressBar';
 import { Modal } from '../components/Modal';
@@ -148,9 +149,7 @@ function ProjectDetail({ p }: { p: MusicProject }) {
         <label>{job ? 'My roles' : 'Roles'}<Editable label="Roles" value={p.roles.join(', ')} allowEmpty placeholder="+ roles" onSave={(v) => patchP({ roles: v.split(',').map((x) => x.trim()).filter(Boolean) })} /></label>
         {!job && <label>Type<MiniSelect label="Release type" value={p.releaseType ?? 'single'} options={[...RELEASE_TYPES]} onChange={(v) => patchP({ releaseType: v })} /></label>}
         {!job && <label>Release date<DateCell label="Target release" value={p.targetRelease} onChange={(v) => patchP({ targetRelease: v })} /></label>}
-        <label>Colour<span className="swatch-row">{PIGMENTS.slice(0, 8).map((c) => (
-          <button key={c.color} type="button" className={`sw${p.color === c.color ? ' on' : ''}`} style={{ background: c.color }} aria-label={`Colour ${c.name}`} title={c.name} onClick={() => patchP({ color: c.color })} />
-        ))}</span></label>
+        <div className="field">Colour<ColorSelect label="Project colour" value={p.color ?? PIGMENTS[0].color} onChange={(color) => patchP({ color })} /></div>
         <div className="field-tags">Tags<span className="tag-line"><TagChips names={p.tags} small /><TagPicker compact value={p.tags} onChange={(tags) => dispatch({ type: 'project/tags', projectId: p.id, tags })} label="Edit project tags" /></span></div>
       </div>
       <label className="notes-line">Notes & links<Editable label="Notes" value={p.notes ?? ''} allowEmpty placeholder="+ add notes or reference links" onSave={(v) => patchP({ notes: v.trim() || undefined })} /></label>
@@ -366,9 +365,7 @@ export function ProjectDialog() {
         </fieldset>
 
         <div className="form-row">
-          <div className="field">Colour<span className="swatch-row">{PIGMENTS.map((c) => (
-            <button key={c.color} type="button" className={`sw${color === c.color ? ' on' : ''}`} style={{ background: c.color }} aria-label={`Colour ${c.name}`} title={c.name} onClick={() => setColor(c.color)} />
-          ))}</span></div>
+          <div className="field">Colour<ColorSelect label="Project colour" value={color} onChange={setColor} /></div>
           <div className="field">Tags<span className="tag-line"><TagChips names={tags} /><TagPicker value={tags} onChange={setTags} label="Add tags" /></span></div>
         </div>
         <label className="field">Notes & reference links<textarea id="np-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Session files, references, contacts…" /></label>
