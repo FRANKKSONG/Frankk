@@ -221,7 +221,16 @@ function TasksBoard({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: Them
                 }}
                 onLayoutChange={onLayoutChange}
               >
-                {visible.map((l) => <div key={l.i} className="widget">{render(l.i as WidgetId)}</div>)}
+                {visible.map((l) => {
+                  const area = ['general', 'music', 'seround', 'house'].includes(l.i);
+                  // Area panels carry their own grip in the header; the other widgets get one in their top-left corner.
+                  return (
+                    <div key={l.i} className={`widget${area ? '' : ' has-grip'}`}>
+                      {!area && <span className="panel-grip widget-grip" title="Drag to move" aria-label={`Move ${WIDGETS.find((w) => w.id === l.i)?.label ?? l.i}`}><Icon name="grip" size={12} /></span>}
+                      {render(l.i as WidgetId)}
+                    </div>
+                  );
+                })}
               </ReactGridLayout>
             </div>
           )}
