@@ -19,7 +19,7 @@ export function Sidebar({ view, setView }: { view: View; setView: (v: View) => v
   const active = (n: (typeof NAV)[number]) => (n.area ? view === 'home' && focusArea === n.area : n.id === 'home' ? view === 'home' && !focusArea : view === n.view);
   return (
     <nav className="sidebar" aria-label="Main">
-      <div className="wordmark" aria-label="FRANKK">FRANKK</div>
+      <div className="wordmark" aria-label="Esther">ESTHER</div>
       <ul>
         {NAV.map((n) => (
           <li key={n.id}>

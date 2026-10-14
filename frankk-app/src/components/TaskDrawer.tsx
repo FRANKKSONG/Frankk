@@ -4,7 +4,7 @@ import { Icon } from './Icons';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { checklistProgress } from '../lib/progress';
-import { BRANDS, type ContentInfo, type Task } from '../data/types';
+import type { ContentInfo, Task } from '../data/types';
 
 /** Detail drawer. Field edits are a draft with Save/Cancel; ticking steps or completing applies immediately. */
 export function TaskDrawer() {
@@ -16,7 +16,7 @@ export function TaskDrawer() {
 }
 
 function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
-  const { dispatch } = useStore();
+  const { dispatch, data } = useStore();
   const { openNote, say } = useUi();
   const [d, setD] = useState({ title: task.title, plan: task.plan ?? '', due: task.due ?? '', priority: task.priority, list: task.list ?? '', brand: task.brand ?? '', workstream: task.workstream ?? '' });
   const [c, setC] = useState<ContentInfo>(task.content ?? {});
@@ -79,7 +79,7 @@ function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
 
         {task.area === 'seround' && (
           <div className="form-row">
-            <label className="field">Brand<select value={d.brand} onChange={(e) => setD({ ...d, brand: e.target.value })}>{BRANDS.map((b) => <option key={b}>{b}</option>)}</select></label>
+            <label className="field">Brand<select value={d.brand} onChange={(e) => setD({ ...d, brand: e.target.value })}>{data.brands.map((b) => <option key={b}>{b}</option>)}</select></label>
             <label className="field">Workstream
               <select value={d.workstream} onChange={(e) => setD({ ...d, workstream: e.target.value })}>
                 <option value="">—</option><option value="content">Content queue</option><option value="backend">Backend development</option><option value="brand">Brand work</option>

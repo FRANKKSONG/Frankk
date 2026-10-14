@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
-import { BRANDS, type Task, type TaskArea } from '../data/types';
+import type { Task, TaskArea } from '../data/types';
 
 /** Inline "new task" form: name, optional steps (one per line), task date, due date. */
 export function NewTaskForm({ area, brand, onDone }: { area: TaskArea; brand?: string; onDone: () => void }) {
-  const { dispatch } = useStore();
+  const { dispatch, data } = useStore();
   const { say } = useUi();
   const [title, setTitle] = useState('');
   const [steps, setSteps] = useState('');
   const [plan, setPlan] = useState('');
   const [due, setDue] = useState('');
-  const [b, setB] = useState(brand ?? BRANDS[0]);
-  const [ws, setWs] = useState<NonNullable<Task['workstream']>>('content');
+  const [b, setB] = useState(brand ?? data.brands[0] ?? '');
+  const [ws, setWs] = useState<Task['workstream'] | ''>('');
 
   const submit = () => {
     if (!title.trim()) return;
@@ -22,7 +22,7 @@ export function NewTaskForm({ area, brand, onDone }: { area: TaskArea; brand?: s
     };
     if (area === 'seround') {
       extra.brand = b;
-      if (b === BRANDS[0]) extra.workstream = ws;
+      if (ws) extra.workstream = ws;
     }
     dispatch({ type: 'task/add', title, area, extra });
     say('Task added (sample data — nothing was written to your vault).');
@@ -39,12 +39,10 @@ export function NewTaskForm({ area, brand, onDone }: { area: TaskArea; brand?: s
       </div>
       {area === 'seround' && (
         <div className="form-row">
-          <label>Brand<select value={b} onChange={(e) => setB(e.target.value)}>{BRANDS.map((x) => <option key={x}>{x}</option>)}</select></label>
-          {b === BRANDS[0] && (
-            <label>Workstream<select value={ws} onChange={(e) => setWs(e.target.value as typeof ws)}>
-              <option value="content">Content queue</option><option value="backend">Backend development</option>
-            </select></label>
-          )}
+          <label>Brand<select value={b} onChange={(e) => setB(e.target.value)}>{data.brands.map((x) => <option key={x}>{x}</option>)}</select></label>
+          <label>Workstream<select value={ws} onChange={(e) => setWs(e.target.value as typeof ws)}>
+            <option value="">—</option><option value="content">Content queue</option><option value="backend">Backend development</option><option value="brand">Brand work</option>
+          </select></label>
         </div>
       )}
       <div className="form-actions">

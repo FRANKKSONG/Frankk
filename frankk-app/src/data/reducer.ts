@@ -10,6 +10,12 @@ export type Action =
   | { type: 'step/add'; taskId: string; text: string }
   | { type: 'step/toggle'; taskId: string; stepId: string }
   | { type: 'step/rename'; taskId: string; stepId: string; text: string }
+  | { type: 'step/remove'; taskId: string; stepId: string }
+  | { type: 'bill/patch'; billId: string; patch: { title?: string; dueDay?: number } }
+  | { type: 'brand/add'; name: string }
+  | { type: 'brand/rename'; from: string; to: string }
+  | { type: 'project/patch'; projectId: string; patch: Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label' | 'roles' | 'targetRelease'>> }
+  | { type: 'item/remove'; projectId: string; stageId: string; itemId: string }
   | { type: 'bill/pay'; billId: string; month: string; paid: boolean }
   | { type: 'bill/update'; billId: string; patch: { reminderDays?: number; note?: { month: string; text: string } } }
   | { type: 'bill/add'; title: string; dueDay: number; reminderDays: number; start: string }
@@ -74,6 +80,34 @@ export function reducer(state: AppData, a: Action): AppData {
     case 'step/rename':
       return mapTask(state, a.taskId, (t) => ({ ...t, steps: t.steps.map((s) => (s.id === a.stepId && a.text.trim() ? { ...s, text: a.text.trim() } : s)) }));
 
+    case 'step/remove':
+      return mapTask(state, a.taskId, (t) => ({ ...t, steps: t.steps.filter((s) => s.id !== a.stepId) }));
+
+    case 'bill/patch':
+      return {
+        ...state,
+        bills: state.bills.map((b) => (b.id === a.billId ? {
+          ...b,
+          title: a.patch.title?.trim() || b.title,
+          dueDay: a.patch.dueDay ? Math.min(31, Math.max(1, Math.round(a.patch.dueDay))) : b.dueDay,
+        } : b)),
+      };
+
+    case 'brand/add': {
+      const name = a.name.trim();
+      if (!name || state.brands.includes(name)) return state;
+      return { ...state, brands: [...state.brands, name] };
+    }
+    case 'brand/rename': {
+      const to = a.to.trim();
+      if (!to || to === a.from || state.brands.includes(to)) return state;
+      return {
+        ...state,
+        brands: state.brands.map((b) => (b === a.from ? to : b)),
+        tasks: state.tasks.map((t) => (t.brand === a.from ? { ...t, brand: to } : t)),
+      };
+    }
+
     case 'bill/pay':
       return {
         ...state,
@@ -107,8 +141,21 @@ export function reducer(state: AppData, a: Action): AppData {
     }
     case 'project/add':
       return { ...state, projects: [a.project, ...state.projects] };
+    case 'project/patch': {
+      const p = a.patch;
+      return {
+        ...state,
+        projects: state.projects.map((x) => (x.id === a.projectId ? {
+          ...x, ...p,
+          artist: p.artist !== undefined ? p.artist.trim() || x.artist : x.artist,
+          title: p.title !== undefined ? p.title.trim() || x.title : x.title,
+        } : x)),
+      };
+    }
+    case 'item/remove':
+      return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, items: st.items.filter((i) => i.id !== a.itemId) }));
     case 'stage/patch':
-      return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, ...a.patch }));
+      return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, ...a.patch, name: a.patch.name?.trim() || st.name }));
     case 'stage/move': {
       return {
         ...state,

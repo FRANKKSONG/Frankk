@@ -21,7 +21,7 @@ const music = page.locator('section[aria-label="Music"]');
 const seround = page.locator('section[aria-label="Seround"]');
 const house = page.locator('section[aria-label="House"]');
 const titles = async () => (await general.locator('.task .task-title').allTextContents()).map((s) => s.trim());
-const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('frankk.proto.data.v1')));
+const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.data.v1')));
 const box = async (loc) => (await loc.boundingBox());
 const reload = async () => { await page.reload(); await page.waitForSelector('section[aria-label="General"]'); await page.waitForTimeout(900); };
 
@@ -38,8 +38,8 @@ check('General: new task has steps 0/2 and due date saved', (await store()).task
 
 /* ---------- steps & parent independence ---------- */
 const food = general.locator('[data-task="t-food"]');
-await food.locator('.task-title').click();
-await food.getByLabel('Put away').check();
+await food.getByRole('button', { name: 'Expand steps of Clean food box' }).click();
+await food.getByRole('checkbox', { name: 'Put away', exact: true }).check();
 const s1 = (await store()).tasks.find((t) => t.id === 't-food');
 check('Steps: all steps ticked does NOT complete parent', s1.steps.every((s) => s.done) && !s1.done);
 await food.getByLabel('Complete Clean food box').check();
@@ -51,11 +51,11 @@ check('Steps: add step inline', (await store()).tasks.find((t) => t.id === 't-fo
 
 /* ---------- inline rename: save and cancel ---------- */
 const dentist = general.locator('[data-task="t-dentist"]');
-await dentist.locator('.task-title').dblclick();
-await dentist.getByLabel('Task title').fill('Book dentist (Tuesday)'); await dentist.getByLabel('Task title').press('Escape');
-check('Rename: Esc cancels', (await store()).tasks.find((t) => t.id === 't-dentist').title === 'Book dentist');
-await dentist.locator('.task-title').dblclick();
-await dentist.getByLabel('Task title').fill('Book dentist (Tuesday)'); await dentist.getByLabel('Task title').press('Enter');
+await dentist.locator('.task-title').click();
+await dentist.getByLabel('Task name', { exact: true }).fill('Book dentist (Tuesday)'); await dentist.getByLabel('Task name', { exact: true }).press('Escape');
+check('Rename (click name): Esc cancels', (await store()).tasks.find((t) => t.id === 't-dentist').title === 'Book dentist');
+await dentist.locator('.task-title').click();
+await dentist.getByLabel('Task name', { exact: true }).fill('Book dentist (Tuesday)'); await dentist.getByLabel('Task name', { exact: true }).press('Enter');
 const dt = (await store()).tasks.find((t) => t.id === 't-dentist');
 check('Rename: Enter saves and note path is unchanged', dt.title === 'Book dentist (Tuesday)' && dt.notePath === 'Planning/Tasks/Book dentist.md');
 
@@ -129,7 +129,8 @@ await page.mouse.move(grip.x + 100, grip.y + 30, { steps: 6 });
 await page.mouse.move(seroundBox.x + 120, seroundBox.y + 30, { steps: 14 });
 await page.mouse.up(); await page.waitForTimeout(900);
 const gen1 = await box(page.locator('.react-grid-item:has(section[aria-label="General"])'));
-check('Panel drag: General moved by its grip', Math.abs(gen1.x - gen0.x) > 200, `${gen0.x} → ${gen1.x}`);
+const ser1 = await box(page.locator('.react-grid-item:has(section[aria-label="Seround"])'));
+check('Panel drag: dropping General on Seround swaps them', Math.abs(gen1.x - seroundBox.x) < 4 && Math.abs(ser1.x - gen0.x) < 4 && Math.abs(gen1.y - gen0.y) < 4, `gen ${gen0.x}->${gen1.x} (target ${seroundBox.x}), seround -> ${ser1.x}`);
 const rh = page.locator('.react-grid-item:has(section[aria-label="House"]) .react-resizable-handle-se');
 const hb = await box(page.locator('.react-grid-item:has(section[aria-label="House"])'));
 await page.locator('.react-grid-item:has(section[aria-label="House"])').hover();
@@ -138,7 +139,7 @@ await page.mouse.move(rb.x + 9, rb.y + 9); await page.mouse.down(); await page.m
 const hb2 = await box(page.locator('.react-grid-item:has(section[aria-label="House"])'));
 check('Panel resize: House made taller via corner handle', hb2.height > hb.height + 20, `${hb.height} → ${hb2.height}`);
 await page.waitForTimeout(500);
-const layoutKey = () => page.evaluate(() => localStorage.getItem('frankk.proto.v1.layout.board'));
+const layoutKey = () => page.evaluate(() => localStorage.getItem('esther.proto.v1.layout.board'));
 const lay1 = JSON.parse(await layoutKey()).items;
 await reload();
 const lay2 = JSON.parse(await layoutKey()).items;
@@ -165,15 +166,36 @@ await page.waitForTimeout(200);
 check('Quick capture: double-click creates exactly one task', (await store()).tasks.filter((t) => t.title === 'Quick one').length === count0 + 1);
 check('Quick capture: unavailable types are disabled', await page.getByRole('button', { name: 'Idea' }).isDisabled());
 
+/* ---------- more editing ---------- */
+await food.getByRole('button', { name: 'Expand steps of Clean food box' }).click().catch(() => {});
+await page.locator('[data-task="t-food"]').getByRole('button', { name: /^Step: Empty box/ }).click();
+await page.locator('[data-task="t-food"]').getByLabel('Step', { exact: true }).fill('Empty the box');
+await page.keyboard.press('Enter');
+check('Edit: step text editable with one click', (await store()).tasks.find((t) => t.id === 't-food').steps.some((x) => x.text === 'Empty the box'));
+await page.locator('[data-task="t-food"] .step').first().hover();
+await page.locator('[data-task="t-food"]').getByRole('button', { name: 'Remove step Empty the box' }).click();
+check('Edit: step can be removed', !(await store()).tasks.find((t) => t.id === 't-food').steps.some((x) => x.text === 'Empty the box'));
+await page.getByRole('button', { name: 'Undo' }).click();
+check('Undo brings the removed step back', (await store()).tasks.find((t) => t.id === 't-food').steps.some((x) => x.text === 'Empty the box'));
+await general.getByRole('button', { name: /General panel name/ }).click();
+await page.getByLabel('General panel name', { exact: true }).fill('Personal'); await page.keyboard.press('Enter');
+check('Edit: panel name renamable', (await general.locator('.panel-title').textContent()).includes('Personal'));
+await seround.getByRole('button', { name: /^Brand name: Eli Lao Origin/ }).click();
+await page.getByLabel('Brand name', { exact: true }).fill('Eli Lao'); await page.keyboard.press('Enter');
+const st2 = await store();
+check('Edit: brand rename updates its tasks', st2.brands.includes('Eli Lao') && st2.tasks.find((t) => t.id === 's-pack').brand === 'Eli Lao');
+await page.keyboard.press('Control+z');
+check('Ctrl+Z undoes the brand rename', (await store()).brands.includes('Eli Lao Origin'));
+
 /* ---------- Music ---------- */
 const jz = music.locator('[data-project="p-jzero"]');
 check('Music: JZero shows Artist job pill + Mix/Master only', (await jz.textContent()).includes('Artist job') && (await jz.textContent()).includes('Mix / Master only'));
-check('Music: JZero starts at 1/2', (await jz.locator('.progress-num').first().textContent()) === '1/2');
-check('Music: only assigned stages listed as work (Mix, Master)', (await jz.locator('.stage-name').allTextContents()).join() === 'Mix,Master');
+check('Music: JZero starts at 50% (1 of 2), % printed on bar', (await jz.locator('.plabel').first().textContent()) === '50%');
+check('Music: only assigned stages listed as work (Mix, Master)', (await jz.locator('.stage-name').allTextContents()).join() === 'Mix,Master', (await jz.locator('.stage-name').allTextContents()).join());
 await jz.getByRole('button', { name: /Other stages outside my scope/ }).click();
 check('Music: out-of-scope stages are in a separate, labelled list (6)', (await jz.locator('.outside-list .tag').count()) === 6);
 await jz.getByLabel('Master done').check();
-check('Music: JZero reaches 2/2 with the rest of the release out of scope', (await jz.locator('.progress-num').first().textContent()) === '2/2');
+check('Music: JZero reaches 2/2 with the rest of the release out of scope', (await jz.locator('.plabel').first().textContent()) === '100%');
 const single = music.locator('[data-project="p-single"]');
 await single.getByRole('button', { name: /Expand FRANKK/ }).click();
 check('Music: own release shows timeline and full-release wording', (await single.locator('.timeline li').count()) >= 5 && (await single.textContent()).includes('Full release'));
@@ -240,6 +262,7 @@ await page.getByRole('button', { name: 'Reset sample data' }).click();
 await page.getByRole('button', { name: 'Yes, reset' }).click();
 await page.getByRole('button', { name: 'Home' }).click(); await page.waitForTimeout(500);
 check('Reset sample data restores the originals', !(await titles()).includes('Pay parking fine'));
+await page.screenshot({ path: 'docs/screens/after-reset.png' });
 
 check('No console errors or page errors', problems.length === 0, problems.join(' | '));
 await browser.close();

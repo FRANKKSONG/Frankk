@@ -93,5 +93,5 @@ export function buildFixtures(today: ISODate): AppData {
       ] },
   ];
 
-  return { version: 1, tasks, bills, projects };
+  return { version: 1, tasks, bills, projects, brands: [...BRANDS] };
 }

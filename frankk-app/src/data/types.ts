@@ -94,6 +94,8 @@ export interface AppData {
   tasks: Task[];
   bills: Bill[];
   projects: MusicProject[];
+  /** Seround brands, in display order. Renaming one renames it on its tasks. */
+  brands: string[];
 }
 
 export const STAGE_LIBRARY = ['Concept', 'Produce', 'Record', 'Lyrics', 'Mix', 'Master', 'Art', 'MV', 'Marketing', 'Streaming', 'Release'];

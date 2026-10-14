@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-const PREFIX = 'frankk.proto.v1.';
+const PREFIX = 'esther.proto.v1.';
 
 /** localStorage-backed state for view preferences (layout, widths, filters). Never touches notes. */
 export function usePersistentState<T>(key: string, initial: T): [T, (v: T | ((p: T) => T)) => void] {

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Panel } from '../components/Panel';
-import { TableHeader, TaskRows } from '../components/TaskTable';
+import { Table, TaskRows } from '../components/TaskTable';
+import { Editable } from '../components/Editable';
 import { NewTaskForm } from '../components/NewTaskForm';
 import { ColumnsMenu } from '../components/ColumnsMenu';
 import { Dropdown } from '../components/Dropdown';
@@ -14,10 +15,11 @@ import { visibleOccurrences, type Occurrence } from '../lib/bills';
 import { monthKey, monthName, relLabel, shortDate } from '../lib/dates';
 
 export const HOUSE_COLS: ColDef[] = [
-  { id: 'title', label: 'Task', width: 90, min: 80 },
-  { id: 'progress', label: 'Status', width: 66, min: 58 },
-  { id: 'plan', label: 'Plan', width: 62, min: 52, defaultHidden: true },
-  { id: 'due', label: 'Due', width: 62, min: 52 },
+  { id: 'title', label: 'Task', width: 86, min: 60 },
+  { id: 'progress', label: 'Status', width: 58, min: 44 },
+  { id: 'plan', label: 'Plan', width: 52, min: 40, defaultHidden: true },
+  { id: 'due', label: 'Due', width: 48, min: 40 },
+  { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true },
 ];
 
 type View = 'both' | 'tasks' | 'bills';
@@ -40,8 +42,7 @@ export function HousePanel({ focused }: { focused: boolean }) {
       menu={(close) => <ColumnsMenu defs={HOUSE_COLS} cols={cols} close={close} />}
       toolbar={<Dropdown ariaLabel="Show" value={view.v} options={VIEWS} onChange={(v) => setView({ v })} />}
       footer={adding ? undefined : <button className="foot-add" onClick={() => setAdding('task')}><Icon name="plus" size={14} /> Task or bill</button>}>
-      <div className="table" role="table" aria-label="House tasks and bills">
-        <TableHeader cols={cols} />
+      <Table cols={cols} label="House tasks and bills">
         {view.v !== 'tasks' && (
           <div className="group">
             {view.v === 'both' && <div className="group-label">Bills</div>}
@@ -55,7 +56,7 @@ export function HousePanel({ focused }: { focused: boolean }) {
             <TaskRows tasks={tasks} cols={cols} manual empty="No household tasks yet." />
           </div>
         )}
-      </div>
+      </Table>
       {adding && (
         <div>
           <div className="seg" role="tablist" aria-label="What to add">
@@ -86,20 +87,25 @@ function BillRow({ o, cols }: { o: Occurrence; cols: Columns }) {
         {cols.visible.map((c) => {
           if (c.id === 'title') return (
             <div key={c.id} className="cell title-cell col">
-              <span className="task-title">{o.bill.title}{o.month !== monthKey(today) && <em className="muted"> · {monthName(o.month)}</em>}</span>
-              <span className="sub"><Icon name="bell" size={11} /> {o.bill.reminderDays === 0 ? 'On the day' : `${o.bill.reminderDays} day${o.bill.reminderDays > 1 ? 's' : ''} before`} <span className="badge">Monthly</span></span>
+              <span className="bill-name"><Editable className="task-title" label="Bill name" value={o.bill.title} onSave={(v) => dispatch({ type: 'bill/patch', billId: o.bill.id, patch: { title: v } })} />{o.month !== monthKey(today) && <em className="muted">· {monthName(o.month)}</em>}</span>
+              <span className="sub" title={`Monthly · reminder ${o.bill.reminderDays === 0 ? 'on the day' : `${o.bill.reminderDays} days before`}`}><Icon name="bell" size={10} />{o.bill.reminderDays === 0 ? 'on the day' : `${o.bill.reminderDays}d before`} · monthly</span>
             </div>
           );
           if (c.id === 'progress') return <div key={c.id} className="cell"><span className={`pill ${status}`}>{o.paid ? '✓ Paid' : o.missed ? 'Missed' : 'Unpaid'}</span></div>;
           if (c.id === 'due') return <div key={c.id} className="cell"><span className={`date-static${o.missed ? ' overdue' : ''}`} title={shortDate(o.due, today)}>{relLabel(o.due, today)}</span></div>;
           return <div key={c.id} className="cell" />;
         })}
+        <span />
         <Popover align="right" trigger={({ toggle, ref }) => (
           <button ref={ref} className="icon-btn tiny" aria-label={`Bill options for ${label}`} aria-haspopup="menu" onClick={toggle}><Icon name="more" size={14} /></button>
         )}>
           {(close) => (
             <div className="pop-form">
               <strong>{o.bill.title}</strong>
+              <label>Due day each month
+                <input type="number" min={1} max={31} defaultValue={o.bill.dueDay}
+                  onBlur={(e) => dispatch({ type: 'bill/patch', billId: o.bill.id, patch: { dueDay: Number(e.target.value) } })} />
+              </label>
               <label>Remind me
                 <select value={o.bill.reminderDays} onChange={(e) => dispatch({ type: 'bill/update', billId: o.bill.id, patch: { reminderDays: Number(e.target.value) } })}>
                   {[0, 1, 2, 3, 5, 7].map((n) => <option key={n} value={n}>{n === 0 ? 'On the day' : `${n} day${n > 1 ? 's' : ''} before`}</option>)}

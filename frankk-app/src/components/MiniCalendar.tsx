@@ -15,7 +15,7 @@ export function MiniCalendar({ day, onDay }: { day: string | null; onDay: (d: st
   while (cells.length % 7) cells.push(null);
 
   return (
-    <section className="minical" aria-label="Calendar">
+    <section className="minical" aria-label="Calendar" title="Date overview only. Not connected to Google Calendar.">
       <header>
         <h3>{monthTitle(month)}</h3>
         <span>
@@ -33,7 +33,7 @@ export function MiniCalendar({ day, onDay }: { day: string | null; onDay: (d: st
           </button>
         ) : <span key={`e${i}`} />)}
       </div>
-      <p className="hint">Date overview only — not connected to Google Calendar.</p>
+      
     </section>
   );
 }

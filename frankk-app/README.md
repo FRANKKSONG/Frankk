@@ -1,6 +1,6 @@
-# FRANKK — Milestone 1 prototype
+# Esther — Milestone 1 prototype
 
-An interactive, **fixture-only** prototype of the FRANKK life control panel (React + TypeScript + Vite).
+An interactive, **fixture-only** prototype of Esther, the life control panel (React + TypeScript + Vite).
 It never reads or writes your Obsidian vault. All records are sample data kept in this browser's `localStorage`.
 
 ## Run it
@@ -8,7 +8,7 @@ It never reads or writes your Obsidian vault. All records are sample data kept i
 npm install
 npm run dev        # http://127.0.0.1:5173   (add ?today=2026-10-14 to pin the date)
 npm test           # unit tests (rules: progress, scope, bills, agenda)
-npm run e2e        # 49 browser checks (needs the dev server running and Chromium)
+npm run e2e        # 55 browser checks (needs the dev server running and Chromium)
 ```
 
 ## What works (real)
@@ -31,3 +31,10 @@ npm run e2e        # 49 browser checks (needs the dev server running and Chromiu
 `src/data/repository.ts` (`FixtureRepository`, swappable later for vault adapters) → `reducer.ts` (pure rules) → React UI. Layout/column preferences are stored separately from content. Tauri is not wrapped yet (Milestone 2).
 
 Screenshots: `docs/screens/`.
+
+## Iteration 2
+- Renamed to **Esther**.
+- Columns: every column (including the name) has its own width that stays where you drag it; double-click a divider to reset; extra columns (Priority, List, Workstream) via each panel's ⋯ menu.
+- Bento: fits the window height, panels swap places when dropped on each other, resize from left, right, bottom or corners.
+- Thick progress bars with the percentage printed on them.
+- Click to edit: task names, steps (and remove), panel names, brand names (add/rename), bill names and due day, music artist/project/client/roles/target date, stage and item names. Ctrl+Z or the toast's Undo reverts the last 50 changes.

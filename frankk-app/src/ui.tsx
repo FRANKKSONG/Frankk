@@ -6,8 +6,8 @@ interface Ui {
   openTask: (id: string | null) => void;
   noteDialog: string | null;
   openNote: (path: string | null) => void;
-  toast: string | null;
-  say: (msg: string) => void;
+  toast: { msg: string; undo: boolean } | null;
+  say: (msg: string, undo?: boolean) => void;
   paletteOpen: boolean;
   setPalette: (v: boolean) => void;
   focusArea: Area | null;
@@ -24,7 +24,7 @@ const Ctx = createContext<Ui | null>(null);
 export function UiProvider({ children }: { children: ReactNode }) {
   const [drawerTaskId, openTask] = useState<string | null>(null);
   const [noteDialog, openNote] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<Ui['toast']>(null);
   const [paletteOpen, setPalette] = useState(false);
   const [focusArea, setFocusArea] = useState<Area | null>(null);
   const [reveal, setReveal] = useState<Ui['reveal']>(null);
@@ -32,10 +32,10 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const timer = useRef<number | undefined>(undefined);
   const n = useRef(0);
 
-  const say = useCallback((msg: string) => {
-    setToast(msg);
+  const say = useCallback((msg: string, undo = false) => {
+    setToast({ msg, undo });
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setToast(null), 4200);
+    timer.current = window.setTimeout(() => setToast(null), undo ? 6500 : 4200);
   }, []);
   const revealRow = useCallback((kind: 'task' | 'project', id: string) => setReveal({ kind, id, n: ++n.current }), []);
 

@@ -6,7 +6,8 @@ import { DateCell } from '../components/DateCell';
 import { ProgressCell } from '../components/ProgressBar';
 import { Modal } from '../components/Modal';
 import { ColumnsMenu } from '../components/ColumnsMenu';
-import { TableHeader } from '../components/TaskTable';
+import { Table } from '../components/TaskTable';
+import { Editable } from '../components/Editable';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { useColumns, type ColDef } from '../hooks/useColumns';
@@ -17,10 +18,10 @@ import { STAGE_LIBRARY, type MusicProject, type Stage } from '../data/types';
 import { newId } from '../data/fixtures';
 
 export const MUSIC_COLS: ColDef[] = [
-  { id: 'title', label: 'Artist / Project', width: 110, min: 90 },
-  { id: 'type', label: 'Role / Type', width: 92, min: 70 },
-  { id: 'progress', label: 'Progress', width: 66, min: 56 },
-  { id: 'next', label: 'Next date', width: 60, min: 52 },
+  { id: 'title', label: 'Artist / Project', width: 114, min: 70 },
+  { id: 'type', label: 'Role / Type', width: 82, min: 50 },
+  { id: 'progress', label: 'Progress', width: 62, min: 44 },
+  { id: 'next', label: 'Next', width: 48, min: 40 },
 ];
 
 type Kind = 'all' | 'artist-job' | 'own-release';
@@ -59,8 +60,7 @@ export function MusicPanel({ focused }: { focused: boolean }) {
       menu={(close) => <ColumnsMenu defs={MUSIC_COLS} cols={cols} close={close} />}
       toolbar={<Dropdown ariaLabel="Show" value={prefs.kind} options={KINDS} onChange={(kind) => setPrefs({ kind })} />}
       footer={<button className="foot-add" onClick={() => setProjectDialog(true)}><Icon name="plus" size={14} /> Project or artist job</button>}>
-      <div className="table music-table" role="table" aria-label="Music projects">
-        <TableHeader cols={cols} />
+      <Table cols={cols} label="Music projects">
         {groups.length === 0 && <div className="empty">Nothing here yet.</div>}
         {groups.map(([name, list]) => (
           <div className="group" key={name}>
@@ -68,7 +68,7 @@ export function MusicPanel({ focused }: { focused: boolean }) {
             {list.map((p) => <ProjectRow key={p.id} p={p} cols={cols} open={open.has(p.id)} onToggle={() => toggle(p.id)} />)}
           </div>
         ))}
-      </div>
+      </Table>
     </Panel>
   );
 }
@@ -108,7 +108,7 @@ function ProjectRow({ p, cols, open, onToggle }: { p: MusicProject; cols: Return
             default: return <div key={c.id} className="cell" />;
           }
         })}
-        <span />
+        <span /><span />
       </div>
       {open && <ProjectDetail p={p} />}
     </div>
@@ -123,14 +123,26 @@ function ProjectDetail({ p }: { p: MusicProject }) {
   const outside = p.stages.filter((s) => !s.inScope);
   const [showOutside, setShowOutside] = useState(false);
   const available = STAGE_LIBRARY.filter((n) => !p.stages.some((s) => s.name === n));
+  const patchP = (patch: Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label' | 'roles' | 'targetRelease'>>) =>
+    dispatch({ type: 'project/patch', projectId: p.id, patch });
 
   return (
     <div className="project-detail">
       <div className="scope-line">
         {job
-          ? <>Only the stages assigned to me count here. <em>{p.client ? `Client: ${p.client}. ` : ''}Release progress isn’t tracked.</em></>
-          : <>Full release{p.targetRelease ? <> · target <strong>{relLabel(p.targetRelease)}</strong></> : null}. Stages can overlap, be reordered or skipped.</>}
+          ? <>Only the stages assigned to me count here. <em>The rest of the release isn’t tracked.</em></>
+          : <>Full release. Stages can overlap, be reordered or skipped.</>}
         <button className="link-btn" onClick={() => openNote(p.notePath)}><Icon name="external" size={12} /> Open in Obsidian</button>
+      </div>
+
+      <div className="fields">
+        <label>Artist<Editable label="Artist" value={p.artist} onSave={(v) => patchP({ artist: v })} /></label>
+        <label>Project<Editable label="Project" value={p.title} onSave={(v) => patchP({ title: v })} /></label>
+        {job
+          ? <label>Client<Editable label="Client" value={p.client ?? ''} allowEmpty placeholder="+ client" onSave={(v) => patchP({ client: v.trim() || undefined })} /></label>
+          : <label>Label<Editable label="Label" value={p.label ?? ''} allowEmpty placeholder="+ label" onSave={(v) => patchP({ label: v.trim() || undefined })} /></label>}
+        <label>{job ? 'My roles' : 'Roles'}<Editable label="Roles" value={p.roles.join(', ')} allowEmpty placeholder="+ roles" onSave={(v) => patchP({ roles: v.split(',').map((x) => x.trim()).filter(Boolean) })} /></label>
+        {!job && <label>Target release<DateCell label="Target release" value={p.targetRelease} onChange={(v) => patchP({ targetRelease: v })} /></label>}
       </div>
 
       {!job && <Timeline stages={inScope} />}
@@ -183,6 +195,7 @@ function Timeline({ stages }: { stages: Stage[] }) {
 
 function StageRow({ p, st, index, count }: { p: MusicProject; st: Stage; index: number; count: number }) {
   const { dispatch, today } = useStore();
+  const { say } = useUi();
   const [text, setText] = useState('');
   const [adding, setAdding] = useState(false);
   const u = stageUnits(st);
@@ -201,12 +214,12 @@ function StageRow({ p, st, index, count }: { p: MusicProject; st: Stage; index: 
               <span className="box" />
             </label>
           )}
-        <span className="stage-name">{st.name}</span>
+        <Editable className="stage-name" label="Stage name" value={st.name} onSave={(v) => patch({ name: v })} />
         <span className="stage-actions">
           <DateCell label={`${st.name} end date`} value={st.end} onChange={(v) => patch({ end: v })} done={stageComplete(st)} />
-          <button className="icon-btn tiny" aria-label={`Move ${st.name} earlier`} disabled={index === 0} onClick={() => dispatch({ type: 'stage/move', projectId: p.id, stageId: st.id, dir: -1 })}><Icon name="up" size={12} /></button>
-          <button className="icon-btn tiny" aria-label={`Move ${st.name} later`} disabled={index === count - 1} onClick={() => dispatch({ type: 'stage/move', projectId: p.id, stageId: st.id, dir: 1 })}><Icon name="down" size={12} /></button>
-          <button className="link-btn" aria-label={`Mark ${st.name} outside my scope`} onClick={() => patch({ inScope: false })}>Out of scope</button>
+          <button className="icon-btn tiny hover-only" aria-label={`Move ${st.name} earlier`} disabled={index === 0} onClick={() => dispatch({ type: 'stage/move', projectId: p.id, stageId: st.id, dir: -1 })}><Icon name="up" size={12} /></button>
+          <button className="icon-btn tiny hover-only" aria-label={`Move ${st.name} later`} disabled={index === count - 1} onClick={() => dispatch({ type: 'stage/move', projectId: p.id, stageId: st.id, dir: 1 })}><Icon name="down" size={12} /></button>
+          <button className="icon-btn tiny hover-only" aria-label={`Mark ${st.name} outside my scope`} title="Move outside my scope" onClick={() => patch({ inScope: false })}><Icon name="close" size={11} /></button>
         </span>
       </div>
       {st.items.map((i) => (
@@ -216,7 +229,9 @@ function StageRow({ p, st, index, count }: { p: MusicProject; st: Stage; index: 
               onChange={() => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { done: !i.done } })} />
             <span className="box" />
           </label>
-          <span className="step-text">{i.text}</span>
+          <Editable className="step-text" label="Item" value={i.text} onSave={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { text: v } })} />
+          <button className="icon-btn tiny hover-only" aria-label={`Remove ${i.text}`} title="Remove item"
+            onClick={() => { dispatch({ type: 'item/remove', projectId: p.id, stageId: st.id, itemId: i.id }); say(`Removed “${i.text}”.`, true); }}><Icon name="close" size={11} /></button>
           <DateCell label={`${i.text} date`} value={i.date} done={i.done} placeholder="+ date" onChange={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { date: v } })} />
         </div>
       ))}

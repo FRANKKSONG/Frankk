@@ -1,11 +1,17 @@
 import { useCallback, useMemo } from 'react';
 import { usePersistentState } from './usePersistentState';
 
-export interface ColDef { id: string; label: string; width: number; min: number; fixedLabel?: boolean; defaultHidden?: boolean }
+export interface ColDef { id: string; label: string; width: number; min: number; defaultHidden?: boolean }
 
 interface Saved { widths: Record<string, number>; hidden: string[] }
 
-/** Resizable, hideable table columns; the first column is flexible (its width is a minimum). */
+const GRIP = 14, CHECK = 20, MENU = 24, GAP = 2;
+
+/**
+ * Every column (including the name) has its own fixed pixel width that stays exactly where you drag it.
+ * A flexible spacer before the row menu absorbs spare room; if the columns are wider than the panel,
+ * the table scrolls sideways inside the panel.
+ */
 export function useColumns(tableId: string, defs: ColDef[]) {
   const [saved, setSaved] = usePersistentState<Saved>(`cols.${tableId}`, {
     widths: {},
@@ -17,8 +23,12 @@ export function useColumns(tableId: string, defs: ColDef[]) {
 
   const setWidth = useCallback((id: string, w: number) => {
     const def = defs.find((d) => d.id === id)!;
-    setSaved((s) => ({ ...s, widths: { ...s.widths, [id]: Math.max(def.min, Math.round(w)) } }));
+    setSaved((s) => ({ ...s, widths: { ...s.widths, [id]: Math.min(900, Math.max(def.min, Math.round(w))) } }));
   }, [defs, setSaved]);
+
+  const resetWidth = useCallback((id: string) => {
+    setSaved((s) => { const widths = { ...s.widths }; delete widths[id]; return { ...s, widths }; });
+  }, [setSaved]);
 
   const toggle = useCallback((id: string) => {
     setSaved((s) => ({ ...s, hidden: s.hidden.includes(id) ? s.hidden.filter((h) => h !== id) : [...s.hidden, id] }));
@@ -27,11 +37,15 @@ export function useColumns(tableId: string, defs: ColDef[]) {
   const reset = useCallback(() => setSaved({ widths: {}, hidden: defs.filter((d) => d.defaultHidden).map((d) => d.id) }), [defs, setSaved]);
 
   const template = useMemo(
-    () => ['12px', '20px', ...visible.map((d, i) => (i === 0 ? `minmax(${width(d.id)}px, 1fr)` : `${width(d.id)}px`)), '22px'].join(' '),
+    () => [`${GRIP}px`, `${CHECK}px`, ...visible.map((d) => `${width(d.id)}px`), 'minmax(0, 1fr)', `${MENU}px`].join(' '),
+    [visible, width],
+  );
+  const minWidth = useMemo(
+    () => GRIP + CHECK + MENU + visible.reduce((n, d) => n + width(d.id), 0) + GAP * (visible.length + 3) + 8,
     [visible, width],
   );
 
-  return { visible, hidden: saved.hidden, width, setWidth, toggle, reset, template };
+  return { visible, hidden: saved.hidden, width, setWidth, resetWidth, toggle, reset, template, minWidth };
 }
 
 export type Columns = ReturnType<typeof useColumns>;

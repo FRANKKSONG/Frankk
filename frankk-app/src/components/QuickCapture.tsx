@@ -9,7 +9,8 @@ const LATER: { id: string; label: string; icon: IconName }[] = [
 ];
 
 export function QuickCapture() {
-  const { dispatch } = useStore();
+  const { dispatch, data } = useStore();
+  const [area, setArea] = useState<'general' | 'seround' | 'house'>('general');
   const { say } = useUi();
   const [text, setText] = useState('');
   const last = useRef({ text: '', at: 0 });
@@ -21,9 +22,9 @@ export function QuickCapture() {
     // A rapid double-click / double-Enter must not create the same task twice.
     if (last.current.text === t && now - last.current.at < 800) return;
     last.current = { text: t, at: now };
-    dispatch({ type: 'task/add', title: t, area: 'general' });
+    dispatch({ type: 'task/add', title: t, area, extra: area === 'seround' ? { brand: data.brands[0] } : undefined });
     setText('');
-    say('Added to General (sample data — nothing was written to your vault).');
+    say(`Added to ${area === 'general' ? 'General' : area === 'house' ? 'House' : `Seround · ${data.brands[0]}`}.`, true);
   };
 
   return (
@@ -31,9 +32,11 @@ export function QuickCapture() {
       <h3><Icon name="bolt" size={15} /> Quick capture</h3>
       <div className="capture-row">
         <input value={text} placeholder="Write a task…" aria-label="Quick capture text" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save(); }} />
-        <select aria-label="Category" defaultValue="general">
+        <select aria-label="Category" value={area} onChange={(e) => setArea(e.target.value as typeof area)}>
           <option value="general">General</option>
-          <option disabled>Music — later</option><option disabled>Seround — later</option><option disabled>House — later</option>
+          <option value="seround">Seround</option>
+          <option value="house">House</option>
+          <option disabled>Music — use + in Music</option>
         </select>
         <button className="btn primary square" aria-label="Save capture" onClick={save} disabled={!text.trim()}><Icon name="plus" /></button>
       </div>
@@ -43,7 +46,7 @@ export function QuickCapture() {
           <button key={t.id} className="type" disabled title="Not available yet — planned for a later milestone"><Icon name={t.icon} size={14} /> {t.label}</button>
         ))}
       </div>
-      <p className="hint">Only General tasks can be captured for now. Other types are planned.</p>
+      <p className="hint">Tasks only for now. Notes, ideas, links and meetings are planned.</p>
     </section>
   );
 }
