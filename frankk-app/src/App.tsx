@@ -57,7 +57,7 @@ export default function App() {
     <div className="app">
       <Sidebar />
       <main className="main">
-        {page === 'home' && <HomePage />}
+        {page === 'home' && <HomePage theme={theme} setTheme={setTheme} />}
         {page === 'tasks' && <TasksBoard theme={theme} setTheme={setTheme} />}
         {page === 'notes' && <NotesPage />}
         {page === 'library' && <LibraryPage />}

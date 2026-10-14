@@ -22,6 +22,9 @@ export type Action =
   | { type: 'project/tags'; projectId: string; tags: string[] }
   | { type: 'project/patch'; projectId: string; patch: Partial<Pick<MusicProject, 'artist' | 'title' | 'client' | 'label' | 'roles' | 'targetRelease' | 'start' | 'color' | 'notes' | 'releaseType'>> }
   | { type: 'item/remove'; projectId: string; stageId: string; itemId: string }
+  | { type: 'stage/reorder'; projectId: string; id: string; overId: string }
+  | { type: 'item/reorder'; projectId: string; stageId: string; id: string; overId: string }
+  | { type: 'step/reorder'; taskId: string; id: string; overId: string }
   | { type: 'bill/pay'; billId: string; month: string; paid: boolean }
   | { type: 'bill/update'; billId: string; patch: { reminderDays?: number; note?: { month: string; text: string } } }
   | { type: 'bill/add'; title: string; dueDay: number; reminderDays: number; start: string }
@@ -54,6 +57,17 @@ const mapStage = (s: AppData, pid: string, sid: string, fn: (st: Stage) => Stage
   ...s,
   projects: s.projects.map((p) => (p.id === pid ? { ...p, stages: p.stages.map((st) => (st.id === sid ? fn(st) : st)) } : p)),
 });
+
+/** Move the element with id `id` to the position of `overId`. */
+export function moveById<T extends { id: string }>(list: T[], id: string, overId: string): T[] {
+  const from = list.findIndex((x) => x.id === id);
+  const to = list.findIndex((x) => x.id === overId);
+  if (from < 0 || to < 0 || from === to) return list;
+  const out = [...list];
+  const [it] = out.splice(from, 1);
+  out.splice(to, 0, it);
+  return out;
+}
 
 export const tagKey = (s: string) => s.trim().replace(/^#/, '').replace(/\s+/g, '-').toLowerCase();
 
@@ -297,6 +311,12 @@ export function reducer(state: AppData, a: Action): AppData {
         } : x)),
       };
     }
+    case 'stage/reorder':
+      return { ...state, projects: state.projects.map((p) => (p.id === a.projectId ? { ...p, stages: moveById(p.stages, a.id, a.overId) } : p)) };
+    case 'item/reorder':
+      return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, items: moveById(st.items, a.id, a.overId) }));
+    case 'step/reorder':
+      return mapTask(state, a.taskId, (t) => ({ ...t, steps: moveById(t.steps, a.id, a.overId) }));
     case 'item/remove':
       return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, items: st.items.filter((i) => i.id !== a.itemId) }));
     case 'stage/patch':

@@ -873,3 +873,137 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding:
 [data-style='gilded'] .group-label, [data-style='gilded'] .dow, [data-style='gilded'] .stepper .node { font-family: var(--font-body); }
 [data-style='gilded'] .group-label { text-transform: uppercase; letter-spacing: .08em; font-size: 10.5px; font-weight: 600; }
 .search-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* =====================================================================
+   Iteration 6: window background & glass, calm edges, artful type,
+   sortable / resizable headers, drag handles, editable-looking dates.
+   ===================================================================== */
+:root { --edge: rgba(255,255,255,.07); --panel-alpha: 82%; --blur: 16px; --win-art: none; --win-color: var(--bg); --win-dim: .8; --win-art-size: cover; }
+.glass, :is([data-style='gilded'], [data-style='modern']) :is(.widget > section, .w-frame, .lib-main, .note-main, .note-side section, .set-card, .big-day) {
+  background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent) !important;
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.15); backdrop-filter: blur(var(--blur)) saturate(1.15);
+  border: 1px solid var(--edge) !important; border-radius: var(--radius); box-shadow: var(--shadow);
+}
+
+/* window background: art or plain colour behind every page */
+:is([data-style='gilded'], [data-style='modern']) body { background: var(--win-color); }
+:is([data-style='gilded'], [data-style='modern']) .main {
+  background-color: var(--win-color);
+  background-image: linear-gradient(color-mix(in srgb, var(--win-color) calc(var(--win-dim) * 100%), transparent), color-mix(in srgb, var(--win-color) calc(var(--win-dim) * 100%), transparent)), var(--win-art);
+  background-size: auto, var(--win-art-size); background-position: center; background-attachment: fixed;
+}
+:is([data-style='gilded'], [data-style='modern']) .homepage:not(.own-art) { background: transparent; }
+:is([data-style='gilded'], [data-style='modern']) .sidebar { background: color-mix(in srgb, var(--win-color) 86%, transparent); -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur)); border-right: 1px solid var(--edge); }
+:is([data-style='gilded'], [data-style='modern']) :is(.popover, .modal, .drawer, .palette, .toast) {
+  background: color-mix(in srgb, var(--pop-bg) max(var(--panel-alpha), 92%), transparent); -webkit-backdrop-filter: blur(calc(var(--blur) + 8px)); backdrop-filter: blur(calc(var(--blur) + 8px));
+  border: 1px solid var(--edge); border-radius: var(--radius); box-shadow: 0 24px 60px rgba(0,0,0,.45);
+}
+:is([data-style='gilded'], [data-style='modern']) .drawer { border-radius: 0; border-width: 0 0 0 1px; }
+
+/* calm edges: no coloured top bars, no inner rules, hairline borders only */
+:is([data-style='gilded'], [data-style='modern']) .panel { border-top: 1px solid var(--edge) !important; }
+:is([data-style='gilded'], [data-style='modern']) .panel-toolbar { border-bottom: 0; }
+:is([data-style='gilded'], [data-style='modern']) .panel-title > svg { color: var(--area); }
+:is([data-style='gilded'], [data-style='modern']) .lib-main { border-top-width: 1px !important; }
+:is([data-style='gilded'], [data-style='modern']) .thead { border-bottom: 1px solid var(--edge); background: transparent; }
+:is([data-style='gilded'], [data-style='modern']) .panel-body .thead { background: color-mix(in srgb, var(--bg-2) 96%, transparent); }
+:is([data-style='gilded'], [data-style='modern']) .task { border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent); }
+:is([data-style='gilded'], [data-style='modern']) .panel-foot { border-top: 1px solid var(--edge); }
+:is([data-style='gilded'], [data-style='modern']) .stepper { border: 1px solid var(--edge); background: color-mix(in srgb, var(--text) 2%, transparent); border-radius: var(--radius-sm); }
+:is([data-style='gilded'], [data-style='modern']) :is(.today-item, .vault-box, .provider, .flow-box, .dv-card, .dv-tile, .proposal, .stage-pick.on, .radio-card, .theme-card, .file-preview, .code-block, .dv-table-wrap) { border-color: var(--edge); }
+:is([data-style='gilded'], [data-style='modern']) .dv-col { border-top-width: 2px; }
+:is([data-style='gilded'], [data-style='modern']) :is(.btn, .chip-btn, .search-btn, .seg-icons, .seg button) { border-color: var(--edge); background: color-mix(in srgb, var(--text) 5%, transparent); box-shadow: none; }
+:is([data-style='gilded'], [data-style='modern']) :is(.btn, .chip-btn, .search-btn):hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 45%, var(--edge)); background: color-mix(in srgb, var(--text) 9%, transparent); }
+:is([data-style='gilded'], [data-style='modern']) .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+:is([data-style='gilded'], [data-style='modern']) :is(input:not([type=checkbox]):not([type=color]):not([type=range]), select, textarea) { background: color-mix(in srgb, var(--text) 5%, transparent); border-color: var(--edge); border-radius: var(--radius-sm); }
+:is([data-style='gilded'], [data-style='modern']) :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; }
+:is([data-style='gilded'], [data-style='modern']) .wcard.editing .w-frame { outline: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); }
+:is([data-style='gilded'], [data-style='modern']) .sidebar button.active { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: none; color: var(--text); }
+:is([data-style='gilded'], [data-style='modern']) .sidebar::after { opacity: .6; }
+:is([data-style='gilded'], [data-style='modern']) .task.prio-high > .trow { box-shadow: inset 2px 0 0 var(--danger); }
+:is([data-style='gilded'], [data-style='modern']) .task.project > .trow { box-shadow: inset 2px 0 0 var(--row); }
+
+/* artful type: display serif for headings, crafted sans everywhere else */
+:is([data-style='gilded'], [data-style='modern']) body { font-family: var(--font-body); font-size: 13.5px; letter-spacing: .005em; }
+:is([data-style='gilded'], [data-style='modern']) :is(.hp-greet h1, .home-head h1, .panel-title .editable, .lib-title, .note-title, .md h1, .set-card h2, .page h1, .cal-head h1, .modal h2, .today-head strong, .capture h3, .coming h3, .minical h3, .lib-types h2, .set-nav h1, .area-tag, .rec-big-title, .wordmark) {
+  font-family: var(--font-display) !important; font-weight: 400 !important; font-synthesis: none; letter-spacing: 0; text-transform: none;
+}
+:is([data-style='gilded'], [data-style='modern']) .hp-greet h1 { font-size: 40px; line-height: 1; }
+:is([data-style='gilded'], [data-style='modern']) .home-head h1 { font-size: 36px; }
+:is([data-style='gilded'], [data-style='modern']) .panel-title .editable { font-size: 23px; line-height: 1; color: var(--text); }
+:is([data-style='gilded'], [data-style='modern']) .panel-title .editable::first-letter { color: inherit; }
+:is([data-style='gilded'], [data-style='modern']) :is(.capture h3, .coming h3, .minical h3) { font-size: 21px; }
+:is([data-style='gilded'], [data-style='modern']) .today-head strong { font-size: 24px; color: var(--text); }
+:is([data-style='gilded'], [data-style='modern']) :is(.set-card h2, .lib-types h2, .set-nav h1) { font-size: 27px; }
+:is([data-style='gilded'], [data-style='modern']) :is(.lib-title, .note-title) { font-size: 34px !important; }
+:is([data-style='gilded'], [data-style='modern']) .cal-head h1 { font-size: 38px; }
+:is([data-style='gilded'], [data-style='modern']) .md h1 { font-size: 30px; }
+:is([data-style='gilded'], [data-style='modern']) .modal h2 { font-size: 28px; color: var(--text); }
+:is([data-style='gilded'], [data-style='modern']) .area-tag { font-size: 22px; }
+:is([data-style='gilded'], [data-style='modern']) .wordmark { font-size: 32px; font-style: italic; }
+:is([data-style='gilded'], [data-style='modern']) .tagline { font-family: var(--font-display); font-style: italic; font-size: 16px; }
+:is([data-style='gilded'], [data-style='modern']) .w-title { font-weight: 600; font-size: 13px; color: var(--muted); }
+:is([data-style='gilded'], [data-style='modern']) .w-stat-num { font-family: var(--font-display); font-weight: 400; font-size: 46px; letter-spacing: -.01em; }
+:is([data-style='gilded'], [data-style='modern']) .thead { font: 600 11.5px var(--font-body); letter-spacing: .01em; text-transform: none; color: var(--muted); }
+:is([data-style='gilded'], [data-style='modern']) .group-label { font: 600 11px var(--font-body); letter-spacing: .06em; text-transform: uppercase; }
+:is([data-style='gilded'], [data-style='modern']) .group-head { font: 600 13px var(--font-body); }
+:is([data-style='gilded'], [data-style='modern']) .dow, :is([data-style='gilded'], [data-style='modern']) .stepper .node { font-family: var(--font-body); }
+
+/* sortable, robust column headers */
+.th { padding: 0 2px; }
+.th-btn { display: inline-flex; align-items: center; gap: 4px; width: 100%; min-width: 0; height: 100%; padding: 0 4px; border-radius: 6px; color: inherit; font: inherit; text-align: left; }
+.th-btn:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+.th-btn .th-label { flex: 0 1 auto; }
+.sort-ind { font-size: 9px; opacity: 0; flex: none; color: var(--muted); }
+.th-btn:hover .sort-ind { opacity: .7; }
+.th.sorted .th-btn, th.sorted .th-btn { color: var(--text); } .th.sorted .sort-ind, th.sorted .sort-ind { opacity: 1; color: var(--accent); }
+.col-resizer { right: -6px; width: 12px; z-index: 4; }
+.col-resizer::after { left: 5px; top: 6px; bottom: 6px; width: 1px; background: var(--edge); }
+.thead:hover .col-resizer::after { background: color-mix(in srgb, var(--text) 18%, transparent); }
+.col-resizer:hover::after, .col-resizer:focus-visible::after, .col-resizer:active::after { background: var(--accent) !important; width: 2px; left: 5px; top: 0; bottom: 0; }
+.dv-table { table-layout: fixed; }
+.dv-table th { position: sticky; padding: 0; height: 32px; }
+.dv-table th .th-btn { padding: 0 10px; overflow: hidden; }
+.dv-table th .th-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv-table td { overflow: hidden; text-overflow: ellipsis; }
+.saved-hint { margin: 0; }
+
+/* drag handles */
+.drag-grip { display: grid; place-items: center; width: 14px; height: 22px; color: var(--faint); cursor: grab; opacity: 0; touch-action: none; flex: none; border-radius: 4px; }
+.sortable-row:hover > * > .drag-grip, .sortable-row:hover > .drag-grip, .drag-grip:focus-visible { opacity: 1; }
+.stage-head:hover .drag-grip, .step:hover .drag-grip { opacity: 1; }
+.drag-grip:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.drag-grip:active { cursor: grabbing; }
+.sortable-row.dragging { background: color-mix(in srgb, var(--bg-3) 95%, transparent); border-radius: 8px; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+.stage .step { margin-left: 18px; }
+
+/* dates look like what they are: small, clickable date chips */
+.date-btn { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px !important; border-radius: 7px !important; border: 1px solid var(--edge);
+  background: color-mix(in srgb, var(--text) 4%, transparent); color: var(--text); font: 500 12px var(--font-body) !important; letter-spacing: 0; cursor: pointer; white-space: nowrap; }
+.date-btn .date-ico { color: var(--faint); flex: none; }
+.date-btn:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--edge)); background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: none; }
+.date-btn:hover .date-ico { color: var(--accent); }
+.date-btn.empty { border-style: dashed; background: transparent; color: var(--faint); }
+.date-btn.empty .date-ico { opacity: .8; }
+.task:not(:hover) .date-btn.empty { opacity: .55; }
+.date-btn.today { background: color-mix(in srgb, var(--warn) 22%, transparent); border-color: color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); font-weight: 700 !important; }
+.date-btn.today .date-ico { color: var(--warn); }
+.date-btn.soon { color: var(--warn); }
+.date-btn.overdue { background: color-mix(in srgb, var(--danger) 22%, transparent) !important; border-color: color-mix(in srgb, var(--danger) 65%, transparent); color: color-mix(in srgb, var(--danger) 60%, #fff) !important; font-weight: 700 !important; }
+.date-btn.overdue .date-ico { color: inherit; }
+.date-edit input[type=date] { padding: 2px 6px !important; border: 1px solid var(--accent) !important; border-radius: 7px !important; font: 500 12px var(--font-body); background: var(--bg-3) !important; }
+[data-style='medieval'] .date-btn { border-radius: 0 !important; font-family: var(--font-sc) !important; }
+
+/* appearance panel */
+.appearance-pop { width: 480px; max-width: 94vw; }
+.ap-h { margin: 6px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.appearance .bg-tiles { grid-template-columns: repeat(4, 1fr); }
+.appearance .bg-tile { height: 58px; }
+.sliders { display: grid; gap: 6px; }
+.slider { display: grid; grid-template-columns: 140px 1fr 44px; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.slider input { accent-color: var(--accent); padding: 0 !important; border: 0 !important; background: none !important; }
+.slider span { text-align: right; font-variant-numeric: tabular-nums; }
+::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.date-btn.compact { padding: 2px 6px !important; gap: 4px; }
+.date-btn.compact:not(.empty) .date-ico { display: none; }
+.date-btn.compact.empty { padding: 3px 6px !important; }

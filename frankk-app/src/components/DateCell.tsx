@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { relLabel, diffDays, type ISODate } from '../lib/dates';
 import { useStore } from '../data/store';
+import { Icon } from './Icons';
 
 interface Props {
   value?: ISODate;
@@ -9,10 +10,12 @@ interface Props {
   kind?: 'plan' | 'due';
   done?: boolean;
   placeholder?: string;
+  /** Table cells: tighter chip, the icon only shows when the date is empty. */
+  compact?: boolean;
 }
 
 /** Click to edit. Choosing a date commits; the × clears it. Esc/blur cancels. */
-export function DateCell({ value, onChange, label, kind, done, placeholder = '—' }: Props) {
+export function DateCell({ value, onChange, label, kind, done, placeholder = 'Add date', compact }: Props) {
   const { today } = useStore();
   const [editing, setEditing] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -42,9 +45,10 @@ export function DateCell({ value, onChange, label, kind, done, placeholder = '�
     );
   }
   return (
-    <button className={`date-btn${overdue ? ' overdue' : ''}${isToday && !done ? ' today' : ''}${soon ? ' soon' : ''}${value ? '' : ' empty'}`}
-      aria-label={`${label}: ${value ? relLabel(value, today) : 'not set'}. Click to change`} onClick={() => setEditing(true)}>
-      {value ? relLabel(value, today) : placeholder}
+    <button className={`date-btn${compact ? ' compact' : ''}${overdue ? ' overdue' : ''}${isToday && !done ? ' today' : ''}${soon ? ' soon' : ''}${value ? '' : ' empty'}`}
+      aria-label={`${label}: ${value ? relLabel(value, today) : 'not set'}. Click to change`} title={`${label}. Click to pick a date`} onClick={() => setEditing(true)}>
+      <Icon name="calendar" size={11} className="date-ico" />
+      {(value || !compact) && <span>{value ? relLabel(value, today) : placeholder}</span>}
     </button>
   );
 }

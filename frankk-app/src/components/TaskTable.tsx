@@ -8,6 +8,7 @@ import { ProgressCell } from './ProgressBar';
 import { Popover } from './Popover';
 import { Editable, MiniSelect } from './Editable';
 import { TagChips, TagPicker } from './Tags';
+import { SortableList } from './SortableList';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { checklistProgress } from '../lib/progress';
@@ -19,36 +20,61 @@ const WORKSTREAMS = [{ id: '', label: '—' }, { id: 'content', label: 'Content 
 
 /* ---------- table wrapper + header with resizable columns ---------- */
 
-export function Table({ cols, label, children }: { cols: Columns; label: string; children: ReactNode }) {
+export interface SortState { key: string; dir: 'asc' | 'desc' }
+
+/** Next sort when a header is clicked: ascending → descending → back to manual order. */
+export function nextSort(cur: SortState | null, key: string): SortState | null {
+  if (!cur || cur.key !== key) return { key, dir: 'asc' };
+  return cur.dir === 'asc' ? { key, dir: 'desc' } : null;
+}
+
+export function Table({ cols, label, children, sort, onSort, sortable }: { cols: Columns; label: string; children: ReactNode; sort?: SortState | null; onSort?: (key: string) => void; sortable?: string[] }) {
   return (
     <div className="table" role="table" aria-label={label} style={{ minWidth: cols.minWidth }}>
-      <TableHeader cols={cols} />
+      <TableHeader cols={cols} sort={sort} onSort={onSort} sortable={sortable} />
       {children}
     </div>
   );
 }
 
-export function TableHeader({ cols }: { cols: Columns }) {
+export function TableHeader({ cols, sort, onSort, sortable }: { cols: Columns; sort?: SortState | null; onSort?: (key: string) => void; sortable?: string[] }) {
   return (
     <div className="trow thead" style={{ gridTemplateColumns: cols.template }} role="row">
       <span /><span />
-      {cols.visible.map((c) => (
-        <span key={c.id} className="th" role="columnheader">
-          <span className="th-label">{c.label}</span>
-          <ResizeHandle label={c.label} value={cols.width(c.id)} onChange={(w) => cols.setWidth(c.id, w)} onReset={() => cols.resetWidth(c.id)} />
-        </span>
-      ))}
+      {cols.visible.map((c) => {
+        const can = !!onSort && (!sortable || sortable.includes(c.id));
+        const active = sort?.key === c.id;
+        return (
+          <span key={c.id} className={`th${active ? ' sorted' : ''}`} role="columnheader" data-col={c.id}
+            aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+            {can ? (
+              <button type="button" className="th-btn" title={`Sort by ${c.label}${active ? (sort!.dir === 'asc' ? ' (now A→Z / earliest first)' : ' (now Z→A / latest first)') : ''}`}
+                onClick={() => onSort!(c.id)}>
+                <span className="th-label">{c.label}</span>
+                <span className="sort-ind" aria-hidden="true">{active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+              </button>
+            ) : <span className="th-label" title={c.label}>{c.label}</span>}
+            <ResizeHandle label={c.label} value={cols.width(c.id)} onChange={(w) => cols.setWidth(c.id, w)}
+              onFit={(el) => {
+                const table = el.closest('.table');
+                const cells = table ? [...table.querySelectorAll<HTMLElement>(`.task > .trow > [data-col="${c.id}"]`)] : [];
+                const widest = Math.max(c.label.length * 7.5 + 40, ...cells.map((x) => x.scrollWidth + 10));
+                cols.setWidth(c.id, Math.min(widest, 480));
+              }} />
+          </span>
+        );
+      })}
       <span /><span />
     </div>
   );
 }
 
-function ResizeHandle({ label, value, onChange, onReset }: { label: string; value: number; onChange: (w: number) => void; onReset: () => void }) {
+function ResizeHandle({ label, value, onChange, onFit }: { label: string; value: number; onChange: (w: number) => void; onFit: (el: HTMLElement) => void }) {
   const start = useRef<{ x: number; w: number } | null>(null);
   const end = () => { start.current = null; document.body.classList.remove('col-resizing'); };
   return (
     <span className="col-resizer no-drag" role="separator" aria-orientation="vertical" tabIndex={0}
-      aria-label={`Resize ${label} column (double-click to reset)`} aria-valuenow={value} title="Drag to resize · double-click to reset"
+      aria-label={`Resize ${label} column (double-click to fit)`} aria-valuenow={value} title="Drag to resize · double-click to fit the content"
       onPointerDown={(e) => {
         e.preventDefault(); e.stopPropagation();
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -59,7 +85,7 @@ function ResizeHandle({ label, value, onChange, onReset }: { label: string; valu
       onPointerUp={end}
       onPointerCancel={end}
       onLostPointerCapture={end}
-      onDoubleClick={onReset}
+      onDoubleClick={(e) => onFit(e.currentTarget)}
       onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -135,7 +161,7 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
     switch (id) {
       case 'title':
         return (
-          <div key={id} className="cell title-cell">
+          <div key={id} className="cell title-cell" data-col={id}>
             {task.mode === 'progress'
               ? <button className={`chev${open ? ' open' : ''}`} aria-expanded={open} aria-label={`${open ? 'Collapse' : 'Expand'} steps of ${task.title}`} onClick={onToggleOpen}><Icon name="chevronR" size={12} /></button>
               : <span className="chev" aria-hidden="true" />}
@@ -148,13 +174,13 @@ function TaskRow({ task, cols, manual, open, onToggleOpen, onNudge, first, last 
             </span>
           </div>
         );
-      case 'progress': return <div key={id} className="cell">{task.mode === 'simple' ? <span className="simple-state">{task.done ? 'Done' : ''}</span> : <ProgressCell p={prog} done={task.done} />}</div>;
-      case 'plan': return <div key={id} className="cell"><DateCell kind="plan" label={`Task date of ${task.title}`} value={task.plan} done={task.done} onChange={(v) => update({ plan: v })} /></div>;
-      case 'due': return <div key={id} className="cell"><DateCell kind="due" label={`Due date of ${task.title}`} value={task.due} done={task.done} onChange={(v) => update({ due: v })} /></div>;
-      case 'priority': return <div key={id} className="cell"><MiniSelect label={`Priority of ${task.title}`} value={task.priority} options={PRIORITIES} onChange={(v) => update({ priority: v })} /></div>;
-      case 'list': return <div key={id} className="cell"><Editable label={`List of ${task.title}`} value={task.list ?? ''} allowEmpty placeholder="+ list" onSave={(v) => update({ list: v.trim() || undefined })} /></div>;
-      case 'workstream': return <div key={id} className="cell"><MiniSelect label={`Workstream of ${task.title}`} value={task.workstream ?? ''} options={WORKSTREAMS} onChange={(v) => update({ workstream: (v || undefined) as Task['workstream'] })} /></div>;
-      case 'brand': return <div key={id} className="cell"><MiniSelect label={`Brand of ${task.title}`} value={task.brand ?? ''} options={data.brands.map((b) => ({ id: b, label: b }))} onChange={(v) => update({ brand: v })} /></div>;
+      case 'progress': return <div key={id} className="cell" data-col={id}>{task.mode === 'simple' ? <span className="simple-state">{task.done ? 'Done' : ''}</span> : <ProgressCell p={prog} done={task.done} />}</div>;
+      case 'plan': return <div key={id} className="cell" data-col={id}><DateCell compact kind="plan" label={`Task date of ${task.title}`} value={task.plan} done={task.done} onChange={(v) => update({ plan: v })} /></div>;
+      case 'due': return <div key={id} className="cell" data-col={id}><DateCell compact kind="due" label={`Due date of ${task.title}`} value={task.due} done={task.done} onChange={(v) => update({ due: v })} /></div>;
+      case 'priority': return <div key={id} className="cell" data-col={id}><MiniSelect label={`Priority of ${task.title}`} value={task.priority} options={PRIORITIES} onChange={(v) => update({ priority: v })} /></div>;
+      case 'list': return <div key={id} className="cell" data-col={id}><Editable label={`List of ${task.title}`} value={task.list ?? ''} allowEmpty placeholder="+ list" onSave={(v) => update({ list: v.trim() || undefined })} /></div>;
+      case 'workstream': return <div key={id} className="cell" data-col={id}><MiniSelect label={`Workstream of ${task.title}`} value={task.workstream ?? ''} options={WORKSTREAMS} onChange={(v) => update({ workstream: (v || undefined) as Task['workstream'] })} /></div>;
+      case 'brand': return <div key={id} className="cell" data-col={id}><MiniSelect label={`Brand of ${task.title}`} value={task.brand ?? ''} options={data.brands.map((b) => ({ id: b, label: b }))} onChange={(v) => update({ brand: v })} /></div>;
       default: return <div key={id} className="cell" />;
     }
   };
@@ -210,8 +236,10 @@ function Steps({ task }: { task: Task }) {
   return (
     <div className="steps">
       {task.steps.length === 0 && <p className="steps-empty">No steps yet. Add the first one below.</p>}
-      {task.steps.map((s) => (
-        <div key={s.id} className={`step${s.done ? ' done' : ''}`}>
+      <SortableList items={task.steps} label={(s) => s.text} onMove={(id, overId) => dispatch({ type: 'step/reorder', taskId: task.id, id, overId })}>
+        {(s, grip) => (
+        <div className={`step${s.done ? ' done' : ''}`}>
+          {grip}
           <label className="check no-drag">
             <input type="checkbox" checked={s.done} aria-label={s.text} onChange={() => dispatch({ type: 'step/toggle', taskId: task.id, stepId: s.id })} />
             <span className="box" />
@@ -222,7 +250,8 @@ function Steps({ task }: { task: Task }) {
             <Icon name="close" size={11} />
           </button>
         </div>
-      ))}
+        )}
+      </SortableList>
       <div className="step add">
         <Icon name="plus" size={12} />
         <input className="step-input" placeholder="Add step, press Enter" aria-label={`Add step to ${task.title}`} value={text} onChange={(e) => setText(e.target.value)}

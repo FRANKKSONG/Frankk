@@ -13,7 +13,7 @@ export interface Repository {
   reset(): AppData;
 }
 
-const KEY = 'esther.proto.data.v3';
+const KEY = 'esther.proto.data.v4';
 
 export class FixtureRepository implements Repository {
   readonly kind = 'fixture' as const;

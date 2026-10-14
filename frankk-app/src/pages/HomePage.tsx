@@ -11,17 +11,20 @@ import { greeting, longToday } from '../lib/dates';
 import { artCss, artPresets, downscaleImage } from '../lib/art';
 import { newId } from '../data/fixtures';
 import { PIGMENTS } from '../data/types';
+import { AppearanceButton } from '../components/Appearance';
+import type { ThemePrefs } from '../lib/theme';
 import type { WidgetDef } from '../data/schema';
 
 /** Home: an at-a-glance dashboard you build yourself out of widgets. */
-export function HomePage() {
+export function HomePage({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
   const { data, today, dispatch } = useStore();
   const { setPalette, go } = useUi();
   const dash = data.dashboards[0];
   const [editing, setEditing] = useState(false);
   const { width, containerRef, mounted } = useContainerWidth();
   const g = greeting();
-  const art = artCss(dash.background);
+  const own = !!dash.background && dash.background !== 'inherit';
+  const art = own ? artCss(dash.background) : { image: 'none', tile: false };
 
   const onLayout = (l: readonly LayoutItem[]) => {
     if (!editing) return;
@@ -30,7 +33,7 @@ export function HomePage() {
   };
 
   return (
-    <div className="homepage" style={{ '--art': art.image, '--art-size': art.tile ? 'auto' : 'cover', '--dim': String(dash.dim) } as React.CSSProperties}>
+    <div className={`homepage${own ? ' own-art' : ''}`} style={{ '--art': art.image, '--art-size': art.tile ? 'auto' : 'cover', '--dim': String(dash.dim) } as React.CSSProperties}>
       <div className="home-art" aria-hidden="true" />
       <header className="hp-head">
         <div className="hp-greet">
@@ -43,6 +46,7 @@ export function HomePage() {
         <button className="ask-bar" onClick={() => go('notes')}><Icon name="sparkle" size={16} /><span>Ask Esther or search your library…</span></button>
         <div className="head-actions">
           <button className="btn" onClick={() => setPalette(true)} aria-label="Search (Ctrl+K)"><Icon name="search" size={14} /> Search</button>
+          <AppearanceButton prefs={theme} setPrefs={setTheme} />
           {editing && <AddWidget />}
           {editing && <BackgroundPicker />}
           <button className={`btn${editing ? ' primary' : ''}`} aria-pressed={editing} onClick={() => setEditing((e) => !e)}><Icon name="layout" size={14} /> {editing ? 'Done' : 'Customize'}</button>
@@ -154,6 +158,7 @@ function BackgroundPicker() {
       {() => (
         <div className="bg-picker">
           <div className="bg-tiles">
+            <button className={`bg-tile${!dash.background || dash.background === 'inherit' ? ' on' : ''}`} onClick={() => set({ background: 'inherit' })}><span>Same as window</span></button>
             {artPresets().map((a) => (
               <button key={a.id} className={`bg-tile${(dash.background ?? 'millefleur') === a.id ? ' on' : ''}`} style={{ backgroundImage: a.css, backgroundSize: a.tile ? '120px' : 'cover' }} onClick={() => set({ background: a.id })}><span>{a.name}</span></button>
             ))}
@@ -161,7 +166,7 @@ function BackgroundPicker() {
           </div>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) set({ background: await downscaleImage(f) }); }} />
           <label className="dim-row">Dim the art<input type="range" min={0.3} max={0.95} step={0.05} value={dash.dim} onChange={(e) => set({ dim: Number(e.target.value) })} /><span>{Math.round(dash.dim * 100)}%</span></label>
-          <p className="hint">In the desktop app uploaded images are saved in your vault under Esther/Assets.</p>
+          <p className="hint">“Same as window” follows Appearance → Window background. Uploaded images are saved in Esther/Assets in the desktop app.</p>
         </div>
       )}
     </Popover>

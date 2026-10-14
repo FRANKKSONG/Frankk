@@ -1,4 +1,5 @@
 import { diaper, grain, vineBorder, vineBorderVertical, type OrnamentInk } from './ornaments';
+import { artCss } from './art';
 
 /**
  * Esther themes. Every colour in the app comes from these CSS variables.
@@ -9,10 +10,26 @@ import { diaper, grain, vineBorder, vineBorderVertical, type OrnamentInk } from 
 export type ThemeId = 'gilded' | 'illuminated' | 'nocturne' | 'modern';
 export type ColorKey = 'accent' | 'general' | 'music' | 'seround' | 'house';
 
+/** The app window itself: what sits behind every page, and how see-through the panels are. */
+export interface WindowPrefs {
+  /** Art preset id, an uploaded image (data URL), or 'color' for a plain colour. */
+  background: string;
+  color: string;
+  /** How solid panels are: 0.35 = very glassy, 1 = solid. */
+  opacity: number;
+  /** Background blur behind panels, in px. */
+  blur: number;
+  /** How much the background art is darkened. */
+  dim: number;
+}
+
 export interface ThemePrefs {
   theme: ThemeId;
   colors: Partial<Record<ColorKey, string>>;
+  window?: WindowPrefs;
 }
+
+export const DEFAULT_WINDOW: WindowPrefs = { background: 'millefleur', color: '#0e0c0a', opacity: 0.8, blur: 16, dim: 0.8 };
 
 interface Theme {
   label: string;
@@ -30,7 +47,9 @@ const SERIF = "'Alegreya', 'Noto Sans Lao', Georgia, 'Times New Roman', serif";
 const SC = "'Alegreya SC', 'Alegreya', Georgia, serif";
 const GOTHIC = "'Grenze Gotisch', 'UnifrakturMaguntia', Georgia, serif";
 const FRAKTUR = "'UnifrakturMaguntia', 'Grenze Gotisch', Georgia, serif";
-const MODERN = "'Inter', 'Noto Sans Lao', 'Segoe UI', system-ui, sans-serif";
+/** Artful pairing for the readable looks: a clean display serif for headings, a crafted sans for everything else. */
+const DISPLAY_SERIF = "'Instrument Serif', 'Cormorant Garamond', Georgia, serif";
+const ART_SANS = "'Instrument Sans', 'Noto Sans Lao', 'Segoe UI', system-ui, sans-serif";
 
 export const THEMES: Record<ThemeId, Theme> = {
   gilded: {
@@ -45,9 +64,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#d9a63a', 'accent-ink': '#15110c', gold: '#d9a63a',
       general: '#e0694c', music: '#6f93df', seround: '#e3b04b', house: '#5fb08e',
       danger: '#e5604a', ok: '#7cc08a', warn: '#e8b24f', info: '#6f93df',
-      'font-display': GOTHIC, 'font-serif': SERIF, 'font-body': MODERN, 'font-sc': MODERN, 'font-cap': GOTHIC,
-      radius: '14px', 'radius-sm': '8px', 'pill-radius': '99px',
-      shadow: '0 10px 30px rgba(0,0,0,.35)', 'grain-opacity': '0',
+      'font-display': DISPLAY_SERIF, 'font-serif': DISPLAY_SERIF, 'font-body': ART_SANS, 'font-sc': ART_SANS, 'font-cap': DISPLAY_SERIF,
+      radius: '16px', 'radius-sm': '9px', 'pill-radius': '99px', edge: 'rgba(255,255,255,.07)',
+      shadow: '0 12px 32px rgba(0,0,0,.28)', 'grain-opacity': '0',
     },
   },
   illuminated: {
@@ -95,15 +114,15 @@ export const THEMES: Record<ThemeId, Theme> = {
       accent: '#e5935a', 'accent-ink': '#1b120b', gold: '#e6b04d',
       general: '#d9814a', music: '#5fa8d8', seround: '#d8a63a', house: '#8aa97b',
       danger: '#e0705a', ok: '#8fbf7f', warn: '#e6b04d', info: '#5fa8d8',
-      'font-display': MODERN, 'font-serif': "'Source Serif 4', Georgia, serif", 'font-body': MODERN, 'font-sc': MODERN, 'font-cap': "'Source Serif 4', Georgia, serif",
-      radius: '8px', 'radius-sm': '6px', 'pill-radius': '99px',
+      'font-display': DISPLAY_SERIF, 'font-serif': DISPLAY_SERIF, 'font-body': ART_SANS, 'font-sc': ART_SANS, 'font-cap': DISPLAY_SERIF,
+      radius: '14px', 'radius-sm': '8px', 'pill-radius': '99px', edge: 'rgba(255,255,255,.07)',
       shadow: '0 8px 24px rgba(0,0,0,.4)', 'grain-opacity': '0',
     },
   },
 };
 
 export const COLOR_KEYS: { key: ColorKey; label: string }[] = [
-  { key: 'accent', label: 'Accent' }, { key: 'general', label: 'General' }, { key: 'music', label: 'Music' },
+  { key: 'accent', label: 'Highlight' }, { key: 'general', label: 'General' }, { key: 'music', label: 'Music' },
   { key: 'seround', label: 'Seround' }, { key: 'house', label: 'House' },
 ];
 
@@ -130,6 +149,15 @@ export function applyTheme(prefs: ThemePrefs) {
     for (const k of ['--vine', '--vine-v', '--diaper']) root.style.setProperty(k, 'none');
   }
   root.style.setProperty('--grain', t.grain ? grain(t.grain) : 'none');
+  if (!t.vars.edge) root.style.setProperty('--edge', t.vars.line);
+  const w = { ...DEFAULT_WINDOW, ...prefs.window };
+  const art = w.background === 'color' ? { image: 'none', tile: false } : artCss(w.background);
+  root.style.setProperty('--win-color', w.color);
+  root.style.setProperty('--win-art', art.image);
+  root.style.setProperty('--win-art-size', art.tile ? 'auto' : 'cover');
+  root.style.setProperty('--win-dim', String(w.dim));
+  root.style.setProperty('--panel-alpha', `${Math.round(w.opacity * 100)}%`);
+  root.style.setProperty('--blur', `${w.blur}px`);
   root.dataset.look = id;
   root.dataset.style = t.medieval ? 'medieval' : t.gilded ? 'gilded' : 'modern';
   root.style.colorScheme = t.dark ? 'dark' : 'light';

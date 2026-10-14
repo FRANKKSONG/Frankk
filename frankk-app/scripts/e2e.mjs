@@ -21,7 +21,7 @@ const music = page.locator('section[aria-label="Music"]');
 const seround = page.locator('section[aria-label="Seround"]');
 const house = page.locator('section[aria-label="House"]');
 const titles = async () => (await general.locator('.task .task-title').allTextContents()).map((s) => s.trim());
-const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.data.v3')));
+const store = () => page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.data.v4')));
 const box = async (loc) => (await loc.boundingBox());
 const reload = async () => { await page.reload(); await page.waitForSelector('.homepage'); await page.getByRole('button', { name: 'Tasks', exact: true }).click(); await page.waitForSelector('section[aria-label="General"]'); await page.waitForTimeout(900); };
 const reloadHome = async () => { await page.reload(); await page.waitForSelector('.homepage'); await page.waitForTimeout(700); };
@@ -143,12 +143,22 @@ check('Filter: Completed shows done tasks (recoverable)', (await titles()).join(
 await general.getByRole('button', { name: /Filter tasks/ }).click();
 await page.getByRole('menuitemradio', { name: 'All tasks' }).click();
 await general.getByRole('button', { name: /Sort tasks/ }).click();
-await page.getByRole('menuitemradio', { name: 'Title A–Z' }).click();
+await page.getByRole('menuitemradio', { name: 'Title', exact: true }).click();
 const sorted = await titles();
-check('Sort: Title A–Z (open first)', sorted[0] === 'Book dentist (Tuesday)' && sorted.indexOf('Renew passport photos') === sorted.length - 1, sorted.join('|'));
+check('Sort: Title (open first)', sorted[0] === 'Book dentist (Tuesday)' && sorted.indexOf('Renew passport photos') === sorted.length - 1, sorted.join('|'));
 check('Sort: row grips disabled when not manual', (await general.locator('.row-grip.off').count()) > 0);
 await general.getByRole('button', { name: /Sort tasks/ }).click();
 await page.getByRole('menuitemradio', { name: 'Manual order' }).click();
+
+/* ---------- sortable headers ---------- */
+await general.locator('.thead .th-btn', { hasText: 'Due' }).click();
+const byDue = await titles();
+check('Header click sorts by Due (earliest first, completed last)', byDue[0] === 'Call landlord about the gate' && byDue.at(-1) === 'Renew passport photos', byDue.join('|'));
+await general.locator('.thead .th-btn', { hasText: 'Due' }).click();
+const byDueDesc = await titles();
+check('Second click reverses the sort and shows ▼', byDueDesc[0] !== byDue[0] && (await general.locator('.th.sorted .sort-ind').textContent()) === '▼', byDueDesc.join('|'));
+await general.locator('.thead .th-btn', { hasText: 'Due' }).click();
+check('Third click returns to manual order (drag enabled again)', (await general.locator('.row-grip.off').count()) === 0);
 
 /* ---------- row drag (pointer) ---------- */
 const before = await titles();
@@ -186,6 +196,23 @@ check('Columns: width persists after restart', Math.abs(w2 - w1) < 3, `${w1} vs 
 await general.locator('.thead .th').nth(2).locator('.col-resizer').focus(); await page.keyboard.press('ArrowRight');
 check('Columns: keyboard resize', (await box(general.locator('.thead .th').nth(2))).width > 0);
 void dueW;
+
+const progTh = general.locator('.thead .th').nth(1);
+await progTh.locator('.col-resizer').dblclick();
+await page.waitForTimeout(100);
+check('Columns: double-click a divider fits the column to its content', (await box(general.locator('.thead .th').nth(1))).width >= 60);
+
+/* ---------- drag music stages ---------- */
+const single0 = music.locator('[data-project="p-single"]');
+const stageNames = async () => (await single0.locator('.project-detail > .sortable-row .stage-name').allTextContents());
+const recGrip = single0.locator('.project-detail > .sortable-row').filter({ has: page.locator('.stage-name', { hasText: /^Record$/ }) }).locator('.drag-grip').first();
+await recGrip.focus();
+await page.keyboard.press('Space'); await page.waitForTimeout(150);
+await page.keyboard.press('ArrowUp'); await page.waitForTimeout(150);
+await page.keyboard.press('ArrowUp'); await page.waitForTimeout(150);
+await page.keyboard.press('Space'); await page.waitForTimeout(300);
+const order = (await store()).projects.find((x) => x.id === 'p-single').stages.map((x) => x.name);
+check('Music: stages reorder by drag handle (keyboard: Space, arrows, Space)', order.indexOf('Record') < order.indexOf('Produce'), order.join(' > '));
 
 /* ---------- panel move & resize ---------- */
 const gridItem = (n) => page.locator('.react-grid-item').nth(n);
@@ -268,7 +295,7 @@ await jz.getByLabel('Master done').check();
 check('Music: JZero reaches 2/2 with the rest of the release out of scope', (await jz.locator('.plabel').first().textContent()) === '100%');
 const single = music.locator('[data-project="p-single"]');
 const stepNames = (await single.locator('.stepper .name').allTextContents()).join(' → ');
-check('Music: own release shows a step bar Concept → … → Art (Design)', stepNames === 'Concept → Lyrics → Produce → Record → Mix & Master → Art (Design)', stepNames);
+check('Music: own release shows a step bar of its release steps (in your order)', stepNames.split(' → ').sort().join() === ['Art (Design)', 'Concept', 'Lyrics', 'Mix & Master', 'Produce', 'Record'].sort().join() && stepNames.startsWith('Concept'), stepNames);
 check('Music: Marketing/MV are separate tracks, not steps', (await single.locator('.side-track .stage-name').allTextContents()).join() === 'Marketing,Streaming' && !stepNames.includes('Marketing'));
 const before2 = await single.locator('.mini-steps em').textContent();
 await single.locator('.side-track .stage').first().getByLabel('Marketing done').check();
@@ -355,6 +382,19 @@ const vine = await page.evaluate(() => getComputedStyle(document.documentElement
 check('Themes: Gilded, Nocturne and Modern switch; decorated looks draw the vine border', lookN === 'nocturne,medieval' && lookM === 'modern,modern'
   && (await page.evaluate(() => document.documentElement.dataset.look)) === 'gilded' && vine.includes('data:image/svg+xml'), `${lookN} ${lookM}`);
 check('Drollery: the lion marginalia renders', await page.locator('.capture-drollery').evaluate((img) => img.complete && img.naturalWidth > 0));
+
+/* ---------- window appearance ---------- */
+await page.getByRole('button', { name: 'Appearance' }).first().click();
+await page.getByRole('button', { name: 'Plain colour' }).click();
+await page.locator('.slider', { hasText: 'Panel translucency' }).locator('input').fill('0.5');
+const winArt = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--win-art').trim());
+const alpha = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--panel-alpha').trim());
+await page.locator('.color-row', { hasText: 'Highlight' }).locator('input').evaluate((el) => { const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; s.call(el, '#ff0000'); el.dispatchEvent(new Event('input', { bubbles: true })); });
+const accent = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+check('Appearance: plain colour background, panel translucency and highlight colour apply', winArt === 'none' && alpha === '50%' && accent === '#ff0000', `${winArt} ${alpha} ${accent}`);
+await page.getByRole('button', { name: 'Reset window' }).click();
+await page.getByRole('button', { name: 'Reset colours' }).click();
+await page.keyboard.press('Escape');
 
 /* ---------- focus mode & narrow ---------- */
 await general.getByRole('button', { name: 'Focus General' }).click();

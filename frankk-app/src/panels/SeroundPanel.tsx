@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Panel } from '../components/Panel';
-import { Table, TaskRows } from '../components/TaskTable';
+import { Table, TaskRows, nextSort } from '../components/TaskTable';
+import { SORTABLE, applySort, type SortDir, type SortKey } from '../lib/tasks';
 import { ColumnsMenu } from '../components/ColumnsMenu';
 import { Dropdown } from '../components/Dropdown';
 import { Popover } from '../components/Popover';
@@ -13,9 +14,9 @@ import { usePersistentState } from '../hooks/usePersistentState';
 
 export const SEROUND_COLS: ColDef[] = [
   { id: 'title', label: 'Task', width: 116, min: 60 },
-  { id: 'progress', label: 'Progress', width: 60, min: 40 },
-  { id: 'plan', label: 'Plan', width: 58, min: 40, defaultHidden: true },
-  { id: 'due', label: 'Due', width: 56, min: 40 },
+  { id: 'progress', label: 'Progress', width: 62, min: 40 },
+  { id: 'plan', label: 'Plan', width: 68, min: 44, defaultHidden: true },
+  { id: 'due', label: 'Due', width: 70, min: 44 },
   { id: 'workstream', label: 'Workstream', width: 86, min: 50, defaultHidden: true },
   { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true },
 ];
@@ -24,7 +25,7 @@ export function SeroundPanel({ focused }: { focused: boolean }) {
   const { data, dispatch } = useStore();
   const { say, setNewTask, tagFilter } = useUi();
   const cols = useColumns('seround', SEROUND_COLS);
-  const [prefs, setPrefs] = usePersistentState<{ brand: string; showDone: boolean; collapsed: string[] }>('prefs.seround', { brand: 'all', showDone: true, collapsed: [] });
+  const [prefs, setPrefs] = usePersistentState<{ brand: string; showDone: boolean; collapsed: string[]; sort: SortKey; dir: SortDir }>('prefs.seround', { brand: 'all', showDone: true, collapsed: [], sort: 'manual', dir: 'asc' });
   const [newBrand, setNewBrand] = useState('');
 
   const brand = prefs.brand === 'all' || data.brands.includes(prefs.brand) ? prefs.brand : 'all';
@@ -32,9 +33,10 @@ export function SeroundPanel({ focused }: { focused: boolean }) {
     .filter((b) => brand === 'all' || brand === b)
     .map((b) => {
       const all = data.tasks.filter((t) => t.area === 'seround' && t.brand === b && (prefs.showDone || !t.done) && (!tagFilter || t.tags.includes(tagFilter)));
-      return { brand: b, queue: all.filter((t) => t.workstream === 'content'), tasks: all.filter((t) => t.workstream !== 'content') };
+      const sorted = applySort(all, prefs.sort, prefs.dir);
+      return { brand: b, queue: sorted.filter((t) => t.workstream === 'content'), tasks: sorted.filter((t) => t.workstream !== 'content') };
     }),
-  [data.tasks, data.brands, brand, prefs.showDone, tagFilter]);
+  [data.tasks, data.brands, brand, prefs.showDone, tagFilter, prefs.sort, prefs.dir]);
 
   const brandOptions = [{ id: 'all', label: 'All brands' }, ...data.brands.map((b) => ({ id: b, label: b }))];
   const addBrand = () => {
@@ -74,7 +76,9 @@ export function SeroundPanel({ focused }: { focused: boolean }) {
         </Popover>
       </>}
       footer={<button className="foot-add" onClick={() => setNewTask({ area: 'seround', brand: brand === 'all' ? undefined : brand })}><Icon name="plus" size={13} /> Brand task</button>}>
-      <Table cols={cols} label="Seround tasks">
+      <Table cols={cols} label="Seround tasks" sortable={Object.keys(SORTABLE)}
+        sort={prefs.sort === 'manual' ? null : { key: Object.keys(SORTABLE).find((k) => SORTABLE[k] === prefs.sort) ?? prefs.sort, dir: prefs.dir }}
+        onSort={(col) => setPrefs((p) => { const n = nextSort(p.sort === 'manual' ? null : { key: p.sort, dir: p.dir }, SORTABLE[col]); return { ...p, sort: n ? (n.key as SortKey) : 'manual', dir: n?.dir ?? 'asc' }; })}>
         {groups.map((g) => {
           const closed = prefs.collapsed.includes(g.brand);
           return (
@@ -97,11 +101,11 @@ export function SeroundPanel({ focused }: { focused: boolean }) {
                   {g.queue.length > 0 && (
                     <div className="queue">
                       <div className="sub-label"><Icon name="check" size={11} /> Repost queue</div>
-                      <TaskRows tasks={g.queue} cols={cols} manual />
+                      <TaskRows tasks={g.queue} cols={cols} manual={prefs.sort === 'manual'} />
                       <QueueAdd brand={g.brand} />
                     </div>
                   )}
-                  {(g.tasks.length > 0 || g.queue.length === 0) && <TaskRows tasks={g.tasks} cols={cols} manual empty="No tasks for this brand." />}
+                  {(g.tasks.length > 0 || g.queue.length === 0) && <TaskRows tasks={g.tasks} cols={cols} manual={prefs.sort === 'manual'} empty="No tasks for this brand." />}
                 </>
               )}
             </div>

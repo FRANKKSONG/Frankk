@@ -6,9 +6,10 @@ import { DateCell } from '../components/DateCell';
 import { ProgressCell } from '../components/ProgressBar';
 import { Modal } from '../components/Modal';
 import { ColumnsMenu } from '../components/ColumnsMenu';
-import { Table } from '../components/TaskTable';
+import { Table, nextSort, type SortState } from '../components/TaskTable';
 import { Editable, MiniSelect } from '../components/Editable';
 import { ReleaseStepper } from '../components/Stepper';
+import { SortableList } from '../components/SortableList';
 import { TagChips, TagPicker } from '../components/Tags';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
@@ -37,7 +38,7 @@ export function MusicPanel({ focused }: { focused: boolean }) {
   const { data } = useStore();
   const { setProjectDialog, reveal, tagFilter } = useUi();
   const cols = useColumns('music', MUSIC_COLS);
-  const [prefs, setPrefs] = usePersistentState<{ kind: Kind }>('prefs.music', { kind: 'all' });
+  const [prefs, setPrefs] = usePersistentState<{ kind: Kind; sort: SortState | null }>('prefs.music', { kind: 'all', sort: null });
   const [open, setOpen] = useState<Set<string>>(new Set(['p-single']));
 
   useEffect(() => {
@@ -54,17 +55,21 @@ export function MusicPanel({ focused }: { focused: boolean }) {
       const g = p.kind === 'artist-job' ? 'Artist jobs' : p.label ? `${p.label} · own releases` : 'Own releases';
       map.set(g, [...(map.get(g) ?? []), p]);
     }
-    return [...map.entries()].sort(([a], [b]) => (a === 'Artist jobs' ? 1 : 0) - (b === 'Artist jobs' ? 1 : 0));
-  }, [data.projects, prefs.kind, tagFilter]);
+    const s = prefs.sort;
+    const val = (p: MusicProject): string | number => !s ? 0 : s.key === 'title' ? `${p.artist} ${p.title}`.toLowerCase() : s.key === 'type' ? p.kind
+      : s.key === 'progress' ? projectProgress(p).pct ?? -1 : nextProjectDate(p) ?? '9999';
+    const sortList = (l: MusicProject[]) => (!s ? l : [...l].sort((a, b) => { const x = val(a), y = val(b); const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y)); return s.dir === 'asc' ? c : -c; }));
+    return [...map.entries()].map(([k, l]) => [k, sortList(l)] as [string, MusicProject[]]).sort(([a], [b]) => (a === 'Artist jobs' ? 1 : 0) - (b === 'Artist jobs' ? 1 : 0));
+  }, [data.projects, prefs.kind, prefs.sort, tagFilter]);
 
   const toggle = (id: string) => setOpen((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
 
   return (
     <Panel area="music" title="Music" icon="music" focused={focused} onAdd={() => setProjectDialog(true)} addLabel="New project or artist job"
       menu={(close) => <ColumnsMenu defs={MUSIC_COLS} cols={cols} close={close} />}
-      toolbar={<Dropdown ariaLabel="Show" value={prefs.kind} options={KINDS} onChange={(kind) => setPrefs({ kind })} />}
+      toolbar={<Dropdown ariaLabel="Show" value={prefs.kind} options={KINDS} onChange={(kind) => setPrefs((p) => ({ ...p, kind }))} />}
       footer={<button className="foot-add" onClick={() => setProjectDialog(true)}><Icon name="plus" size={13} /> Project or artist job</button>}>
-      <Table cols={cols} label="Music projects">
+      <Table cols={cols} label="Music projects" sort={prefs.sort} onSort={(col) => setPrefs((p) => ({ ...p, sort: nextSort(p.sort, col) }))}>
         {groups.length === 0 && <div className="empty">Nothing here yet.</div>}
         {groups.map(([name, list]) => (
           <div className="group" key={name}>
@@ -91,25 +96,25 @@ function ProjectRow({ p, cols, open, onToggle }: { p: MusicProject; cols: Return
         {cols.visible.map((c) => {
           switch (c.id) {
             case 'title': return (
-              <div key={c.id} className="cell title-cell col" onClick={onToggle} style={{ cursor: 'pointer' }}>
+              <div key={c.id} className="cell title-cell col" data-col={c.id} onClick={onToggle} style={{ cursor: 'pointer' }}>
                 <span className="proj-name"><strong>{p.artist}</strong> <span className="muted">· {p.title}</span></span>
                 <span className="sub">{job ? `${scoped.map((s) => s.name).join(' / ') || 'No stages assigned'} only` : `${RELEASE_TYPES.find((r) => r.id === p.releaseType)?.label ?? 'Release'}${p.targetRelease ? ` · out ${relLabel(p.targetRelease, today)}` : ''}`}</span>
                 {p.tags.length > 0 && <TagChips names={p.tags} small />}
               </div>
             );
             case 'type': return (
-              <div key={c.id} className="cell col">
+              <div key={c.id} className="cell col" data-col={c.id}>
                 <span className={`pill ${job ? 'job' : 'own'}`}>{job ? 'Artist job' : 'Own release'}</span>
                 <span className="sub">{p.roles.join(' / ')}</span>
               </div>
             );
             case 'progress': return (
-              <div key={c.id} className="cell">{job ? <ProgressCell p={prog} none="Not broken down yet" /> : <ReleaseStepper project={p} compact />}</div>
+              <div key={c.id} className="cell" data-col={c.id}>{job ? <ProgressCell p={prog} none="Not broken down yet" /> : <ReleaseStepper project={p} compact />}</div>
             );
             case 'next': return (
-              <div key={c.id} className="cell"><span className={`date-static${next && next <= today ? ' today' : ''}`}>{next ? relLabel(next, today) : '—'}</span></div>
+              <div key={c.id} className="cell" data-col={c.id}><span className={`date-static${next && next <= today ? ' today' : ''}`}>{next ? relLabel(next, today) : '—'}</span></div>
             );
-            default: return <div key={c.id} className="cell" />;
+            default: return <div key={c.id} className="cell" data-col={c.id} />;
           }
         })}
         <span /><span />
@@ -156,7 +161,9 @@ function ProjectDetail({ p }: { p: MusicProject }) {
       </div>
 
       {main.length === 0 && <p className="steps-empty">No stages yet. Add one below.</p>}
-      {main.map((st, i) => <StageRow key={st.id} p={p} st={st} index={i} count={main.length} />)}
+      <SortableList items={main} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
+        {(st, grip) => <StageRow p={p} st={st} grip={grip} />}
+      </SortableList>
 
       <div className="stage-add">
         <Icon name="plus" size={12} />
@@ -169,7 +176,9 @@ function ProjectDetail({ p }: { p: MusicProject }) {
       {!job && (
         <div className="side-track">
           <div className="sub-label"><Icon name="sparkle" size={11} /> Separate tracks <span className="muted">· not part of release progress</span></div>
-          {side.map((st, i) => <StageRow key={st.id} p={p} st={st} index={i} count={side.length} />)}
+          <SortableList items={side} label={(s) => s.name} onMove={(id, overId) => dispatch({ type: 'stage/reorder', projectId: p.id, id, overId })}>
+            {(st, grip) => <StageRow p={p} st={st} grip={grip} />}
+          </SortableList>
           <div className="stage-add">
             <Icon name="plus" size={12} />
             <select aria-label="Add separate track" value="" onChange={(e) => { if (e.target.value) dispatch({ type: 'stage/add', projectId: p.id, name: e.target.value, track: 'side' }); }}>
@@ -201,7 +210,7 @@ function ProjectDetail({ p }: { p: MusicProject }) {
   );
 }
 
-function StageRow({ p, st, index, count }: { p: MusicProject; st: Stage; index: number; count: number }) {
+function StageRow({ p, st, grip }: { p: MusicProject; st: Stage; grip: React.ReactNode }) {
   const { dispatch, today } = useStore();
   const { say } = useUi();
   const [text, setText] = useState('');
@@ -215,6 +224,7 @@ function StageRow({ p, st, index, count }: { p: MusicProject; st: Stage; index: 
   return (
     <div className={`stage${stageComplete(st) ? ' done' : ''}`}>
       <div className="stage-head">
+        {grip}
         {hasItems
           ? <span className="stage-frac" title="Checked items in this stage">{u.done}/{u.total}</span>
           : (
@@ -225,18 +235,18 @@ function StageRow({ p, st, index, count }: { p: MusicProject; st: Stage; index: 
           )}
         <Editable className="stage-name" label="Stage name" value={st.name} onSave={(v) => patch({ name: v })} />
         <span className="stage-actions">
-          <DateCell label={`${st.name} end date`} value={st.end} onChange={(v) => patch({ end: v })} done={stageComplete(st)} placeholder="+ date" />
+          <DateCell label={`${st.name} end date`} value={st.end} onChange={(v) => patch({ end: v })} done={stageComplete(st)} />
           {own && (
             <button className="icon-btn tiny hover-only" title={st.track === 'side' ? 'Move into release steps' : 'Move to separate tracks'} aria-label={`Move ${st.name} ${st.track === 'side' ? 'into release steps' : 'to separate tracks'}`}
-              onClick={() => patch({ track: st.track === 'side' ? 'main' : 'side' })}><Icon name={st.track === 'side' ? 'up' : 'down'} size={11} /></button>
+              onClick={() => patch({ track: st.track === 'side' ? 'main' : 'side' })}><Icon name="steps" size={12} /></button>
           )}
-          <button className="icon-btn tiny hover-only" aria-label={`Move ${st.name} earlier`} title="Earlier" disabled={index === 0} onClick={() => dispatch({ type: 'stage/move', projectId: p.id, stageId: st.id, dir: -1 })}><Icon name="chevronR" size={11} style={{ transform: 'rotate(-90deg)' }} /></button>
-          <button className="icon-btn tiny hover-only" aria-label={`Move ${st.name} later`} title="Later" disabled={index === count - 1} onClick={() => dispatch({ type: 'stage/move', projectId: p.id, stageId: st.id, dir: 1 })}><Icon name="chevronR" size={11} style={{ transform: 'rotate(90deg)' }} /></button>
           <button className="icon-btn tiny hover-only" aria-label={`Mark ${st.name} ${own ? 'skipped' : 'outside my scope'}`} title={own ? 'Skip this stage' : 'Move outside my scope'} onClick={() => patch({ inScope: false })}><Icon name="close" size={11} /></button>
         </span>
       </div>
-      {st.items.map((i) => (
-        <div key={i.id} className={`step${i.done ? ' done' : ''}`}>
+      <SortableList items={st.items} label={(i) => i.text} onMove={(id, overId) => dispatch({ type: 'item/reorder', projectId: p.id, stageId: st.id, id, overId })}>
+        {(i, itemGrip) => (
+        <div className={`step${i.done ? ' done' : ''}`}>
+          {itemGrip}
           <label className="check no-drag">
             <input type="checkbox" checked={i.done} aria-label={i.text}
               onChange={() => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { done: !i.done } })} />
@@ -245,9 +255,10 @@ function StageRow({ p, st, index, count }: { p: MusicProject; st: Stage; index: 
           <Editable className="step-text" label="Item" value={i.text} onSave={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { text: v } })} />
           <button className="icon-btn tiny hover-only" aria-label={`Remove ${i.text}`} title="Remove item"
             onClick={() => { dispatch({ type: 'item/remove', projectId: p.id, stageId: st.id, itemId: i.id }); say(`Removed “${i.text}”.`, true); }}><Icon name="close" size={11} /></button>
-          <DateCell label={`${i.text} date`} value={i.date} done={i.done} placeholder="+ date" onChange={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { date: v } })} />
+          <DateCell label={`${i.text} date`} value={i.date} done={i.done} onChange={(v) => dispatch({ type: 'item/patch', projectId: p.id, stageId: st.id, itemId: i.id, patch: { date: v } })} />
         </div>
-      ))}
+        )}
+      </SortableList>
       {adding ? (
         <div className="step add">
           <Icon name="plus" size={12} />

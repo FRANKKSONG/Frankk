@@ -136,7 +136,7 @@ export function defaultViews(): ViewDef[] {
 export function defaultDashboard(): Dashboard {
   const W = (id: string, kind: Dashboard['widgets'][number]['kind'], title: string, config: Dashboard['widgets'][number]['config'] = {}, color?: string) => ({ id, kind, title, config, color });
   return {
-    id: 'd-home', name: 'Home', background: 'millefleur', dim: 0.78,
+    id: 'd-home', name: 'Home', background: 'inherit', dim: 0.78,
     widgets: [
       W('w-due', 'stat', 'Due today', { metric: 'due-today' }, '#d4a03c'),
       W('w-over', 'stat', 'Overdue', { metric: 'overdue' }, '#c8553a'),

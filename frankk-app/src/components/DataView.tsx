@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { nextSort } from './TaskTable';
 import { Icon, type IconName } from './Icons';
 import { Popover } from './Popover';
 import { FieldValue } from './FieldValue';
@@ -31,17 +32,17 @@ export function DataView({ type, view: saved, compact, onOpen }: Props) {
   const { data, today, dispatch } = useStore();
   const { tagFilter, say } = useUi();
   const [view, setView] = useState<ViewDef>(saved);
-  const dirty = JSON.stringify(view) !== JSON.stringify(saved);
   const recs = useMemo(() => applyView(recordsOf(data, type.id, today), view, tagFilter), [data, type.id, today, view, tagFilter]);
   const allFields = [{ key: 'title', name: 'Name', kind: 'text' } as FieldDef, ...type.fields];
   const shown = view.fields.map((k) => fieldOf(type, k));
   const groupField = view.groupBy ? fieldOf(type, view.groupBy) : type.fields.find((f) => f.kind === 'select');
   const dateField = view.dateField ? fieldOf(type, view.dateField) : type.fields.find((f) => f.kind === 'date');
-  const patch = (p: Partial<ViewDef>) => setView((v) => ({ ...v, ...p }));
+  // Like Notion: every change to a view is kept straight away. "Save as new" makes a copy.
+  const patch = (p: Partial<ViewDef>) => { const next = { ...view, ...p }; setView(next); dispatch({ type: 'view/save', view: next }); };
 
   const body = (() => {
     switch (view.layout) {
-      case 'table': return <TableLayout type={type} recs={recs} fields={shown} onOpen={onOpen} />;
+      case 'table': return <TableLayout type={type} recs={recs} fields={shown} onOpen={onOpen} view={view} patch={patch} />;
       case 'board': return groupField ? <BoardLayout type={type} recs={recs} group={groupField} fields={shown} onOpen={onOpen} /> : <p className="hint">Add a Choice field to group a board.</p>;
       case 'gallery': return <GalleryLayout type={type} recs={recs} fields={shown} onOpen={onOpen} />;
       case 'calendar': return dateField ? <CalendarLayout recs={recs} field={dateField} onOpen={onOpen} /> : <p className="hint">Add a Date field to use a calendar.</p>;
@@ -105,8 +106,7 @@ export function DataView({ type, view: saved, compact, onOpen }: Props) {
           )}
         </Popover>
         <span className="dv-spacer" />
-        {dirty && <button className="btn small ghost" onClick={() => setView(saved)}>Reset</button>}
-        {dirty && <button className="btn small" onClick={() => { dispatch({ type: 'view/save', view }); say(`View “${view.name}” saved.`, true); }}>Save view</button>}
+        <span className="hint saved-hint">Changes save automatically</span>
         <button className="btn small" onClick={() => {
           const v = { ...view, id: newId('v'), name: `${view.name} copy` };
           dispatch({ type: 'view/save', view: v });
@@ -126,22 +126,66 @@ function Title({ rec, onOpen }: { rec: Rec; onOpen?: (r: Rec) => void }) {
   return <button type="button" className="rec-title" onClick={() => onOpen?.(rec)}>{rec.title}</button>;
 }
 
-function TableLayout({ type, recs, fields, onOpen }: { type: TypeDef; recs: Rec[]; fields: FieldDef[]; onOpen?: (r: Rec) => void }) {
+function TableLayout({ type, recs, fields, onOpen, view, patch }: { type: TypeDef; recs: Rec[]; fields: FieldDef[]; onOpen?: (r: Rec) => void; view: ViewDef; patch: (p: Partial<ViewDef>) => void }) {
+  const cols = [{ key: 'title', name: 'Name', kind: 'text' } as FieldDef, ...fields];
+  const w = (k: string) => view.widths?.[k] ?? (k === 'title' ? 200 : 140);
+  const sort = view.sort ? { key: view.sort.field, dir: view.sort.dir } : null;
+  const tableRef = useRef<HTMLTableElement>(null);
+  const setW = (k: string, px: number) => patch({ widths: { ...view.widths, [k]: Math.max(60, Math.min(600, Math.round(px))) } });
+  const fit = (k: string, label: string) => {
+    const cells = [...(tableRef.current?.querySelectorAll<HTMLElement>(`[data-col="${k}"] > *`) ?? [])];
+    setW(k, Math.max(label.length * 8 + 44, ...cells.map((c) => c.scrollWidth + 24)));
+  };
   return (
     <div className="dv-table-wrap">
-      <table className="dv-table">
-        <thead><tr><th>Name</th>{fields.map((f) => <th key={f.key}><span className="kind-ico">{KIND_ICON[f.kind]}</span>{f.name}</th>)}</tr></thead>
+      <table ref={tableRef} className="dv-table" style={{ width: cols.reduce((n, c) => n + w(c.key), 0) }}>
+        <colgroup>{cols.map((c) => <col key={c.key} style={{ width: w(c.key) }} />)}</colgroup>
+        <thead><tr>{cols.map((f) => {
+          const active = sort?.key === f.key;
+          return (
+            <th key={f.key} aria-sort={active ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={active ? 'sorted' : ''}>
+              <button type="button" className="th-btn" title={`Sort by ${f.name}`} onClick={() => { const n = nextSort(sort, f.key); patch({ sort: n ? { field: n.key, dir: n.dir } : undefined }); }}>
+                {f.key !== 'title' && <span className="kind-ico">{KIND_ICON[f.kind]}</span>}<span className="th-label">{f.name}</span>
+                <span className="sort-ind" aria-hidden="true">{active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+              </button>
+              <ColResize label={f.name} value={w(f.key)} onChange={(px) => setW(f.key, px)} onFit={() => fit(f.key, f.name)} />
+            </th>
+          );
+        })}</tr></thead>
         <tbody>
           {recs.map((r) => (
             <tr key={r.id}>
-              <td><Title rec={r} onOpen={onOpen} />{r.tags.length > 0 && <TagChips names={r.tags} small />}</td>
-              {fields.map((f) => <td key={f.key} className={`k-${f.kind}`}><FieldValue type={type} field={f} recId={r.id} value={r.get(f.key)} compact /></td>)}
+              <td data-col="title"><Title rec={r} onOpen={onOpen} />{r.tags.length > 0 && <TagChips names={r.tags} small />}</td>
+              {fields.map((f) => <td key={f.key} data-col={f.key} className={`k-${f.kind}`}><FieldValue type={type} field={f} recId={r.id} value={r.get(f.key)} compact /></td>)}
             </tr>
           ))}
           {recs.length === 0 && <tr><td colSpan={fields.length + 1} className="empty">Nothing matches this view.</td></tr>}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Column divider for view tables: drag to resize (live), double-click to fit, arrow keys for fine steps. */
+function ColResize({ label, value, onChange, onFit }: { label: string; value: number; onChange: (w: number) => void; onFit: () => void }) {
+  const start = useRef<{ x: number; w: number } | null>(null);
+  const [live, setLive] = useState<number | null>(null);
+  const end = () => { if (start.current && live !== null) onChange(live); start.current = null; setLive(null); document.body.classList.remove('col-resizing'); };
+  return (
+    <span className="col-resizer" role="separator" aria-orientation="vertical" tabIndex={0} aria-label={`Resize ${label} column (double-click to fit)`} aria-valuenow={live ?? value}
+      title="Drag to resize · double-click to fit"
+      onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); start.current = { x: e.clientX, w: value }; document.body.classList.add('col-resizing'); }}
+      onPointerMove={(e) => {
+        if (!start.current) return;
+        const nw = Math.max(60, start.current.w + e.clientX - start.current.x);
+        setLive(nw);
+        const th = (e.currentTarget.parentElement as HTMLElement);
+        const col = th.closest('table')?.querySelectorAll('col')[[...th.parentElement!.children].indexOf(th)] as HTMLElement | undefined;
+        if (col) col.style.width = `${nw}px`;
+      }}
+      onPointerUp={end} onPointerCancel={end}
+      onDoubleClick={onFit}
+      onKeyDown={(e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); onChange(value + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 40 : 10)); } }} />
   );
 }
 

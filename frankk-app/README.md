@@ -8,7 +8,7 @@ It never reads or writes your Obsidian vault. All records are sample data kept i
 npm install
 npm run dev        # http://127.0.0.1:5173   (add ?today=2026-10-14 to pin the date)
 npm test           # unit tests (rules: progress, scope, bills, agenda)
-npm run e2e        # 78 browser checks (needs the dev server running and Chromium)
+npm run e2e        # 84 browser checks (needs the dev server running and Chromium)
 ```
 
 ## What works (real)
@@ -60,3 +60,11 @@ Screenshots: `docs/screens/`.
 - **Settings**: storage map (types → vault folders → files), Obsidian Bridge with Bases previews, AI & models (MCP for subscriptions, keys for DeepSeek/Jev), AI permissions, history.
 - New default look **Gilded**: readable dashboard over art backgrounds with medieval accents.
 - Principles and roadmap: `docs/ARCHITECTURE.md`.
+
+## Iteration 6: polish
+- Appearance → Window background: art, plain colour or your own image, with panel translucency, blur and darkening sliders; Highlight colour.
+- Calm surfaces in Gilded/Modern: hairline edges, soft glass panels, no coloured top bars or inner outlines.
+- Drag handles to reorder music stages, stage items and task steps (keyboard: Space, arrows, Space).
+- Column headers: click to sort (▲/▼, third click = manual order), larger resize handles, double-click to fit. Library tables too; view changes save automatically.
+- Date chips that look editable (calendar icon, dashed "Add date" when empty).
+- Type: Instrument Serif for headings, Instrument Sans for everything else.

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Panel } from '../components/Panel';
-import { Table, TaskRows } from '../components/TaskTable';
+import { Table, TaskRows, nextSort } from '../components/TaskTable';
+import { SORTABLE, applySort, type SortDir, type SortKey } from '../lib/tasks';
 import { Editable } from '../components/Editable';
 import { ColumnsMenu } from '../components/ColumnsMenu';
 import { Dropdown } from '../components/Dropdown';
@@ -15,9 +16,9 @@ import { monthKey, monthName, relLabel, shortDate } from '../lib/dates';
 
 export const HOUSE_COLS: ColDef[] = [
   { id: 'title', label: 'Task', width: 100, min: 60 },
-  { id: 'progress', label: 'Status', width: 58, min: 44 },
-  { id: 'plan', label: 'Plan', width: 52, min: 40, defaultHidden: true },
-  { id: 'due', label: 'Due', width: 54, min: 40 },
+  { id: 'progress', label: 'Status', width: 62, min: 44 },
+  { id: 'plan', label: 'Plan', width: 68, min: 44, defaultHidden: true },
+  { id: 'due', label: 'Due', width: 70, min: 44 },
   { id: 'priority', label: 'Priority', width: 64, min: 48, defaultHidden: true },
 ];
 
@@ -27,21 +28,23 @@ const VIEWS: { id: View; label: string }[] = [{ id: 'both', label: 'Tasks & bill
 export function HousePanel({ focused }: { focused: boolean }) {
   const { data, today } = useStore();
   const cols = useColumns('house', HOUSE_COLS);
-  const [view, setView] = usePersistentState<{ v: View }>('prefs.house', { v: 'both' });
+  const [view, setView] = usePersistentState<{ v: View; sort: SortKey; dir: SortDir }>('prefs.house', { v: 'both', sort: 'manual', dir: 'asc' });
   const { setNewTask, tagFilter } = useUi();
 
   const occurrences = useMemo(
     () => data.bills.flatMap((b) => visibleOccurrences(b, today)).sort((a, b) => a.due.localeCompare(b.due)),
     [data.bills, today],
   );
-  const tasks = data.tasks.filter((t) => t.area === 'house' && (!tagFilter || t.tags.includes(tagFilter)));
+  const tasks = applySort(data.tasks.filter((t) => t.area === 'house' && (!tagFilter || t.tags.includes(tagFilter))), view.sort, view.dir);
 
   return (
     <Panel area="house" title="House" icon="house" focused={focused} onAdd={() => setNewTask({ area: 'house' })} addLabel="New household task or bill"
       menu={(close) => <ColumnsMenu defs={HOUSE_COLS} cols={cols} close={close} />}
-      toolbar={<Dropdown ariaLabel="Show" value={view.v} options={VIEWS} onChange={(v) => setView({ v })} />}
+      toolbar={<Dropdown ariaLabel="Show" value={view.v} options={VIEWS} onChange={(v) => setView((s) => ({ ...s, v }))} />}
       footer={<button className="foot-add" onClick={() => setNewTask({ area: 'house' })}><Icon name="plus" size={14} /> Task or bill</button>}>
-      <Table cols={cols} label="House tasks and bills">
+      <Table cols={cols} label="House tasks and bills" sortable={Object.keys(SORTABLE)}
+        sort={view.sort === 'manual' ? null : { key: Object.keys(SORTABLE).find((k) => SORTABLE[k] === view.sort) ?? view.sort, dir: view.dir }}
+        onSort={(col) => setView((p) => { const n = nextSort(p.sort === 'manual' ? null : { key: p.sort, dir: p.dir }, SORTABLE[col]); return { ...p, sort: n ? (n.key as SortKey) : 'manual', dir: n?.dir ?? 'asc' }; })}>
         {view.v !== 'tasks' && (
           <div className="group">
             {view.v === 'both' && <div className="group-label">Bills</div>}
@@ -52,7 +55,7 @@ export function HousePanel({ focused }: { focused: boolean }) {
         {view.v !== 'bills' && (
           <div className="group">
             {view.v === 'both' && <div className="group-label">Tasks</div>}
-            <TaskRows tasks={tasks} cols={cols} manual empty="No household tasks yet." />
+            <TaskRows tasks={tasks} cols={cols} manual={view.sort === 'manual'} empty="No household tasks yet." />
           </div>
         )}
       </Table>
@@ -76,14 +79,14 @@ function BillRow({ o, cols }: { o: Occurrence; cols: Columns }) {
         </label>
         {cols.visible.map((c) => {
           if (c.id === 'title') return (
-            <div key={c.id} className="cell title-cell col">
+            <div key={c.id} className="cell title-cell col" data-col={c.id}>
               <span className="bill-name"><Editable className="task-title" label="Bill name" value={o.bill.title} onSave={(v) => dispatch({ type: 'bill/patch', billId: o.bill.id, patch: { title: v } })} />{o.month !== monthKey(today) && <em className="muted">· {monthName(o.month)}</em>}</span>
               <span className="sub" title={`Monthly · reminder ${o.bill.reminderDays === 0 ? 'on the day' : `${o.bill.reminderDays} days before`}`}><Icon name="bell" size={10} />{o.bill.reminderDays === 0 ? 'on the day' : `${o.bill.reminderDays}d before`} · monthly</span>
             </div>
           );
-          if (c.id === 'progress') return <div key={c.id} className="cell"><span className={`pill ${status}`}>{o.paid ? '✓ Paid' : o.missed ? 'Missed' : 'Unpaid'}</span></div>;
-          if (c.id === 'due') return <div key={c.id} className="cell"><span className={`date-static${o.missed ? ' overdue' : ''}`} title={shortDate(o.due, today)}>{relLabel(o.due, today)}</span></div>;
-          return <div key={c.id} className="cell" />;
+          if (c.id === 'progress') return <div key={c.id} className="cell" data-col={c.id}><span className={`pill ${status}`}>{o.paid ? '✓ Paid' : o.missed ? 'Missed' : 'Unpaid'}</span></div>;
+          if (c.id === 'due') return <div key={c.id} className="cell" data-col={c.id}><span className={`date-static${o.missed ? ' overdue' : ''}`} title={shortDate(o.due, today)}>{relLabel(o.due, today)}</span></div>;
+          return <div key={c.id} className="cell" data-col={c.id} />;
         })}
         <span />
         <Popover align="right" trigger={({ toggle, ref }) => (

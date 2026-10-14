@@ -80,6 +80,8 @@ export interface ViewDef {
   groupBy?: string;
   dateField?: string;
   fields: string[];
+  /** Column widths in px for table layout. */
+  widths?: Record<string, number>;
 }
 
 export type WidgetKind = 'stat' | 'today' | 'week' | 'music' | 'money' | 'view' | 'note' | 'image' | 'capture' | 'notes-recent';
