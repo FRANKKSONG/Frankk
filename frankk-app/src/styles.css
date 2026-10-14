@@ -1600,14 +1600,14 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 
 /* ── Iteration 22: the knight assistant patrols the bottom edge; no footer bar taking space ── */
 .assistant-bar { display: none !important; }
-.knight { position: fixed; bottom: 4px; z-index: 450; width: 60px; height: 60px; padding: 0; background: none; border: 0; cursor: pointer;
+.knight { position: fixed; bottom: 4px; z-index: 450; width: 72px; height: 64px; padding: 0; background: none; border: 0; cursor: pointer;
   image-rendering: pixelated; filter: drop-shadow(0 2px 0 rgba(0,0,0,.45)); transition: filter .15s; }
 .knight:hover { filter: drop-shadow(0 2px 0 rgba(0,0,0,.45)) drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 70%, transparent)); }
 .knight.walking svg { animation: knight-bob .22s steps(2) infinite; }
 .knight:not(.walking):not(.talking) svg { animation: knight-breathe 2.4s ease-in-out infinite; }
 @keyframes knight-bob { 0% { transform: translateY(0); } 100% { transform: translateY(-2px); } }
 @keyframes knight-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
-.knight-bubble { position: fixed; bottom: 74px; z-index: 460; width: 320px; padding: 12px 14px 14px; border-radius: 14px;
+.knight-bubble { position: fixed; bottom: 78px; z-index: 460; width: 320px; padding: 12px 14px 14px; border-radius: 14px;
   background: var(--pop-bg, #1d1915); color: var(--text); box-shadow: 0 14px 40px rgba(0,0,0,.5); border: 1px solid var(--edge, var(--line));
   font-family: var(--font-body); animation: kb-in .18s ease-out; }
 @keyframes kb-in { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
@@ -1624,6 +1624,6 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 /* walk: a 1px bob on the passing frames comes from the sprite itself; keep the CSS bob off */
 .knight.walking svg { animation: none; }
 /* a soft ground shadow under the knight */
-.knight::after { content: ''; position: absolute; left: 50%; bottom: 0; width: 34px; height: 5px; transform: translateX(-50%); border-radius: 50%; background: rgba(0,0,0,.38); z-index: -1; }
+.knight::after { content: ''; position: absolute; left: 50%; bottom: 0; width: 40px; height: 6px; transform: translateX(-50%); border-radius: 50%; background: rgba(0,0,0,.38); z-index: -1; }
 .knight { filter: none; }
 .knight:hover { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)); }
