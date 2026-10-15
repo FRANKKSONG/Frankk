@@ -10,6 +10,7 @@
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
     "build:cloud": "node scripts/build-cloud.mjs",
+    "build:site": "node scripts/build-site.mjs",
     "test:cloud": "node scripts/build-cloud.mjs && node scripts/cloud-test.mjs"
   },
   "dependencies": {
