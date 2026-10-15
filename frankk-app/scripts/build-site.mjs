@@ -8,7 +8,7 @@ let h = readFileSync('dist/index.html', 'utf8')
   .replace(/<script type="module" crossorigin src="[^"]+"><\/script>\s*/, '')
   .replace(/<link rel="stylesheet" crossorigin href="[^"]+">/, () => `<style>${a('.css')}</style>`)
   .replace('<title>Esther</title>', `<title>Esther build ${v}</title>`)
-  .replace('</body>', () => `<script type="module">${a('.js').replaceAll('</script', '<\\/script')}</script>\n</body>`);
+  .replace('</body>', () => `<script type="module">${a('.js').replaceAll('</script', '<\\/script').replaceAll('\uFFFD', '\\uFFFD')}</script>\n</body>`);
 mkdirSync('../docs', { recursive: true });
 writeFileSync('../docs/index.html', h);
 writeFileSync('../docs/.nojekyll', '');
