@@ -63,7 +63,22 @@ He forgets that a task exists, sometimes forgets the deadline, and procrastinate
 ## AI
 "All of it", but Esther must ask what to set up and explain why each AI job exists.
 
+## Round 3 answers (15 Oct 2026)
+- GSync is set to sync every 5 minutes. He asked whether Obsidian Sync or something else would be more robust.
+- Phone: start with scripting (Shortcuts and a Scriptable widget). A native app comes later, "when I am rich", with a team.
+- Action Button: not set up yet. Esther should tell him how.
+- Load gauge: it tells him which mood the day needs, **locked in or chill**. Exact numbers aren't needed.
+- Quick input: works like **Raycast**. Plain Enter captures. Tab, then Enter, makes it an AI command.
+- "What to start first": must be robust, with shortcuts or scripts that start the work on the PC (or Esther sets them up).
+- Calendar: moving to **Google Calendar**. B-YOU stays on B-YOU's own systems.
+- Privacy: private, but family and friends may access it. Online exposure is the worry, not offline.
+- AI accounts: Claude Pro, ChatGPT Plus, Gemini Pro, DeepSeek. These are subscriptions, and API keys are billed separately. The family bot already uses Anthropic and OpenAI API keys.
+
+## Related system: Family Money Bot (see its handoff, 15 Oct 2026)
+- A Telegram group bot ("Family Accountant Bot") on Supabase. The family sends slips and voice notes (Lao or English). Claude files them, reminds about bills, and tracks jobs, contacts, houses and cars. It mirrors into `D:\Work\House\Family Money (live).xlsx` and offers a private ICS calendar feed.
+- Mom (Darany) is the family financer. Frank pays many bills in BCEL One for a small commission. His work money (SE'ROUND, co-run with Dethpanya "Tott") is kept out of family totals.
+- Esther should **read** from it (bills Frank must pay, open jobs, the calendar feed), not duplicate it. Keep family, office and personal systems separate.
+- Never ask him to paste API keys or tokens into chat. Large deletions are his call.
+
 ## Still unknown
 - Which life areas exist beyond General, B-YOU, Seround, Music and House. Ask slowly, one at a time.
-- What is private, even from the future reader.
-- The Telegram family bot project (money and family), which Esther could join.
