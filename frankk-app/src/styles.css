@@ -1872,3 +1872,69 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .matins .mt-verse cite { white-space: normal; }
 .matins .mt-words, .matins .mt-head > * { min-width: 0; }
 @media (max-width: 760px) { .homepage > .matins { grid-template-columns: 72px minmax(0, 1fr); gap: 4px 10px; padding-right: 12px; } .matins .mt-glory { max-width: 72px; align-self: start; margin-top: 4px; } .mt-motto { display: none; } }
+
+/* ── Task details: a property sheet, not a form. Values read as plain text and are edited in place. ── */
+.task-sheet { width: min(440px, 100vw); }
+.task-sheet .drawer-body { padding: 4px 22px 18px; gap: 14px; overflow-x: hidden; }
+.task-sheet > header { padding: 14px 16px 4px 22px; }
+.dp-area { display: inline-flex; align-items: center; gap: 8px; font: 600 12px var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.dp-area i { width: 8px; height: 8px; border-radius: 50%; background: var(--area); }
+:is([data-style], html) .task-sheet textarea.dp-title:not([type=checkbox]):not([type=color]):not([type=range]):is(*, :focus, :focus-visible) { width: 100%; resize: none; overflow: hidden; border: 0 !important; box-shadow: none !important; outline: none !important; background: none !important; padding: 2px 0 !important;
+  font: 500 26px/1.2 var(--font-display); color: var(--text); border-radius: 0; }
+.dp-done { display: inline-flex; align-items: center; gap: 8px; justify-self: start; padding: 4px 10px 4px 6px; border-radius: 999px; font-size: 12.5px; color: var(--muted); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.dp-done.on { color: var(--text); background: color-mix(in srgb, var(--ok, #4f9e83) 22%, transparent); }
+.dp-props { display: grid; gap: 1px; }
+.dp-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; min-height: 34px; border-radius: var(--radius-sm); }
+.dp-row:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.dp-label { display: inline-flex; align-items: center; gap: 8px; padding-left: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.dp-label svg { opacity: .7; flex: none; }
+.dp-value { min-width: 0; display: flex; align-items: center; }
+:is([data-style], html) .task-sheet .dp-value :is(input:not([type=checkbox]):not([type=color]):not([type=range]), select:not([multiple]):not([size]):not([data-x])):is(*, :focus, :focus-visible) {
+  width: 100%; min-width: 0; border: 0 !important; box-shadow: none !important; outline: none !important; background: none !important; padding: 6px 8px !important; border-radius: var(--radius-sm); color: var(--text); font-size: 13.5px; }
+.task-sheet .dp-value :is(input, select):hover { background: color-mix(in srgb, var(--text) 5%, transparent) !important; }
+.task-sheet .dp-value :is(input, select):focus { background: color-mix(in srgb, var(--text) 8%, transparent) !important; }
+.task-sheet .dp-value input::placeholder { color: var(--faint, var(--muted)); }
+.task-sheet .dp-value select { appearance: none; cursor: pointer; }
+.task-sheet input[type=date]::-webkit-calendar-picker-indicator { opacity: .5; filter: invert(.8); cursor: pointer; }
+.dp-pills { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px 6px; }
+.dp-pills button { padding: 3px 10px; border-radius: 999px; font-size: 12.5px; color: var(--muted); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.dp-pills button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
+.dp-pills button[aria-checked='true'] { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--area, var(--accent)) 30%, transparent); }
+.dp-pills button.pri-high[aria-checked='true'] { background: color-mix(in srgb, #cf5c3f 34%, transparent); }
+.dp-pills button.pri-low[aria-checked='true'] { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.dp-off { padding: 6px 8px; font-size: 13px; color: var(--faint, var(--muted)); font-style: italic; }
+.task-sheet .tag-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 8px; }
+.dp-group { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--text) 7%, transparent); }
+.dp-group h4 { margin: 0; font: 600 11px var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: flex; gap: 8px; align-items: baseline; }
+:is([data-style], html) .task-sheet textarea.dp-text:not([type=checkbox]):not([type=color]):not([type=range]):is(*, :focus, :focus-visible) { width: 100%; resize: vertical; border: 0 !important; box-shadow: none !important; outline: none !important; padding: 8px 10px !important; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 4%, transparent) !important; font: 14px/1.5 var(--font-serif); color: var(--text); }
+.task-sheet .hint { margin: 0; font-size: 11.5px; color: var(--faint, var(--muted)); }
+.task-sheet > footer { align-items: center; }
+.task-sheet .dp-note { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+
+/* the month, small, in the corner of Matins */
+.homepage > .matins { grid-template-columns: 168px minmax(0, 1fr) 232px; }
+.mt-cal { position: relative; align-self: start; padding-top: 8px; }
+.mt-cal .minical { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; color: var(--text); }
+.mt-cal .minical header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.mt-cal .minical h3 { font: 600 12.5px var(--font-body) !important; color: var(--text); letter-spacing: .02em; }
+.mt-cal .minical header .btn { padding: 1px 7px; font-size: 11px; color: var(--text); background: rgb(255 240 200 / .07); border-color: transparent !important; }
+.mt-cal .minical header .icon-btn { color: var(--muted); width: 20px; height: 20px; }
+.mt-cal .cal-grid { gap: 0 !important; }
+.mt-cal .cal-grid .dow { font-size: 9.5px; color: var(--faint); padding: 0; height: 16px; line-height: 16px; }
+.mt-cal .cal-grid .day { height: 21px !important; min-height: 0 !important; padding: 0 !important; font-size: 11px !important; color: var(--muted); border-radius: 6px; position: relative; }
+.mt-cal .cal-grid .day.other { opacity: .35; }
+.mt-cal .cal-grid .day.today { color: #1b130b !important; background: #f3c454 !important; font-weight: 700; }
+.mt-cal .cal-grid .day.picked { background: rgb(255 240 200 / .16); color: var(--text); }
+.mt-cal .cal-grid .day .marks { position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); gap: 1px; }
+.mt-cal .cal-grid .day .marks i { width: 3px; height: 3px; }
+.mt-cal-day { position: absolute; z-index: 40; right: 0; top: calc(100% + 6px); width: 260px; padding: 10px 12px; border-radius: var(--radius); background: #1d1610; border: 1px solid rgb(255 240 200 / .12); box-shadow: 0 16px 40px rgb(0 0 0 / .5); display: grid; gap: 6px; }
+.mt-cal-day header { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+.mt-cal-day ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.mt-cal-day li { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.mt-cal-day li svg { color: var(--area); flex: none; }
+.mt-cal-day .w-item { text-align: left; color: var(--text); }
+.mt-cal-day small { font-size: 10.5px; color: var(--faint); }
+.matins { overflow: visible; }
+@media (max-width: 1100px) { .homepage > .matins { grid-template-columns: 140px minmax(0, 1fr); } .mt-cal { display: none; } }
+.homepage > .matins { position: relative; z-index: 30; }

@@ -44,7 +44,10 @@ await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitF
 {
   const begin = page.locator('[data-widget="w-begin"]');
   check('Home: Begin here puts the oldest late item first and says why', (await begin.locator('.wb-why').textContent()).startsWith('Late since') && await begin.locator('.wb-next li').count() > 0, await begin.locator('.wb-why').textContent());
-  check('Home: the morning check widgets render (Begin, Today, Calendar, Journal, This week)', ['w-begin', 'w-today', 'w-cal', 'w-journal', 'w-week'].every(Boolean) && await page.locator('[data-widget="w-cal"] .cal-grid').count() === 1 && (await page.locator('.w-week .w-day').count()) === 7);
+  check('Home: one Today list; the calendar sits small in the Matins header', await page.locator('[data-widget="w-today"]').count() === 1 && await page.locator('[data-widget="w-cal"]').count() === 0 && await page.locator('header.matins .mt-cal .cal-grid').count() === 1 && (await page.locator('.w-week .w-day').count()) === 7);
+  await page.locator('.mt-cal .day', { hasText: /^16/ }).first().click();
+  check('Matins calendar: pick a day to see what falls on it', (await page.locator('.mt-cal-day').textContent()).includes('Book dentist'));
+  await page.getByRole('button', { name: 'Close day' }).click();
   const bar = page.getByLabel('Tell Esther');
   const n0 = (await store()).tasks.length;
   await bar.fill('Renew car insurance #car'); await bar.press('Enter');

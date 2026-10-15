@@ -1,4 +1,8 @@
 import { useMemo, useState } from 'react';
+import { MiniCalendar } from './MiniCalendar';
+import { buildAgenda } from '../lib/agenda';
+import { useUi } from '../ui';
+import { AREA_ICON } from './TodayStrip';
 import { Icon } from './Icons';
 import { useStore } from '../data/store';
 import { usePersistentState } from '../hooks/usePersistentState';
@@ -133,6 +137,36 @@ export function Matins({ actions }: { actions?: React.ReactNode }) {
           <button className="link-btn mt-another" onClick={() => setTurn((t) => t + 1)}><Icon name="sparkle" size={12} /> Another verse</button>
         </div>
       </div>
+      <MatinsCalendar />
     </header>
+  );
+}
+
+/** A small month in the corner of Matins. Pick a day to see what falls on it; today's list lives in the Today widget. */
+function MatinsCalendar() {
+  const { data, today } = useStore();
+  const { openTask, go, revealRow, setFocusArea } = useUi();
+  const [day, setDay] = useState<string | null>(null);
+  const items = useMemo(() => (day ? buildAgenda(data, today).filter((i) => i.date === day && !i.overdue) : []), [data, today, day]);
+  return (
+    <div className="mt-cal">
+      <MiniCalendar day={day} onDay={setDay} />
+      {day && (
+        <div className="mt-cal-day" role="dialog" aria-label={`On ${longToday(day)}`}>
+          <header><strong>{day === today ? 'Today' : longToday(day)}</strong><button className="icon-btn tiny" aria-label="Close day" onClick={() => setDay(null)}><Icon name="close" size={12} /></button></header>
+          {items.length ? (
+            <ul>
+              {items.map((i) => (
+                <li key={i.key} className={`area-${i.area}`}>
+                  <Icon name={AREA_ICON[i.area]} size={11} />
+                  <button className="w-item" onClick={() => { if (i.ref.type === 'task') openTask(i.ref.id); else { go('tasks'); if (i.ref.type === 'stage') revealRow('project', i.ref.projectId); else setFocusArea('house'); } }}>{i.title}{i.context && <span className="muted"> · {i.context}</span>}</button>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="muted">Nothing on this day.</p>}
+          <small>Google Calendar: not connected yet</small>
+        </div>
+      )}
+    </div>
   );
 }

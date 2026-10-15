@@ -29,7 +29,8 @@ function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
 
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLInputElement>('input')?.focus();
+    const t = ref.current?.querySelector<HTMLTextAreaElement>('.dp-title');
+    if (t) { t.style.height = `${t.scrollHeight}px`; t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('keydown', onKey); prev?.focus?.(); };
@@ -48,76 +49,72 @@ function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
   };
   const isContent = task.area === 'seround' && d.workstream === 'content';
 
+  const AREA_NAME: Record<string, string> = { general: 'General', seround: 'Seround', house: 'House', music: 'Music' };
+  const prop = (label: string, icon: Parameters<typeof Icon>[0]['name'], control: React.ReactNode, hint?: string) => (
+    <div className="dp-row"><span className="dp-label" title={hint}><Icon name={icon} size={13} />{label}</span><div className="dp-value">{control}</div></div>
+  );
+
   return (
-    <aside ref={ref} className="drawer" role="dialog" aria-label={`Details: ${task.title}`}>
+    <aside ref={ref} className={`drawer task-sheet area-${task.area}`} role="dialog" aria-label={`Details: ${task.title}`}>
       <header>
-        <span className={`area-tag area-${task.area}`}>{task.area}</span>
+        <span className="dp-area"><i />{AREA_NAME[task.area] ?? task.area}{task.brand ? ` · ${task.brand.split(' ')[0]}` : ''}</span>
         <button className="icon-btn" aria-label="Close details" onClick={onClose}><Icon name="close" /></button>
       </header>
       <div className="drawer-body">
-        <label className="field">Title<input value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} /></label>
-        <p className="hint">Renaming changes the title only, never the note’s file name or location.</p>
+        <textarea className="dp-title" rows={1} aria-label="Title" value={d.title} onChange={(e) => setD({ ...d, title: e.target.value.replace(/\n/g, ' ') })}
+          onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; }} />
+        <label className={`check dp-done${task.done ? ' on' : ''}`}><input type="checkbox" checked={task.done} onChange={() => dispatch({ type: 'task/toggle', id: task.id })} /><span className="box" />
+          {task.done ? 'Completed · untick to reopen' : 'Mark complete'}</label>
 
-        <label className="check status-line"><input type="checkbox" checked={task.done} onChange={() => dispatch({ type: 'task/toggle', id: task.id })} /><span className="box" />
-          {task.done ? 'Completed — untick to reopen' : 'Mark task complete'}</label>
-
-        <div className="form-row">
-          <label className="field">Task date <small>when I’ll work on it</small><input type="date" value={d.plan} onChange={(e) => setD({ ...d, plan: e.target.value })} /></label>
-          <label className="field">Due date <small>deadline</small><input type="date" value={d.due} onChange={(e) => setD({ ...d, due: e.target.value })} /></label>
-        </div>
-        <div className="form-row">
-          <label className="field">Priority
-            <select value={d.priority} onChange={(e) => setD({ ...d, priority: e.target.value as Task['priority'] })}>
-              <option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option>
+        <section className="dp-props" aria-label="Properties">
+          {prop('Task date', 'calendar', <input type="date" value={d.plan} aria-label="Task date" onChange={(e) => setD({ ...d, plan: e.target.value })} />, 'When you’ll work on it')}
+          {prop('Due', 'bell', <input type="date" value={d.due} aria-label="Due date" onChange={(e) => setD({ ...d, due: e.target.value })} />, 'Deadline')}
+          {prop('Priority', 'up', (
+            <span className="dp-pills" role="radiogroup" aria-label="Priority">
+              {(['high', 'normal', 'low'] as const).map((p) => <button key={p} type="button" role="radio" aria-checked={d.priority === p} className={`pri-${p}`} onClick={() => setD({ ...d, priority: p })}>{p[0].toUpperCase() + p.slice(1)}</button>)}
+            </span>
+          ))}
+          {prop('Type', 'steps', (
+            <span className="dp-pills" role="radiogroup" aria-label="Task type">
+              <button type="button" role="radio" aria-checked={task.mode === 'simple'} onClick={() => dispatch({ type: 'task/update', id: task.id, patch: { mode: 'simple' } })}>Simple to-do</button>
+              <button type="button" role="radio" aria-checked={task.mode === 'progress'} onClick={() => dispatch({ type: 'task/update', id: task.id, patch: { mode: 'progress' } })}>With steps</button>
+            </span>
+          ))}
+          {prop('List', 'list', <input value={d.list} placeholder="Empty" aria-label="List / group" onChange={(e) => setD({ ...d, list: e.target.value })} />)}
+          {prop('Tags', 'tag', <span className="tag-line"><TagChips names={task.tags} /><TagPicker value={task.tags} onChange={(tags) => dispatch({ type: 'task/tags', id: task.id, tags })} label="Edit tags" /></span>)}
+          {task.area === 'seround' && prop('Brand', 'seround', <select value={d.brand} aria-label="Brand" onChange={(e) => setD({ ...d, brand: e.target.value })}>{data.brands.map((b) => <option key={b}>{b}</option>)}</select>)}
+          {task.area === 'seround' && prop('Workstream', 'layout', (
+            <select value={d.workstream} aria-label="Workstream" onChange={(e) => setD({ ...d, workstream: e.target.value })}>
+              <option value="">Empty</option><option value="content">Repost queue</option><option value="backend">Backend development</option><option value="brand">Brand work</option>
             </select>
-          </label>
-          <label className="field">List / group<input value={d.list} placeholder="Optional" onChange={(e) => setD({ ...d, list: e.target.value })} /></label>
-        </div>
-        <div className="field">Type
-          <div className="seg slim" role="radiogroup" aria-label="Task type">
-            <button type="button" role="radio" aria-checked={task.mode === 'simple'} onClick={() => dispatch({ type: 'task/update', id: task.id, patch: { mode: 'simple' } })}>Simple to-do</button>
-            <button type="button" role="radio" aria-checked={task.mode === 'progress'} onClick={() => dispatch({ type: 'task/update', id: task.id, patch: { mode: 'progress' } })}>With steps</button>
-          </div>
-        </div>
-        <div className="field">Tags
-          <span className="tag-line"><TagChips names={task.tags} /><TagPicker value={task.tags} onChange={(tags) => dispatch({ type: 'task/tags', id: task.id, tags })} label="Edit tags" /></span>
-        </div>
-        <label className="field">Notes<textarea rows={3} value={d.notes} placeholder="Anything to remember" onChange={(e) => setD({ ...d, notes: e.target.value })} /></label>
-        <div className="form-row">
-          <label className="field">Repeat<select disabled><option>Not available yet</option></select></label>
-          <label className="field">Reminder<select disabled><option>Not available yet</option></select></label>
-        </div>
+          ))}
+          {prop('Repeat', 'history', <span className="dp-off">Not available yet</span>)}
+          {prop('Reminder', 'bell', <span className="dp-off">Not available yet</span>)}
+        </section>
 
-        {task.area === 'seround' && (
-          <div className="form-row">
-            <label className="field">Brand<select value={d.brand} onChange={(e) => setD({ ...d, brand: e.target.value })}>{data.brands.map((b) => <option key={b}>{b}</option>)}</select></label>
-            <label className="field">Workstream
-              <select value={d.workstream} onChange={(e) => setD({ ...d, workstream: e.target.value })}>
-                <option value="">—</option><option value="content">Repost queue</option><option value="backend">Backend development</option><option value="brand">Brand work</option>
-              </select>
-            </label>
-          </div>
-        )}
         {isContent && (
-          <fieldset className="content-fields">
-            <legend>Content queue</legend>
-            <label className="field">Clip reference<input value={c.clip ?? ''} onChange={(e) => setC({ ...c, clip: e.target.value })} /></label>
-            <label className="field">Source link<input value={c.source ?? ''} onChange={(e) => setC({ ...c, source: e.target.value })} /></label>
-            <div className="form-row">
-              <label className="field">Destination<input value={c.destination ?? ''} onChange={(e) => setC({ ...c, destination: e.target.value })} /></label>
-              <label className="field">Repost status
-                <select value={c.repostStatus ?? 'queued'} onChange={(e) => setC({ ...c, repostStatus: e.target.value as ContentInfo['repostStatus'] })}>
-                  <option value="queued">Queued</option><option value="ready">Ready to post</option><option value="posted">Posted</option>
-                </select>
-              </label>
-            </div>
-            <label className="field">Caption<textarea rows={2} value={c.caption ?? ''} onChange={(e) => setC({ ...c, caption: e.target.value })} lang="lo" /></label>
-            <label className="field">Planned publication<input type="date" value={c.publishOn ?? ''} onChange={(e) => setC({ ...c, publishOn: e.target.value || undefined })} /></label>
-            <p className="hint">Tracking only. This app never downloads clips or posts to social accounts.</p>
-          </fieldset>
+          <section className="dp-props dp-group" aria-label="Content queue">
+            <h4>Content queue</h4>
+            {prop('Clip', 'image', <input value={c.clip ?? ''} placeholder="Empty" aria-label="Clip reference" onChange={(e) => setC({ ...c, clip: e.target.value })} />)}
+            {prop('Source', 'link', <input value={c.source ?? ''} placeholder="Empty" aria-label="Source link" onChange={(e) => setC({ ...c, source: e.target.value })} />)}
+            {prop('Post to', 'external', <input value={c.destination ?? ''} placeholder="Empty" aria-label="Destination" onChange={(e) => setC({ ...c, destination: e.target.value })} />)}
+            {prop('Status', 'check', (
+              <span className="dp-pills" role="radiogroup" aria-label="Repost status">
+                {([['queued', 'Queued'], ['ready', 'Ready'], ['posted', 'Posted']] as const).map(([v, l]) => <button key={v} type="button" role="radio" aria-checked={(c.repostStatus ?? 'queued') === v} onClick={() => setC({ ...c, repostStatus: v })}>{l}</button>)}
+              </span>
+            ))}
+            {prop('Publish on', 'calendar', <input type="date" value={c.publishOn ?? ''} aria-label="Planned publication" onChange={(e) => setC({ ...c, publishOn: e.target.value || undefined })} />)}
+            <textarea className="dp-text" rows={2} value={c.caption ?? ''} placeholder="Caption…" aria-label="Caption" onChange={(e) => setC({ ...c, caption: e.target.value })} lang="lo" />
+            <p className="hint">Tracking only. Esther never downloads clips or posts to social accounts.</p>
+          </section>
         )}
 
-        {task.mode === 'progress' && <div className="drawer-steps">
+        <section className="dp-group">
+          <h4>Notes</h4>
+          <textarea className="dp-text" rows={3} value={d.notes} placeholder="Anything to remember…" aria-label="Notes" onChange={(e) => setD({ ...d, notes: e.target.value })} />
+        </section>
+
+        {task.mode === 'progress' && <section className="dp-group drawer-steps">
           <h4>Steps {prog.pct !== null && <span className="muted">{prog.done}/{prog.total}</span>}</h4>
           {task.steps.length === 0 && <p className="steps-empty">No steps yet.</p>}
           {task.steps.map((s) => (
@@ -130,14 +127,10 @@ function DrawerBody({ task, onClose }: { task: Task; onClose: () => void }) {
               onKeyDown={(e) => { if (e.key === 'Enter' && step.trim()) { dispatch({ type: 'step/add', taskId: task.id, text: step }); setStep(''); } }} />
           </div>
           <p className="hint">Steps save as you tick them. Finishing every step never completes the task by itself.</p>
-        </div>}
-
-        <div className="note-link">
-          <code>{task.notePath}</code>
-          <button className="btn small" onClick={() => openNote(task.notePath)}><Icon name="external" size={13} /> Open in Obsidian</button>
-        </div>
+        </section>}
       </div>
       <footer>
+        <button className="link-btn dp-note" onClick={() => openNote(task.notePath)} title={task.notePath}><Icon name="external" size={13} /> Open in Obsidian</button>
         <button className="btn ghost" onClick={onClose}>{dirty ? 'Cancel' : 'Close'}</button>
         <button className="btn primary" disabled={!dirty || !d.title.trim()} onClick={save}>Save changes</button>
       </footer>

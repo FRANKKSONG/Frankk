@@ -136,7 +136,7 @@ export function defaultViews(): ViewDef[] {
 }
 
 /** Bump to rebuild saved homes with a new default layout (backgrounds are kept). */
-export const HOME_REV = 3;
+export const HOME_REV = 4;
 
 export function defaultDashboard(): Dashboard {
   const W = (id: string, kind: Dashboard['widgets'][number]['kind'], title: string, config: Dashboard['widgets'][number]['config'] = {}, color?: string) => ({ id, kind, title, config, color });
@@ -146,7 +146,6 @@ export function defaultDashboard(): Dashboard {
     widgets: [
       W('w-begin', 'begin', 'Begin here', {}, '#d4a03c'),
       W('w-today', 'today', 'Today'),
-      W('w-cal', 'calendar', 'Calendar'),
       W('w-journal', 'journal', 'Today’s journal', {}, '#8a6fb8'),
       W('w-week', 'week', 'This week'),
       W('w-music', 'music', 'Music'),
@@ -154,12 +153,11 @@ export function defaultDashboard(): Dashboard {
       W('w-ideas', 'view', 'Ideas', { viewId: 'v-ideas' }),
     ],
     layout: [
-      // three columns that end level, sized to what they hold, then the rest of life in full-width rows
+      // three columns that end level, sized to what they hold; the calendar lives in the Matins header
       { i: 'w-begin', x: 0, y: 0, w: 8, h: 6 }, { i: 'w-journal', x: 0, y: 6, w: 8, h: 7 },
       { i: 'w-today', x: 8, y: 0, w: 8, h: 7 }, { i: 'w-money', x: 8, y: 7, w: 8, h: 6 },
-      { i: 'w-cal', x: 16, y: 0, w: 8, h: 13 },
+      { i: 'w-music', x: 16, y: 0, w: 8, h: 6 }, { i: 'w-ideas', x: 16, y: 6, w: 8, h: 7 },
       { i: 'w-week', x: 0, y: 13, w: 24, h: 4 },
-      { i: 'w-music', x: 0, y: 17, w: 13, h: 5 }, { i: 'w-ideas', x: 13, y: 17, w: 11, h: 5 },
     ],
   };
 }
