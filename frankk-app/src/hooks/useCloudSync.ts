@@ -18,12 +18,19 @@ export function useCloudSync() {
   sayRef.current = say;
   const ctx = JSON.stringify(contextOf(data));
 
+  const dataRef = useRef(data);
+  dataRef.current = data;
   useEffect(() => {
     if (!cloudCfg()) return;
-    const t = window.setTimeout(() => { cloud.pushContext(data).catch(() => { /* offline: try on the next change */ }); }, 1500);
+    const t = window.setTimeout(() => { cloud.pushContext(dataRef.current).catch(() => { /* offline: try on the next change */ }); }, 1500);
     return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
+  // Right after you connect, share your brands and projects straight away (not only when they next change).
+  useEffect(() => {
+    const share = () => { if (cloudCfg()) cloud.pushContext(dataRef.current).catch(() => {}); };
+    window.addEventListener('esther-cloud', share);
+    return () => window.removeEventListener('esther-cloud', share);
+  }, []);
 
   useEffect(() => {
     let busy = false;
