@@ -1,3 +1,4 @@
+import { CloudSettings } from '../components/CloudSettings';
 import { useState } from 'react';
 import { Icon, type IconName } from '../components/Icons';
 import { ColorSelect } from '../components/ColorSelect';
@@ -11,11 +12,11 @@ import { toBaseFile } from '../lib/bases';
 import { FIXTURE_VAULT_NAME } from '../lib/obsidian';
 import type { ThemePrefs } from '../lib/theme';
 
-type Section = 'profile' | 'appearance' | 'storage' | 'obsidian' | 'ai' | 'permissions' | 'tags' | 'history' | 'about';
+type Section = 'profile' | 'appearance' | 'storage' | 'obsidian' | 'cloud' | 'ai' | 'permissions' | 'tags' | 'history' | 'about';
 const SECTIONS: { id: Section; label: string; icon: IconName }[] = [
   { id: 'profile', label: 'Profile', icon: 'person' }, { id: 'appearance', label: 'Appearance', icon: 'palette' },
   { id: 'storage', label: 'Vault & storage', icon: 'database' }, { id: 'obsidian', label: 'Obsidian bridge', icon: 'plug' },
-  { id: 'ai', label: 'AI & models', icon: 'bot' }, { id: 'permissions', label: 'AI permissions', icon: 'shield' },
+  { id: 'cloud', label: 'Phone & Jev', icon: 'bolt' }, { id: 'ai', label: 'AI & models', icon: 'bot' }, { id: 'permissions', label: 'AI permissions', icon: 'shield' },
   { id: 'tags', label: 'Tags', icon: 'tag' }, { id: 'history', label: 'History & backups', icon: 'history' }, { id: 'about', label: 'Status', icon: 'info' },
 ];
 
@@ -34,6 +35,7 @@ export function SettingsPage({ theme, setTheme }: { theme: ThemePrefs; setTheme:
         {sec.s === 'appearance' && <section className="set-card"><h2>Appearance</h2><p className="lead">Pick a look and tune its colours. Backgrounds are chosen per dashboard on Home → Customize.</p><AppearancePanel prefs={theme} setPrefs={setTheme} /></section>}
         {sec.s === 'storage' && <Storage />}
         {sec.s === 'obsidian' && <Bridge />}
+        {sec.s === 'cloud' && <CloudSettings />}
         {sec.s === 'ai' && <Ai />}
         {sec.s === 'permissions' && <Permissions />}
         {sec.s === 'tags' && <Tags />}

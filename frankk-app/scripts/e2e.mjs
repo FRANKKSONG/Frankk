@@ -613,6 +613,40 @@ await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1586, height: 992 }); await page.waitForTimeout(400);
 }
 
+/* ---------- Esther cloud (mocked): phone inbox and Jev sorting ---------- */
+{
+  const FN = 'https://fake-ref.supabase.co/functions/v1/esther';
+  let served = false, sorted = 0;
+  await page.route(`${FN}/**`, async (route) => {
+    const u = new URL(route.request().url());
+    if (route.request().headers()['x-esther-key'] !== 'test-key') return route.fulfill({ status: 401, body: '{"error":"wrong app key"}' });
+    if (u.pathname.endsWith('/health')) return route.fulfill({ json: { ok: true, telegram: true, jev: true, inbox: 1, context: true } });
+    if (u.pathname.endsWith('/context')) return route.fulfill({ json: { ok: true } });
+    if (u.pathname.endsWith('/inbox')) { const rows = served ? [] : [{ id: '1', created_at: '', source: 'telegram', raw: 'buy medicine for Goose and Miko sunday', sorted_by: 'rules', parsed: { kind: 'task', title: 'Buy medicine for Goose and Miko', area: 'house', tags: [], plan: '2026-10-18', journal: false, explicit: false } }]; served = true; return route.fulfill({ json: { rows } }); }
+    if (u.pathname.endsWith('/sort')) { sorted++; return route.fulfill({ json: { sortedBy: 'jev', parsed: { kind: 'task', title: 'Finish the event poster', area: 'general', list: 'B-YOU', tags: ['byou'], due: '2026-10-16', journal: false, explicit: false } } }); }
+    return route.fulfill({ status: 404, body: '{}' });
+  });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Phone & Jev' }).click();
+  await page.getByLabel('Function address').fill(FN);
+  await page.getByLabel('App key').fill('test-key');
+  await page.getByRole('button', { name: /Connect & test/ }).click();
+  await page.waitForTimeout(800);
+  const status = await page.locator('.cloud-status').textContent();
+  check('Phone & Jev: connect and test shows what is set up', status.includes('Esther cloud answered') && status.includes('Jev set up'), status);
+  await page.waitForTimeout(800);
+  check('Phone capture comes in: the Telegram task lands in House with its date, and is noted in the journal', (await store()).tasks.some((t) => t.title === 'Buy medicine for Goose and Miko' && t.area === 'house' && t.plan === '2026-10-18') && /from your phone/.test((await store()).notes.find((n) => n.id === 'journal-2026-10-14')?.body ?? ''));
+  await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.waitForTimeout(500);
+  const bar = page.getByLabel('Tell Esther');
+  await bar.fill('finish the event poster by friday');
+  check('Bar: an unsure sentence says Jev will place it', (await page.locator('.cmd-preview').textContent()).includes('Jev will place it'));
+  await bar.press('Enter'); await page.waitForTimeout(400);
+  check('Bar: Jev\'s answer is applied (B-YOU, due Friday)', sorted === 1 && (await store()).tasks.some((t) => t.title === 'Finish the event poster' && t.list === 'B-YOU' && t.due === '2026-10-16'));
+  await page.evaluate(() => localStorage.removeItem('esther.cloud'));
+  await page.unroute(`${FN}/**`);
+  await page.getByRole('button', { name: 'Tasks', exact: true }).click(); await page.waitForTimeout(600);
+}
+
 /* ---------- focus mode & narrow ---------- */
 await general.getByRole('button', { name: 'Focus General' }).click();
 check('Focus mode: General fills the main area', (await box(page.locator('.focus > .panel'))).width > 900);

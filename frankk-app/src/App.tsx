@@ -29,6 +29,7 @@ import { HousePanel } from './panels/HousePanel';
 import { useUi } from './ui';
 import { pushUiUndo } from './lib/undo';
 import { useStore } from './data/store';
+import { useCloudSync } from './hooks/useCloudSync';
 import { usePersistentState } from './hooks/usePersistentState';
 import { COLS, DEFAULT_LAYOUT, DEFAULT_ROWS, MARGIN, MIN_BOARD_WIDTH, WIDGETS, defaultItem, swapOnDrop, type WidgetId } from './layout';
 import type { Area } from './data/types';
@@ -41,6 +42,7 @@ const hasCoarsePointer = () => typeof matchMedia === 'function' && matchMedia('(
 export default function App() {
   const { page, focusArea, setFocusArea, setPalette, paletteOpen, noteDialog, drawerTaskId, projectDialog, toast, say } = useUi();
   const { undo, canUndo } = useStore();
+  useCloudSync();
   const [theme, setTheme] = usePersistentState<ThemePrefs>('theme.v3', DEFAULT_THEME);
   const [nav, setNav] = usePersistentState<{ collapsed: boolean }>('nav', { collapsed: typeof window !== 'undefined' && window.innerWidth < 1280 });
   const toggleNav = () => setNav((n) => ({ collapsed: !n.collapsed }));

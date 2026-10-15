@@ -1962,3 +1962,8 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .cmd-preview b { padding: 2px 9px; border-radius: 999px; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--bg-2) 80%, var(--text) 12%); box-shadow: 0 4px 14px rgb(0 0 0 / .3); }
 .build-tag { display: block; padding: 2px 12px 4px; font-size: 10.5px; letter-spacing: .04em; color: var(--faint, var(--muted)); }
 .nav-collapsed .build-tag { display: none; }
+.cloud-actions { display: flex; gap: 8px; margin: 10px 0 4px; }
+.cloud-status { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; }
+.cloud-status li::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--faint, #888); }
+.cloud-status li.ok::before { background: var(--ok, #4f9e83); } .cloud-status li.off::before { background: var(--warn, #d4a03c); }
+p.cloud-status.bad { color: #e0705a; }

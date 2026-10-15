@@ -51,6 +51,8 @@ export type Action =
   | { type: 'entry/add'; entry: Entry }
   | { type: 'entry/archive'; id: string; archived: boolean }
   | { type: 'note/add'; note: Note }
+  /** Append a line to a day's journal page, starting the page if needed (done here so quick bursts never race). */
+  | { type: 'journal/append'; day: ISODate; line: string; page: Note }
   | { type: 'note/update'; id: string; patch: Partial<Pick<Note, 'title' | 'body' | 'tags' | 'folder' | 'pinned' | 'props'>> }
   | { type: 'view/save'; view: ViewDef }
   | { type: 'view/remove'; id: string }
@@ -258,6 +260,12 @@ export function reducer(state: AppData, a: Action): AppData {
     }
     case 'entry/archive':
       return { ...state, entries: state.entries.map((e) => (e.id === a.id ? { ...e, archived: a.archived } : e)) };
+    case 'journal/append': {
+      const now = new Date().toISOString().slice(0, 19);
+      const page = state.notes.find((n) => n.id === a.page.id);
+      if (!page) return { ...state, notes: [a.page, ...state.notes] };
+      return { ...state, notes: state.notes.map((n) => (n.id === page.id ? { ...n, body: `${n.body.trimEnd()}\n${a.line}`, updated: now } : n)) };
+    }
     case 'note/add':
       return { ...ensureTags(state, a.note.tags), notes: [a.note, ...state.notes] };
     case 'note/update': {
