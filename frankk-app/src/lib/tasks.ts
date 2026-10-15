@@ -2,14 +2,14 @@ import { diffDays, type ISODate } from './dates';
 import type { Task } from '../data/types';
 
 export type Filter = 'all' | 'open' | 'today' | 'overdue' | 'done';
-export type SortKey = 'manual' | 'due' | 'plan' | 'title' | 'priority' | 'progress' | 'list' | 'workstream';
+export type SortKey = 'manual' | 'smart' | 'due' | 'plan' | 'title' | 'priority' | 'progress' | 'list' | 'workstream';
 
 export const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'All tasks' }, { id: 'open', label: 'Open' }, { id: 'today', label: 'Today' },
   { id: 'overdue', label: 'Overdue' }, { id: 'done', label: 'Completed' },
 ];
 export const SORTS: { id: SortKey; label: string }[] = [
-  { id: 'manual', label: 'Manual order' }, { id: 'due', label: 'Due date' }, { id: 'plan', label: 'Task date' },
+  { id: 'manual', label: 'Manual order' }, { id: 'smart', label: 'Smart: late, then soonest' }, { id: 'due', label: 'Due date' }, { id: 'plan', label: 'Task date' },
   { id: 'title', label: 'Title' }, { id: 'priority', label: 'Priority' }, { id: 'progress', label: 'Progress' },
 ];
 
@@ -36,6 +36,11 @@ const progressOf = (t: Task) => (t.mode === 'simple' || !t.steps.length ? (t.don
 /** Sort tasks. Completed tasks always stay at the bottom; empty values sort last in either direction. */
 export function applySort(tasks: Task[], key: SortKey, dir: SortDir = 'asc'): Task[] {
   if (key === 'manual') return tasks;
+  // Smart: late first, then by the nearest date (deadline, else task date), high priority first; undated last.
+  if (key === 'smart') {
+    const when = (t: Task) => t.due ?? t.plan ?? '9999-99-99';
+    return [...tasks].sort((a, b) => Number(a.done) - Number(b.done) || when(a).localeCompare(when(b)) || PRIO[a.priority] - PRIO[b.priority]);
+  }
   const val = (t: Task): string | number | undefined => {
     switch (key) {
       case 'due': return t.due; case 'plan': return t.plan; case 'title': return t.title.toLowerCase();

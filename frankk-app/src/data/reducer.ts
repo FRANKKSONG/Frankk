@@ -1,3 +1,4 @@
+import type { ISODate } from '../lib/dates';
 import { newId } from './fixtures';
 import { uniqueNotePath } from '../lib/obsidian';
 import { PIGMENTS, RELEASE_STEPS, type AppData, type MusicProject, type Stage, type StageItem, type Task } from './types';
@@ -39,7 +40,7 @@ export type Action =
   | { type: 'stage/patch'; projectId: string; stageId: string; patch: Partial<Stage> }
   | { type: 'stage/move'; projectId: string; stageId: string; dir: -1 | 1 }
   | { type: 'stage/add'; projectId: string; name: string; track?: 'main' | 'side' }
-  | { type: 'item/add'; projectId: string; stageId: string; text: string }
+  | { type: 'item/add'; projectId: string; stageId: string; text: string; date?: ISODate }
   | { type: 'item/patch'; projectId: string; stageId: string; itemId: string; patch: Partial<StageItem> }
   | { type: 'type/add'; def: TypeDef }
   | { type: 'type/update'; id: string; patch: Partial<Pick<TypeDef, 'name' | 'plural' | 'icon' | 'color' | 'folder'>> }
@@ -109,10 +110,16 @@ export function reducer(state: AppData, a: Action): AppData {
       };
       task.tags = [...new Set(task.tags.map(tagKey).filter(Boolean))];
       state = ensureTags(state, task.tags);
-      // New tasks go to the top of their area's manual order.
+      // A new task with a date falls into place among its area's open dated tasks: just before the first one that's
+      // later, or just after the last one. Undated tasks don't count. One without a date goes to the top, as before.
+      const when = (t: Task) => t.due ?? t.plan;
+      const mine = when(task);
       const firstOfArea = state.tasks.findIndex((t) => t.area === task.area);
+      const dated = state.tasks.map((t, i) => ({ t, i })).filter(({ t }) => t.area === task.area && !t.done && when(t));
+      const later = dated.find(({ t }) => when(t)! > mine!);
       const tasks = [...state.tasks];
-      tasks.splice(firstOfArea < 0 ? tasks.length : firstOfArea, 0, task);
+      const at = !mine || !dated.length ? firstOfArea : later ? later.i : dated[dated.length - 1].i + 1;
+      tasks.splice(at < 0 ? tasks.length : at, 0, task);
       return { ...state, tasks };
     }
     case 'task/update':
@@ -388,7 +395,7 @@ export function reducer(state: AppData, a: Action): AppData {
     case 'item/add': {
       const text = a.text.trim();
       if (!text) return state;
-      return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, done: false, items: [...st.items, { id: newId('it'), text, done: false }] }));
+      return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, done: false, items: [...st.items, { id: newId('it'), text, done: false, ...(a.date ? { date: a.date } : {}) }] }));
     }
     case 'item/patch':
       return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, items: st.items.map((i) => (i.id === a.itemId ? { ...i, ...a.patch } : i)) }));

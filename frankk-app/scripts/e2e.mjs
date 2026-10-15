@@ -58,6 +58,13 @@ await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitF
   await bar.press('Enter');
   const pt = (await store()).tasks.find((t) => t.title === 'Poster');
   check('Command bar: a plain sentence becomes a task with its place, deadline and journal line', pt && pt.list === 'B-YOU' && pt.due === '2026-12-05' && pt.tags.includes('byou') && /Task: Poster \(B-YOU\), due 2026-12-05/.test((await store()).notes.find((n) => n.id === 'journal-2026-10-14')?.body ?? ''), JSON.stringify(pt));
+  await bar.fill('In music to record just vocal on friday this week');
+  check('Command bar: music work names its project and stage', /Just · Debut EP/.test(await page.locator('.cmd-preview').textContent()) && /Record stage/.test(await page.locator('.cmd-preview').textContent()));
+  await bar.press('Enter');
+  const justRec = (await store()).projects.find((x) => x.id === 'p-just').stages.find((x) => x.name === 'Record');
+  check('Command bar: "record just vocal on friday this week" → item on Just\'s Record stage, dated Friday, Record brought into scope', justRec.inScope && justRec.items.some((i) => i.text === 'Record vocal' && i.date === '2026-10-16'), JSON.stringify(justRec));
+  const gen = (await store()).tasks.filter((t) => t.area === 'general' && !t.done).map((t) => t.title);
+  check('New dated tasks fall into place by date (Poster, due 5 Dec, sits below earlier-dated tasks)', gen.indexOf('Poster') > gen.indexOf('Book dentist'), gen.join(' | '));
   await bar.fill('p: mixed the second verse'); await bar.press('Enter');
   await bar.fill('idea: neon chant intro'); await bar.press('Enter');
   const st2 = await store();
@@ -156,7 +163,13 @@ await page.locator('#nt-title').fill('Pay parking fine');
 await page.locator('#nt-steps').fill('Find ticket\nPay online');
 await page.locator('#nt-due').fill('2026-10-20');
 await page.getByRole('button', { name: 'Add task' }).click();
-check('General: new task appears at top', (await titles())[0] === 'Pay parking fine', JSON.stringify(await titles()));
+{
+  const open = (await store()).tasks.filter((t) => t.area === 'general' && !t.done);
+  const i = open.findIndex((t) => t.title === 'Pay parking fine');
+  const w = (t) => t.due ?? t.plan;
+  const before = open.slice(0, i).filter(w), after = open.slice(i + 1).filter(w);
+  check('General: a new dated task falls into place by date', i >= 0 && before.every((t) => w(t) <= '2026-10-20') && after.every((t) => w(t) > '2026-10-20'), JSON.stringify(open.map((t) => [t.title, w(t)])));
+}
 check('General: new task has steps 0/2 and due date saved', (await store()).tasks.find((t) => t.title === 'Pay parking fine')?.steps.length === 2);
 
 /* ---------- steps & parent independence ---------- */

@@ -20,7 +20,21 @@ export interface Parsed {
   priority?: Priority;
   journal: boolean;
   explicit: boolean;
+  /** Music work that belongs to a project: added as an item on that project's stage. */
+  music?: { projectId: string; stageId: string; stage: string; artist: string; title: string; addsScope: boolean };
 }
+
+/** What the parser needs to know about your music projects. */
+export interface ProjectRef { id: string; artist: string; title: string; stages: { id: string; name: string; inScope: boolean; done: boolean; track?: string; items: { done: boolean }[] }[] }
+
+const MUSIC_CUE = /\b(?:music|studio|surftape|song|single|ep|album|beat|vocals?|mix(?:ing)?|master(?:ing)?|record(?:ing)?|produc(?:e|tion|ing)|lyrics?|track|session|demo)\b/i;
+// Which stage a word points at.
+const STAGE_WORDS: [RegExp, string][] = [
+  [/\b(?:record(?:ing)?|vocals?|tracking)\b/i, 'record'], [/\bmaster(?:ing)?\b/i, 'master'], [/\bmix(?:ing)?\b/i, 'mix'],
+  [/\b(?:produc(?:e|tion|ing)|beat|arrange(?:ment)?)\b/i, 'produc'], [/\blyrics?\b|\bwrit(?:e|ing)\b/i, 'lyric'],
+  [/\b(?:cover|artwork|art)\b/i, 'art'], [/\bconcept\b/i, 'concept'], [/\b(?:market(?:ing)?|promo)\b/i, 'market'], [/\b(?:mv|music video)\b/i, 'mv'],
+];
+const COMMON_WORDS = new Set(['just', 'me', 'you', 'will', 'may', 'june', 'art', 'sun']);
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const MONTH_RE = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
@@ -53,7 +67,12 @@ export function findDate(text: string, today: ISODate): { date: ISODate; match: 
     [/\bin (\d+) weeks?\b/, (m) => addDays(today, 7 * +m[1])],
     [/\bnext week\b/, () => { const dow = (parseISO(today).getDay() + 6) % 7; return addDays(today, 7 - dow); }],
     [/\bend of (?:the )?month\b/, () => { const d = parseISO(today); return toISO(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }],
-    [new RegExp(`\\b(?:next\\s+|this\\s+)?${DAY_RE}\\b`), (m) => {
+    [/\b(?:(?:by\s+)?(?:the\s+)?end of (?:the |this )?week|this week|this weekend)\b/, (m) => {
+      // "this week" means by Sunday; "this weekend" means Saturday.
+      const dow = parseISO(today).getDay();
+      return /weekend/.test(m[0]) ? addDays(today, (6 - dow + 7) % 7) : addDays(today, (7 - dow) % 7);
+    }],
+    [new RegExp(`\\b(?:next\\s+|this\\s+|on\\s+)?${DAY_RE}(?:\\s+(?:of\\s+)?this\\s+week)?\\b`), (m) => {
       // The coming one: "friday" on a Wednesday is in two days; on a Friday it's a week away.
       const want = DAYS.findIndex((d) => d.startsWith(m[1].slice(0, 3)));
       const n = (want - parseISO(today).getDay() + 7) % 7 || 7;
@@ -73,7 +92,7 @@ export function findDate(text: string, today: ISODate): { date: ISODate; match: 
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export function parseCommand(input: string, today: ISODate, brands: string[] = []): Parsed {
+export function parseCommand(input: string, today: ISODate, brands: string[] = [], projects: ProjectRef[] = []): Parsed {
   const d = detectKind(input);
   let text = d.text;
   const kind = d.kind;
@@ -96,6 +115,31 @@ export function parseCommand(input: string, today: ISODate, brands: string[] = [
     if (cut(/\b(?:urgent(?:ly)?|asap|high priority|important)\b/i)) out.priority = 'high';
     else if (cut(/\b(?:low priority|someday|whenever)\b/i)) out.priority = 'low';
 
+    // Music: a project named by its artist or title (a name that is also an everyday word, like "Just", only counts
+    // when the sentence is clearly about music). The work becomes an item on the stage it names, else the current one.
+    const cue = MUSIC_CUE.test(text);
+    const named = projects.map((p) => {
+      for (const name of [p.artist, p.title]) {
+        if (!name) continue;
+        const re = new RegExp(`\\b${esc(name)}(?:'s)?\\b`, 'i');
+        const exact = new RegExp(`\\b${esc(name)}(?:'s)?\\b`);
+        if (re.test(text) && (!COMMON_WORDS.has(name.toLowerCase()) || cue || exact.test(text.replace(/^\s*\S/, '')))) return { p, name };
+      }
+      return null;
+    }).find(Boolean);
+    if (kind === 'task' && named) {
+      const st = named.p.stages.filter((x) => x.inScope);
+      const word = STAGE_WORDS.find(([re]) => re.test(text))?.[1];
+      // A named stage wins even when it's outside your scope on that job: saying you'll do it brings it in.
+      const stage = (word && named.p.stages.find((x) => x.name.toLowerCase().includes(word)))
+        || st.find((x) => x.track !== 'side' && !x.done && !(x.items.length && x.items.every((i) => i.done))) || st[0];
+      if (stage) {
+        out.music = { projectId: named.p.id, stageId: stage.id, stage: stage.name, artist: named.p.artist, title: named.p.title, addsScope: !stage.inScope };
+        text = text.replace(new RegExp(`\\b(?:for|with|of)?\\s*${esc(named.name)}(?:'s)?\\b`, 'i'), ' ');
+      }
+    }
+    if (cut(/\b(?:in|for|on)\s+(?:the\s+)?music\b|^\s*music\s*:?\s*/i) && !out.music) out.tags.push('music');
+
     // Where it belongs. B-YOU has no panel of its own yet, so its tasks go to General in a "B-YOU" list.
     if (cut(/\b(?:for|at|in)?\s*(?:b[\s-]?you|byou)\b(?:\s+office)?/i)) { out.list = 'B-YOU'; out.tags.push('byou'); }
     else {
@@ -112,11 +156,12 @@ export function parseCommand(input: string, today: ISODate, brands: string[] = [
       const before = text.slice(0, text.toLowerCase().indexOf(dt.match.toLowerCase()));
       const dueWord = /\b(?:due(?:\s+date)?|by|deadline|before|until)\s*(?:is|at|on|of|:)?\s*$/i;
       if (dueWord.test(before)) { out.due = dt.date; text = before.replace(dueWord, ' ') + text.slice(before.length + dt.match.length); }
-      else { out.plan = dt.date; text = text.replace(dt.match, ' ').replace(/\b(?:on|at|for)\s+$/i, ' '); }
+      else { out.plan = dt.date; text = text.replace(new RegExp(`\\b(?:on|at|for|this)?\\s*${esc(dt.match)}`, 'i'), ' '); }
     }
     text = text.replace(/\b(?:due(?:\s+date)?|deadline)\b\s*(?:is|at|on)?/gi, ' ');
     // Leading verbs that only introduce the work: "doing poster" → "Poster".
-    text = text.replace(/^\s*(?:doing|do|to|working on|work on|the)\s+/i, '');
+    text = text.replace(/^\s*(?:(?:doing|do|to|working on|work on|the)\s+)+/i, '');
+    text = text.replace(/\b(?:on|at|by)\s*$/i, '');
   }
 
   const title = text.replace(/\s+/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/^[\s,.;:-]+|[\s,.;:-]+$/g, '').trim();

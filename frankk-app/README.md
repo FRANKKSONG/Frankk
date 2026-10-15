@@ -1,4 +1,4 @@
-# Esther — build 0.2.5 (prototype)
+# Esther — build 0.2.6 (prototype)
 
 An interactive, **fixture-only** prototype of Esther, the life control panel (React + TypeScript + Vite).
 It never reads or writes your Obsidian vault. All records are sample data kept in this browser's `localStorage`.
@@ -79,3 +79,8 @@ The morning check. Home is built around what Frankk asked for: today's mood, wha
 - **Task details** as a property sheet; the Tasks board panels are compact summaries of their pages; table headers sit above their scrolling rows; overlay scrollbars can be dragged.
 - Life brief of Frankk's answers: `docs/LIFE-BRIEF.md`.
 - Still sample data only: no vault, phone, calendar or AI connection yet.
+
+## Build 0.2.6
+- The bar knows your music: name an artist or project ("record Just vocal") and the work becomes an item on that project's stage, Record, Mix and so on, or the current stage when none is named. Saying you'll do a stage that was outside your scope on a job brings it into scope, and the preview says so. Music without a project becomes a task tagged #music.
+- "friday this week", "this week" (by Sunday) and "this weekend" are read as dates and taken out of the task name.
+- New dated tasks fall into place by date among their area's tasks instead of landing on top. Task panels also have a "Smart: late, then soonest" order.

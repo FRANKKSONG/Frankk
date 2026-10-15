@@ -34,14 +34,17 @@ export function CommandBar() {
   const [chosen, setChosen] = useState<Kind | null>(null);
   const input = useRef<HTMLInputElement>(null);
   // Reads the sentence as you type; a kind picked on the pill wins unless the line starts with a prefix.
-  const p = parseCommand(text, today, data.brands);
+  const p = parseCommand(text, today, data.brands, data.projects);
   const kind = p.explicit ? p.kind : chosen ?? 'task';
   const info = KINDS.find((k) => k.id === kind)!;
 
   const AREA: Record<string, string> = { general: 'General', seround: 'Seround', house: 'House' };
   const where = p.list ? p.list : p.area === 'seround' ? `Seround · ${p.brand?.split(' ')[0] ?? ''}` : AREA[p.area];
   /** What Enter will do, shown under the bar before you press it. */
-  const preview: string[] = !text.trim() || ai ? [] : kind === 'task'
+  const m = kind === 'task' ? p.music : undefined;
+  const preview: string[] = !text.trim() || ai ? [] : m
+    ? [`“${p.title}”`, `${m.artist} · ${m.title}`, `${m.stage} stage`, m.addsScope ? `adds ${m.stage} to your scope` : '', p.due ?? p.plan ? `${p.due ? 'due' : 'on'} ${relLabel((p.due ?? p.plan)!, today)}` : '', '+ today’s journal'].filter(Boolean)
+    : kind === 'task'
     ? [`“${p.title}”`, where, p.due ? `due ${relLabel(p.due, today)}` : '', p.plan ? `on ${relLabel(p.plan, today)}` : '', p.priority === 'high' ? 'urgent' : p.priority === 'low' ? 'low priority' : '', p.tags.length ? p.tags.map((t) => `#${t}`).join(' ') : '', '+ today’s journal'].filter(Boolean)
     : [`“${p.title}”`, kind === 'idea' ? 'Ideas board' : 'today’s journal'];
 
@@ -54,7 +57,11 @@ export function CommandBar() {
       setText(''); setAi(false);
       return;
     }
-    if (kind === 'task') {
+    if (m) {
+      if (m.addsScope) dispatch({ type: 'stage/patch', projectId: m.projectId, stageId: m.stageId, patch: { inScope: true } });
+      dispatch({ type: 'item/add', projectId: m.projectId, stageId: m.stageId, text: body, date: p.due ?? p.plan });
+      journal('task', `${body} (${m.artist} · ${m.stage})${p.due ?? p.plan ? `, ${p.due ?? p.plan}` : ''}`);
+    } else if (kind === 'task') {
       dispatch({ type: 'task/add', title: body, area: p.area, extra: { tags: p.tags, mode: 'simple', due: p.due, plan: p.plan, priority: p.priority ?? 'normal', list: p.list, ...(p.area === 'seround' ? { brand: p.brand ?? data.brands[0] } : {}) } });
       journal('task', `${body}${p.list ? ` (${p.list})` : ''}${p.due ? `, due ${p.due}` : ''}`);
     } else if (kind === 'idea') {
@@ -62,7 +69,7 @@ export function CommandBar() {
       dispatch({ type: 'entry/add', entry: { id: newId('e'), typeId: 'idea', title: body, props: { status: 'Spark', captured: today }, tags: p.tags, created: now, updated: now, path: `Ideas/${body}.md` } });
       journal('idea', body);
     } else journal(kind, body);
-    say(kind === 'task' ? `Task added: ${preview.join(' · ')}.` : `Kept as ${info.label.toLowerCase()}${kind === 'idea' ? ' on your Ideas board' : ' in today’s journal'}.`, true);
+    say(m ? `Added to ${m.artist}’s ${m.stage} stage: ${preview.join(' · ')}.` : kind === 'task' ? `Task added: ${preview.join(' · ')}.` : `Kept as ${info.label.toLowerCase()}${kind === 'idea' ? ' on your Ideas board' : ' in today’s journal'}.`, true);
     setText(''); setChosen(null);
   };
 

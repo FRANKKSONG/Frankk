@@ -99,3 +99,28 @@ describe('reading a sentence in the bar', () => {
     expect(parseCommand('j: quiet morning', TODAY)).toMatchObject({ kind: 'journal', title: 'quiet morning' });
   });
 });
+
+describe('music in the bar, and placing new tasks', () => {
+  const projects = () => buildFixtures(TODAY).projects;
+  it('"record just vocal" is an item on Just’s Record stage, dated Friday, with no "this week" left over', () => {
+    const p = parseCommand('In music to record just vocal on friday this week', TODAY, [], projects());
+    const just = projects().find((x) => x.artist === 'Just')!;
+    expect(p.music?.projectId).toBe(just.id);
+    expect(p.music?.stage.toLowerCase()).toContain('record');
+    expect(p.music?.addsScope).toBe(true); // Record was outside your producer scope on Just's job
+    expect(p.plan).toBe('2026-10-16');
+    expect(p.title).toBe('Record vocal');
+  });
+  it('"just" as an ordinary word does not pick the artist', () => {
+    expect(parseCommand('just call the bank tomorrow', TODAY, [], projects()).music).toBeUndefined();
+  });
+  it('music with no project becomes a task tagged #music', () => {
+    const p = parseCommand('in music to sort sample folders', TODAY, [], projects());
+    expect(p.music).toBeUndefined();
+    expect(p.tags).toContain('music');
+    expect(p.title).toBe('Sort sample folders');
+  });
+  it('"this week" alone means by Sunday', () => {
+    expect(parseCommand('renew passport this week', TODAY).plan ?? parseCommand('renew passport this week', TODAY).due).toBe('2026-10-18');
+  });
+});
