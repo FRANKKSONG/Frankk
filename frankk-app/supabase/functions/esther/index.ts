@@ -521,12 +521,24 @@ async function hookSecret() {
 	return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`esther-telegram:${env("ESTHER_APP_KEY")}`)))].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 48);
 }
 /** Points the Telegram bot at this function if it isn't already, so you never paste a webhook link yourself. */
-async function ensureWebhook() {
+async function ensureWebhook(base) {
 	const token = env("TELEGRAM_BOT_TOKEN");
-	if (!token) return false;
-	const want = `${env("SUPABASE_URL")}/functions/v1/esther/telegram`;
-	if ((await (await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)).json().catch(() => ({})))?.result?.url === want) return true;
-	return !!(await (await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+	if (!token) return {
+		ok: false,
+		error: "TELEGRAM_BOT_TOKEN is not set"
+	};
+	const own = env("SUPABASE_URL").toLowerCase();
+	const want = `${(base && base.toLowerCase().startsWith(own) ? base.replace(/\/+$/, "") : "") || `${env("SUPABASE_URL")}/functions/v1/esther`}/telegram`;
+	const info = await (await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)).json().catch(() => ({}));
+	if (info?.ok === false) return {
+		ok: false,
+		error: `Telegram refused the bot token (${info.description ?? "check TELEGRAM_BOT_TOKEN"})`
+	};
+	if (info?.result?.url === want) return {
+		ok: true,
+		error: info.result.last_error_message
+	};
+	const r = await (await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
 		body: JSON.stringify({
@@ -534,7 +546,11 @@ async function ensureWebhook() {
 			secret_token: await hookSecret(),
 			allowed_updates: ["message", "edited_message"]
 		})
-	})).json().catch(() => ({})))?.ok;
+	})).json().catch(() => ({}));
+	return r?.ok ? { ok: true } : {
+		ok: false,
+		error: `Telegram: ${r?.description ?? "could not set the webhook"}`
+	};
 }
 async function tg(method, body) {
 	await fetch(`https://api.telegram.org/bot${env("TELEGRAM_BOT_TOKEN")}/${method}`, {
@@ -556,7 +572,13 @@ async function onTelegram(req) {
 	const msg = u.message ?? u.edited_message;
 	if (!msg) return json({ ok: true });
 	const chat = msg.chat.id;
-	if (String(msg.from?.id) !== env("ALLOWED_TELEGRAM_ID")) return json({ ok: true });
+	if (String(msg.from?.id) !== env("ALLOWED_TELEGRAM_ID").trim()) {
+		await tg("sendMessage", {
+			chat_id: chat,
+			text: `This Esther listens only to its owner. Your Telegram id is ${msg.from?.id}. If this is your bot, put that number in ALLOWED_TELEGRAM_ID in Supabase.`
+		});
+		return json({ ok: true });
+	}
 	const text = (msg.text ?? msg.caption ?? "").trim();
 	if (!text) {
 		await tg("sendMessage", {
@@ -620,10 +642,20 @@ Deno.serve(async (req) => {
 		if (path.endsWith("/health")) {
 			const waiting = await db("esther_inbox?taken_at=is.null&select=id");
 			const ctx = await db("esther_context?id=eq.1&select=id");
-			const telegram = await Promise.race([ensureWebhook().catch(() => false), new Promise((r) => setTimeout(() => r(false), 5e3))]);
+			const base = new URL(req.url).searchParams.get("base") ?? void 0;
+			const tg = await Promise.race([ensureWebhook(base).catch((e) => ({
+				ok: false,
+				error: String(e)
+			})), new Promise((r) => setTimeout(() => r({
+				ok: false,
+				error: "Telegram took too long; press Test again"
+			}), 5e3))]);
+			const telegram = tg.ok;
 			return json({
 				ok: true,
 				telegram,
+				telegramError: tg.error,
+				allowedId: !!env("ALLOWED_TELEGRAM_ID"),
 				jev: !!env("JEV_API_KEY"),
 				inbox: waiting?.length ?? 0,
 				context: !!ctx?.length

@@ -33,9 +33,9 @@ const check = (n, c, x = '') => console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${c ? '
 
 check('health needs the app key', (await call('/health')).status === 401);
 await call('/context', { method: 'PUT', headers: app, body: JSON.stringify({ brands: ['sundey ສະບາຍດີຈຸເຈົ້າ', 'Eli Lao Origin'], projects: [{ id: 'p-just', artist: 'Just', title: 'Debut EP', stages: [{ id: 's1', name: 'Produce', inScope: true, done: false, items: [] }, { id: 's2', name: 'Record', inScope: false, done: false, items: [] }] }, { id: 'p-jing', artist: 'Jing', title: 'First single', stages: [{ id: 's3', name: 'Record', inScope: true, done: false, items: [] }, { id: 's4', name: 'Mix', inScope: true, done: false, items: [] }] }] }) });
-const h = await (await call('/health', { headers: app })).json();
+const h = await (await call('/health?base=' + encodeURIComponent('https://db.test/functions/v1/Esther'), { headers: app })).json();
 check('health reports Telegram, Jev and the saved context', h.ok && h.telegram && h.jev && h.context, JSON.stringify(h));
-check('health connects the Telegram webhook by itself, with a secret made from the app key', hookUrl === 'https://db.test/functions/v1/esther/telegram' && /^[0-9a-f]{48}$/.test(hookSecret), hookUrl + ' ' + hookSecret);
+check('health connects the Telegram webhook by itself to the exact address the app uses (Esther with a capital E), with a secret made from the app key', hookUrl === 'https://db.test/functions/v1/Esther/telegram' && /^[0-9a-f]{48}$/.test(hookSecret), hookUrl + ' ' + hookSecret);
 await tgMsg('record just vocal on friday this week');
 check('Telegram: rules place Just\'s vocal on the Record stage without asking Jev', inbox[0]?.parsed.music?.stage === 'Record' && inbox[0].sorted_by === 'rules' && jevCalls.length === 0, JSON.stringify(inbox[0]));
 check('Telegram: replies with what it kept', /Kept: “Record vocal” · Just · Debut EP · Record stage/.test(sent.at(-1)), sent.at(-1));
@@ -44,7 +44,7 @@ check('Telegram: unsure task → Jev chooses B-YOU', inbox[1]?.parsed.list === '
 await tgMsg('second pass on the vocal mix');
 check('Telegram: Jev picks music → project → stage', inbox[2]?.parsed.music?.projectId === 'p-jing' && inbox[2].parsed.music.stage === 'Mix', JSON.stringify(inbox[2]?.parsed));
 await tgMsg('hello from a stranger', 7);
-check('Telegram: strangers are ignored', inbox.length === 3 && !sent.at(-1).includes('stranger'));
+check('Telegram: strangers are not heard, and are told their id', inbox.length === 3 && /listens only to its owner\. Your Telegram id is 7/.test(sent.at(-1)), sent.at(-1));
 const bad = await call('/telegram', { method: 'POST', headers: { 'x-telegram-bot-api-secret-token': 'nope' }, body: '{}' });
 check('Telegram: wrong webhook secret is refused', bad.status === 403);
 await tgMsg('/jevtest');

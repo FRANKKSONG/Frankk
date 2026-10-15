@@ -47,7 +47,8 @@ export function CloudSettings() {
       {state.h && (
         <ul className="cloud-status">
           <li className="ok">Esther cloud answered</li>
-          <li className={state.h.telegram ? 'ok' : 'off'}>Telegram bot {state.h.telegram ? 'set up' : 'not set up (add TELEGRAM_BOT_TOKEN)'}</li>
+          <li className={state.h.telegram && !state.h.telegramError ? 'ok' : 'off'}>Telegram bot {state.h.telegram ? 'connected' : 'not connected'}{state.h.telegramError ? ` · Telegram says: “${state.h.telegramError}”` : ''}</li>
+          {state.h.allowedId === false && <li className="off">ALLOWED_TELEGRAM_ID is missing in Supabase secrets, so the bot can’t know it’s you</li>}
           <li className={state.h.jev ? 'ok' : 'off'}>Jev {state.h.jev ? 'set up · try /jevtest in Telegram' : 'not set up (add JEV_API_KEY): Esther’s own rules sort everything'}</li>
           <li className={state.h.context ? 'ok' : 'off'}>Your brands and projects {state.h.context ? 'shared' : 'will be shared in a moment'}</li>
           <li>{state.h.inbox} capture{state.h.inbox === 1 ? '' : 's'} waiting from your phone</li>

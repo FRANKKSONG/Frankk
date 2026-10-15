@@ -27,11 +27,11 @@ async function call<T>(path: string, init: RequestInit = {}, ms = 4000, cfg = cl
   } finally { clearTimeout(t); }
 }
 
-export interface Health { ok: boolean; telegram: boolean; jev: boolean; inbox: number; context: boolean }
+export interface Health { ok: boolean; telegram: boolean; telegramError?: string; allowedId?: boolean; jev: boolean; inbox: number; context: boolean }
 export interface InboxRow { id: string; created_at: string; source: string; raw: string; parsed: Parsed; sorted_by: string }
 
 export const cloud = {
-  health: (cfg?: CloudCfg) => call<Health>('health', {}, 25000, cfg ?? cloudCfg()),
+  health: (cfg?: CloudCfg) => { const c = cfg ?? cloudCfg(); return call<Health>(`health?base=${encodeURIComponent(c?.url.replace(/\/+$/, '') ?? '')}`, {}, 25000, c); },
   /** Ask the cloud (Jev) to place a sentence the local reader wasn't sure about. */
   sort: (text: string, today: string) => call<{ parsed: Parsed; sortedBy: string }>('sort', { method: 'POST', body: JSON.stringify({ text, today }) }, 3500),
   /** Captures from your phone that haven't been brought in yet; the cloud marks them as taken. */
