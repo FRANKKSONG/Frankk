@@ -20,7 +20,13 @@ export function CloudSettings() {
       setState({ h });
       window.dispatchEvent(new Event('esther-cloud'));
     } catch (e) {
-      setState({ err: `Couldn’t reach it: ${String((e as Error).message || e)}. Check the address and the app key.` });
+      const msg = String((e as Error).message || e);
+      const local = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+      // A browser "Failed to fetch" means the request never left: on claude.ai the preview isn't allowed to call outside servers.
+      if (/failed to fetch|load failed|networkerror/i.test(msg) && !local) setState({ err: 'This preview page on claude.ai isn’t allowed to reach outside servers, so it can’t connect from here. Run Esther on your PC (step 5 of the setup page, “If it says Couldn’t reach it”) and connect there.' });
+      else if (/^401/.test(msg)) setState({ err: 'The function answered, but the app key doesn’t match. Paste exactly the ESTHER_APP_KEY value you saved in Supabase (not your Jev key).' });
+      else if (/^404/.test(msg)) setState({ err: 'Nothing at that address. Copy the function address from Supabase → Edge Functions → esther; it ends in /functions/v1/esther.' });
+      else setState({ err: `Couldn’t reach it (${msg}). Check that the address ends in /functions/v1/esther and the function is deployed.` });
     }
   };
 
@@ -30,7 +36,7 @@ export function CloudSettings() {
       <p className="lead">Esther cloud is one small function in your own Supabase project. It catches what you send the Esther bot on Telegram, asks Jev to sort what Esther’s own rules aren’t sure about, and hands everything to this app when it’s open.</p>
       <div className="set-grid">
         <label>Function address<input value={url} placeholder="https://YOUR-REF.supabase.co/functions/v1/esther" onChange={(e) => setUrl(e.target.value)} spellCheck={false} /></label>
-        <label>App key<input type="password" value={key} placeholder="The ESTHER_APP_KEY you made" onChange={(e) => setKey(e.target.value)} autoComplete="off" /></label>
+        <label>App key <small>(the ESTHER_APP_KEY password you made, not your Jev key)</small><input type="password" value={key} placeholder="The same value as ESTHER_APP_KEY in Supabase" onChange={(e) => setKey(e.target.value)} autoComplete="off" /></label>
       </div>
       <div className="cloud-actions">
         <button className="btn primary" onClick={test} disabled={state.busy}><Icon name="plug" size={14} /> {state.busy ? 'Testing…' : connected ? 'Test again' : 'Connect & test'}</button>
