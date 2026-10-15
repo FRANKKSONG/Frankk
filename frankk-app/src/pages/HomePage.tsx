@@ -13,6 +13,7 @@ import { artCss, artPresets, downscaleImage } from '../lib/art';
 import { newId } from '../data/fixtures';
 import { PIGMENTS } from '../data/types';
 import { AppearanceButton } from '../components/Appearance';
+import { Matins } from '../components/Matins';
 import type { ThemePrefs } from '../lib/theme';
 import type { WidgetDef } from '../data/schema';
 
@@ -53,6 +54,7 @@ export function HomePage({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t:
           <button className={`btn${editing ? ' primary' : ''}`} aria-pressed={editing} onClick={() => setEditing((e) => !e)}><Icon name="layout" size={14} /> {editing ? 'Done' : 'Customize'}</button>
         </div>
       </header>
+      <Matins />
       {editing && <p className="hp-hint">Drag widgets by their grip, resize from any edge, use ⋯ to change what a widget shows. Your layout is saved as you go.</p>}
       <div className="hp-grid" ref={containerRef}>
         {mounted && (

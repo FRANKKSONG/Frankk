@@ -31,6 +31,16 @@ const reloadHome = async () => { await page.reload(); await page.waitForSelector
 await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitForTimeout(900);
 
 /* ---------- Home dashboard ---------- */
+{
+  const mt = page.locator('section.matins');
+  const verse = await mt.locator('.mt-verse cite').textContent();
+  check('Matins: dial reads today, blessing quotes a verse with its reference', await mt.locator('.mt-mood[aria-checked="true"]').count() === 1 && /\d/.test(verse) && (await mt.locator('.mt-why').textContent()).includes('B-YOU office day'), verse);
+  await mt.getByRole('button', { name: /Another verse/ }).click();
+  check('Matins: "Another verse" changes the verse', (await mt.locator('.mt-verse cite').textContent()) !== verse);
+  await mt.getByRole('radio', { name: 'Chill' }).click();
+  check('Matins: tap a mood to set it yourself; the dial and blessing follow', await mt.getByRole('radio', { name: 'Chill' }).getAttribute('aria-checked') === 'true' && (await mt.locator('.mt-why').textContent()).includes('Set by you'));
+  await mt.getByRole('button', { name: /use Esther/ }).click();
+}
 const overdueNum = await page.locator('[data-widget="w-over"] .w-stat-num').textContent();
 check('Home: at-a-glance numbers come from the data (2 overdue)', overdueNum === '2', overdueNum);
 check('Home: Today, This week, Music, Money widgets render', (await page.locator('.wcard').count()) >= 10 && (await page.locator('.w-week .w-day').count()) === 7);
