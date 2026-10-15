@@ -1723,10 +1723,10 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
   /* its own candle-lit palette in every theme, so the dark and the light always read */
   --text: #f3ead6; --muted: #b8aa8e; --faint: #8d8069;
   position: relative; overflow: hidden; isolation: isolate;
-  display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 6px 28px; align-items: center;
-  margin: 0 0 14px; padding: 10px 22px 14px 10px; border-radius: var(--radius); color: var(--text);
+  display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 4px 22px; align-items: center;
+  margin: 0 0 12px; padding: 6px 18px 8px 8px; border-radius: var(--radius); color: var(--text);
   background:
-    radial-gradient(ellipse 340px 260px at 150px 46%, color-mix(in srgb, #f3c454 calc(var(--glow) * 30%), transparent), transparent 70%),
+    radial-gradient(ellipse 260px 180px at 82px 50%, color-mix(in srgb, #f3c454 calc(var(--glow) * 30%), transparent), transparent 70%),
     radial-gradient(ellipse at 50% -40%, color-mix(in srgb, #f3c454 calc(var(--glow) * 10%), transparent), transparent 60%),
     color-mix(in srgb, #070504 calc(var(--glow) * 100%), #2c2219);
   box-shadow: var(--shadow), inset 0 0 80px rgb(0 0 0 / calc(.2 + var(--glow) * .5)); transition: background .6s; }
@@ -1824,3 +1824,51 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .wj-open { justify-self: start; font-size: 12.5px; }
 /* the bar itself is the field: its input never shows a box of its own, focused or not */
 :is([data-style], html) .ask-bar.cmd input:not([type=checkbox]):is(*, :focus, :focus-visible) { background: none !important; border: 0 !important; box-shadow: none !important; outline: none !important; padding: 4px 0 !important; }
+/* write straight into today's journal: plain text on the page, no box */
+:is([data-style], html) .w-journal input.wj-add:is(*, :focus, :focus-visible) { background: none !important; border: 0 !important; box-shadow: none !important; outline: none !important; padding: 4px 0 !important; border-radius: 0; font: italic 14px var(--font-serif); color: var(--text); }
+.w-journal input.wj-add::placeholder { color: var(--muted); }
+.wj-hint { font-size: 11px; color: var(--faint, var(--muted)); opacity: 0; transition: opacity .15s; }
+.w-journal:focus-within .wj-hint { opacity: 1; }
+
+/* Matins, compact: one band about as tall as the glory */
+.matins .mt-glory { max-width: 150px; margin: -4px 0; }
+.matins .mt-words { gap: 3px; }
+.matins .mt-head { align-items: center; row-gap: 4px; }
+.matins .mt-moods { margin-left: auto; display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.matins .mt-mood { padding: 2px 9px; font-size: 11.5px; }
+.matins .mt-head .icon-btn { margin-left: 2px; }
+.matins .mt-line { margin: 2px 0 4px; font-size: 19px; }
+.matins .mt-word { font: 400 22px/1 var(--font-cap); color: #f4cf6e; margin-right: 6px; text-shadow: 0 0 calc(var(--glow) * 18px) rgb(255 210 110 / .7); font-style: normal; cursor: help; }
+.matins .mt-verse { padding: 7px 12px; }
+.matins .mt-verse p { font-size: 15px; line-height: 1.45; }
+.matins .mt-verse cite { display: inline; margin: 0 0 0 6px; font-size: 11.5px; white-space: nowrap; }
+.matins .mt-foot { margin-top: 3px; gap: 4px 12px; }
+.matins .mt-why { text-align: left; font-size: 11.5px; }
+@media (max-width: 760px) { .matins { grid-template-columns: 96px minmax(0, 1fr); } .matins .mt-glory { max-width: 96px; } .matins .mt-moods { margin-left: 0; width: 100%; } }
+
+/* Matins as the Home header: today's mood takes the greeting's place */
+.homepage > .matins { margin: 0 0 10px; grid-template-columns: 168px minmax(0, 1fr); padding: 4px 16px 10px 4px; }
+.matins .mt-glory { max-width: 168px; margin: -6px 0; }
+.matins .mt-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.mt-mood-title { margin: 0; font: 500 34px/1.05 var(--font-display); color: #fbe7b0; text-shadow: 0 0 calc(4px + var(--glow) * 22px) rgb(255 205 110 / calc(.25 + var(--glow) * .55)); }
+.mt-actions { margin-left: auto; display: inline-flex; flex-wrap: wrap; gap: 6px; align-self: center; }
+.mt-actions .btn { color: var(--text); background: rgb(255 240 200 / .07); border-color: rgb(255 240 200 / .12) !important; }
+.mt-actions .btn:hover { background: rgb(255 240 200 / .14) !important; }
+.mt-actions .btn.primary { color: #1b130b; background: #f3c454; }
+.matins .mt-foot { align-items: center; }
+.matins .mt-moods { margin: 0; }
+.mt-another { margin-left: auto; }
+.mt-hostdisc { fill: #fff8e6; filter: drop-shadow(0 0 calc(3px + var(--glow) * 10px) rgb(255 236 180 / .95)); }
+.mt-cross { stroke: #c79a45; stroke-width: 1.3; opacity: .8; }
+.mt-grain { mix-blend-mode: overlay; opacity: .28; pointer-events: none; }
+.mt-sphere { stroke: rgb(255 226 150 / .12); }
+.mt-sphere.lit { stroke: rgb(255 232 170 / .55); stroke-width: .9; filter: none; }
+.hp-cmd { margin: 0 0 14px; display: flex; }
+.hp-cmd .ask-bar.cmd { flex: 1; max-width: none; }
+@media (max-width: 760px) { .homepage > .matins { grid-template-columns: 92px minmax(0, 1fr); } .matins .mt-glory { max-width: 92px; } .mt-mood-title { font-size: 26px; } .mt-actions { margin-left: 0; width: 100%; } }
+
+.mt-hostdisc { fill: url(#mt-hostg); filter: blur(.6px) drop-shadow(0 0 calc(3px + var(--glow) * 10px) rgb(255 236 180 / .95)); }
+:is([data-style], html) .w-journal input.wj-add:not([type=checkbox]):not([type=color]):not([type=range]):is(*, :focus, :focus-visible) { background: none !important; border: 0 !important; box-shadow: none !important; outline: none !important; padding: 4px 0 !important; }
+.matins .mt-verse cite { white-space: normal; }
+.matins .mt-words, .matins .mt-head > * { min-width: 0; }
+@media (max-width: 760px) { .homepage > .matins { grid-template-columns: 72px minmax(0, 1fr); gap: 4px 10px; padding-right: 12px; } .matins .mt-glory { max-width: 72px; align-self: start; margin-top: 4px; } .mt-motto { display: none; } }

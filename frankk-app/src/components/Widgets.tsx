@@ -11,7 +11,8 @@ import { buildAgenda, todayItems, type AgendaItem } from '../lib/agenda';
 import { visibleOccurrences } from '../lib/bills';
 import { addDays, longToday, monthKey, monthName, parseISO, relLabel, weekdayShort } from '../lib/dates';
 import { beginOrder, canOpenHere } from '../lib/begin';
-import { findJournal, parseJournal, KINDS } from '../lib/journal';
+import { detectKind, findJournal, parseJournal, KINDS } from '../lib/journal';
+import { useJournal } from './CommandBar';
 import { projectProgress, stageComplete } from '../lib/progress';
 import { recordsOf } from '../lib/records';
 import { renderMarkdown } from '../lib/markdown';
@@ -299,17 +300,29 @@ function CalendarWidget() {
 function JournalWidget() {
   const { data, today } = useStore();
   const { go } = useUi();
+  const write = useJournal();
+  const [text, setText] = useState('');
   const page = findJournal(data.notes, today);
   const lines = page ? parseJournal(page.body) : [];
+  // Write straight into today's page. p: and c: still mark progress and context; anything else is a journal line.
+  const add = () => {
+    const d = detectKind(text);
+    if (!d.text) return;
+    write(d.explicit && (d.kind === 'progress' || d.kind === 'context') ? d.kind : 'journal', d.text);
+    setText('');
+  };
   return (
     <div className="w-journal">
-      {lines.length ? (
+      {lines.length > 0 && (
         <ol className="wj-lines">
           {lines.map((l, i) => (
             <li key={i} className={`k-${l.kind}`}><time>{l.time}</time>{l.kind !== 'journal' && <b>{KINDS.find((k) => k.id === l.kind)?.label}</b>}<span>{l.text}</span></li>
           ))}
         </ol>
-      ) : <p className="w-empty">Nothing written today. Type in the bar above; start with <code>j:</code> for a journal line or <code>p:</code> for progress.</p>}
+      )}
+      <input className="wj-add no-drag" value={text} aria-label="Write in today’s journal" placeholder={lines.length ? 'Write another line…' : 'Write the first line of today…'}
+        onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } else if (e.key === 'Escape') setText(''); }} />
+      <span className="wj-hint">Enter writes it with the time · start with p: for progress, c: for context</span>
       {page && <button className="link-btn wj-open" onClick={() => go('notes', { noteId: page.id })}>Open today’s page</button>}
     </div>
   );

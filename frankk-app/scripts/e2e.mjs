@@ -32,7 +32,7 @@ await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitF
 
 /* ---------- Home dashboard ---------- */
 {
-  const mt = page.locator('section.matins');
+  const mt = page.locator('header.matins');
   const verse = await mt.locator('.mt-verse cite').textContent();
   check('Matins: dial reads today, blessing quotes a verse with its reference', await mt.locator('.mt-mood[aria-checked="true"]').count() === 1 && /\d/.test(verse) && (await mt.locator('.mt-why').textContent()).includes('B-YOU office day'), verse);
   await mt.getByRole('button', { name: /Another verse/ }).click();
@@ -56,6 +56,9 @@ await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitF
   const jr = st2.notes.find((n) => n.id === 'journal-2026-10-14');
   check('Command bar: p: goes to today\'s journal page (timestamped), idea: to the Ideas board', !!jr && /- \d\d:\d\d · Progress: mixed the second verse/.test(jr.body) && st2.entries.some((e) => e.typeId === 'idea' && e.title === 'neon chant intro'), jr?.body);
   check('Home: Today\'s journal shows what you wrote', (await page.locator('[data-widget="w-journal"] .wj-lines li').count()) >= 3);
+  const jw = page.getByLabel('Write in today’s journal');
+  await jw.fill('quiet walk with Goose and Miko'); await jw.press('Enter');
+  check('Journal: write a line straight into today\'s page from the widget', /- \d\d:\d\d · quiet walk with Goose and Miko/.test((await store()).notes.find((n) => n.id === 'journal-2026-10-14').body) && (await jw.inputValue()) === '');
   await bar.fill('what did Jing say'); await bar.press('Tab');
   check('Command bar: Tab switches to asking Esther', await page.locator('.ask-bar.cmd.ai').count() === 1);
   await bar.press('Escape');

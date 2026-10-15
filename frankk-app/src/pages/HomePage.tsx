@@ -3,12 +3,10 @@ import ReactGridLayout, { useContainerWidth, verticalCompactor, type LayoutItem 
 import { Icon } from '../components/Icons';
 import { ColorSelect } from '../components/ColorSelect';
 import { Popover } from '../components/Popover';
-import { Initial } from '../components/Ornaments';
 import { Editable } from '../components/Editable';
 import { METRICS, WIDGET_CATALOG, WidgetBody } from '../components/Widgets';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
-import { greeting, longToday } from '../lib/dates';
 import { artCss, artPresets, downscaleImage } from '../lib/art';
 import { newId } from '../data/fixtures';
 import { PIGMENTS } from '../data/types';
@@ -20,12 +18,11 @@ import type { WidgetDef } from '../data/schema';
 
 /** Home: an at-a-glance dashboard you build yourself out of widgets. */
 export function HomePage({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
-  const { data, today, dispatch } = useStore();
+  const { data, dispatch } = useStore();
   const { setPalette } = useUi();
   const dash = data.dashboards[0];
   const [editing, setEditing] = useState(false);
   const { width, containerRef, mounted } = useContainerWidth();
-  const g = greeting();
   const own = !!dash.background && dash.background !== 'inherit';
   const art = own ? artCss(dash.background) : { image: 'none', tile: false };
 
@@ -38,24 +35,14 @@ export function HomePage({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t:
   return (
     <div className={`homepage${own ? ' own-art' : ''}`} style={{ '--art': art.image, '--art-size': art.tile ? 'auto' : 'cover', '--dim': String(dash.dim) } as React.CSSProperties}>
       <div className="home-art" aria-hidden="true" />
-      <header className="hp-head">
-        <div className="hp-greet">
-          <Initial letter={g[0]} size={52} />
-          <div>
-            <h1><span className="sr-only">{g[0]}</span><span className="greet-rest">{g.slice(1)}, FRANKK</span></h1>
-            <p className="hp-date">{longToday(today)}</p>
-          </div>
-        </div>
-        <CommandBar />
-        <div className="head-actions">
-          <button className="btn" onClick={() => setPalette(true)} aria-label="Search (Ctrl+K)"><Icon name="search" size={14} /> Search</button>
-          <AppearanceButton prefs={theme} setPrefs={setTheme} />
-          {editing && <AddWidget />}
-          {editing && <BackgroundPicker />}
-          <button className={`btn${editing ? ' primary' : ''}`} aria-pressed={editing} onClick={() => setEditing((e) => !e)}><Icon name="layout" size={14} /> {editing ? 'Done' : 'Customize'}</button>
-        </div>
-      </header>
-      <Matins />
+      <Matins actions={<>
+        <button className="btn" onClick={() => setPalette(true)} aria-label="Search (Ctrl+K)"><Icon name="search" size={14} /> Search</button>
+        <AppearanceButton prefs={theme} setPrefs={setTheme} />
+        {editing && <AddWidget />}
+        {editing && <BackgroundPicker />}
+        <button className={`btn${editing ? ' primary' : ''}`} aria-pressed={editing} onClick={() => setEditing((e) => !e)}><Icon name="layout" size={14} /> {editing ? 'Done' : 'Customize'}</button>
+      </>} />
+      <div className="hp-cmd"><CommandBar /></div>
       {editing && <p className="hp-hint">Drag widgets by their grip, resize from any edge, use ⋯ to change what a widget shows. Your layout is saved as you go.</p>}
       <div className="hp-grid" ref={containerRef}>
         {mounted && (

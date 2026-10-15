@@ -136,7 +136,7 @@ export function defaultViews(): ViewDef[] {
 }
 
 /** Bump to rebuild saved homes with a new default layout (backgrounds are kept). */
-export const HOME_REV = 2;
+export const HOME_REV = 3;
 
 export function defaultDashboard(): Dashboard {
   const W = (id: string, kind: Dashboard['widgets'][number]['kind'], title: string, config: Dashboard['widgets'][number]['config'] = {}, color?: string) => ({ id, kind, title, config, color });
@@ -151,11 +151,15 @@ export function defaultDashboard(): Dashboard {
       W('w-week', 'week', 'This week'),
       W('w-music', 'music', 'Music'),
       W('w-money', 'money', 'Money & bills'),
+      W('w-ideas', 'view', 'Ideas', { viewId: 'v-ideas' }),
     ],
     layout: [
-      { i: 'w-begin', x: 0, y: 0, w: 8, h: 7 }, { i: 'w-today', x: 8, y: 0, w: 8, h: 16 }, { i: 'w-cal', x: 16, y: 0, w: 8, h: 16 },
-      { i: 'w-journal', x: 0, y: 7, w: 8, h: 9 }, { i: 'w-week', x: 0, y: 16, w: 24, h: 4 },
-      { i: 'w-music', x: 0, y: 20, w: 13, h: 6 }, { i: 'w-money', x: 13, y: 20, w: 11, h: 6 },
+      // three columns that end level, sized to what they hold, then the rest of life in full-width rows
+      { i: 'w-begin', x: 0, y: 0, w: 8, h: 6 }, { i: 'w-journal', x: 0, y: 6, w: 8, h: 7 },
+      { i: 'w-today', x: 8, y: 0, w: 8, h: 7 }, { i: 'w-money', x: 8, y: 7, w: 8, h: 6 },
+      { i: 'w-cal', x: 16, y: 0, w: 8, h: 13 },
+      { i: 'w-week', x: 0, y: 13, w: 24, h: 4 },
+      { i: 'w-music', x: 0, y: 17, w: 13, h: 5 }, { i: 'w-ideas', x: 13, y: 17, w: 11, h: 5 },
     ],
   };
 }
