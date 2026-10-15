@@ -261,6 +261,8 @@ function parseCommand(input, today, brands = [], projects = []) {
 			}
 		}
 		text = text.replace(/\b(?:due(?:\s+date)?|deadline)\b\s*(?:is|at|on)?/gi, " ");
+		text = text.replace(/\b(?:a\s+|the\s+)?(?:song|track|tune|single)\s+(?:called|named|titled)\s+([\p{L}\p{N}'][\p{L}\p{N}' -]*?)(?=\s+(?:in|on|for|from|by|with)\b|\s*[,.;]|\s*$)/iu, (_m, name) => `\u201c${name.trim().replace(/\b\p{L}/gu, (c) => c.toUpperCase())}\u201d`);
+		text = text.replace(/\b(?:in|on|from)\s+(?:his|her|their|the|my)\s+(?:album|ep|record|project|release)\b/i, " ");
 		text = text.replace(/^\s*(?:(?:doing|do|to|working on|work on|the)\s+)+/i, "");
 		text = text.replace(/\b(?:on|at|by)\s*$/i, "");
 	}

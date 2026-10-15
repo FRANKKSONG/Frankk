@@ -124,3 +124,12 @@ describe('music in the bar, and placing new tasks', () => {
     expect(parseCommand('renew passport this week', TODAY).plan ?? parseCommand('renew passport this week', TODAY).due).toBe('2026-10-18');
   });
 });
+
+describe('song names in the bar', () => {
+  it('"record my vocal on just\u2019s song called spotlight in his Album" reads cleanly', () => {
+    const p = parseCommand("Record my vocal on just's song called spotlight in his Album", TODAY, [], buildFixtures(TODAY).projects);
+    expect(p.music?.artist).toBe('Just');
+    expect(p.music?.stage).toBe('Record');
+    expect(p.title).toBe('Record my vocal on \u201cSpotlight\u201d');
+  });
+});

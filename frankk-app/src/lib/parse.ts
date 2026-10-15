@@ -159,6 +159,10 @@ export function parseCommand(input: string, today: ISODate, brands: string[] = [
       else { out.plan = dt.date; text = text.replace(new RegExp(`\\b(?:on|at|for|this)?\\s*${esc(dt.match)}`, 'i'), ' '); }
     }
     text = text.replace(/\b(?:due(?:\s+date)?|deadline)\b\s*(?:is|at|on)?/gi, ' ');
+    // Song names: "song called spotlight" → “Spotlight”; "in his album" says nothing the project doesn't.
+    text = text.replace(/\b(?:a\s+|the\s+)?(?:song|track|tune|single)\s+(?:called|named|titled)\s+([\p{L}\p{N}'][\p{L}\p{N}' -]*?)(?=\s+(?:in|on|for|from|by|with)\b|\s*[,.;]|\s*$)/iu,
+      (_m, name: string) => `\u201c${name.trim().replace(/\b\p{L}/gu, (c) => c.toUpperCase())}\u201d`);
+    text = text.replace(/\b(?:in|on|from)\s+(?:his|her|their|the|my)\s+(?:album|ep|record|project|release)\b/i, ' ');
     // Leading verbs that only introduce the work: "doing poster" → "Poster".
     text = text.replace(/^\s*(?:(?:doing|do|to|working on|work on|the)\s+)+/i, '');
     text = text.replace(/\b(?:on|at|by)\s*$/i, '');

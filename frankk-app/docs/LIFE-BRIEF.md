@@ -80,5 +80,10 @@ He forgets that a task exists, sometimes forgets the deadline, and procrastinate
 - Esther should **read** from it (bills Frank must pay, open jobs, the calendar feed), not duplicate it. Keep family, office and personal systems separate.
 - Never ask him to paste API keys or tokens into chat. Large deletions are his call.
 
+## Esther cloud is live (15 Oct 2026)
+- Telegram bot "Esther" → Supabase function (named `Esther`, capital E) → Esther website on GitHub Pages (frankksong.github.io/Frankk).
+- Jev works: format `answers.<name>.choice` with confidence and probabilities; about 300 input tokens per decision.
+- First real captures sorted correctly (Just's Record stage, B-YOU poster via Jev, Goose and Miko's medicine to House via Jev, a journal line).
+
 ## Still unknown
 - Which life areas exist beyond General, B-YOU, Seround, Music and House. Ask slowly, one at a time.
