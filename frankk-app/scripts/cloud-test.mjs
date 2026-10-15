@@ -1,10 +1,12 @@
 // Runs the bundled Esther cloud function with fake Supabase, Telegram and Jev. Run: npm run test:cloud
-const env = { SUPABASE_URL: 'https://db.test', SUPABASE_SERVICE_ROLE_KEY: 'svc', TELEGRAM_BOT_TOKEN: 'tok', TELEGRAM_WEBHOOK_SECRET: 'hook', ALLOWED_TELEGRAM_ID: '42', ESTHER_APP_KEY: 'app', JEV_API_KEY: 'jev', TIMEZONE: 'Asia/Vientiane' };
+const env = { SUPABASE_URL: 'https://db.test', SUPABASE_SERVICE_ROLE_KEY: 'svc', TELEGRAM_BOT_TOKEN: 'tok', ALLOWED_TELEGRAM_ID: '42', ESTHER_APP_KEY: 'app', JEV_API_KEY: 'jev', TIMEZONE: 'Asia/Vientiane' };
 let handler; globalThis.Deno = { env: { get: (k) => env[k] }, serve: (h) => { handler = h; } };
-const inbox = []; let ctx = null; const sent = []; const jevCalls = [];
+const inbox = []; let ctx = null; let hookUrl = '', hookSecret = ''; const sent = []; const jevCalls = [];
 globalThis.fetch = async (url, init = {}) => {
   url = String(url); const body = init.body ? JSON.parse(init.body) : undefined;
   const ok = (b) => new Response(JSON.stringify(b), { status: 200 });
+  if (url.includes('/getWebhookInfo')) return ok({ ok: true, result: { url: hookUrl } });
+  if (url.includes('/setWebhook')) { hookUrl = body.url; hookSecret = body.secret_token; return ok({ ok: true }); }
   if (url.startsWith('https://api.telegram.org/')) { sent.push(body.text); return ok({ ok: true }); }
   if (url.includes('typesafe')) { jevCalls.push(body); const q = Object.keys(body.questions)[0]; const keys = Object.keys(body.questions[q].criteria);
     const pick = q === 'area' ? (/poster|illustrator/i.test(body.state) ? 'byou' : /mix|vocal|beat/i.test(body.state) ? 'music' : /goose|tap/i.test(body.state) ? 'house' : 'general') : q === 'project' ? keys.find((k) => k === 'p-jing') ?? keys[0] : q === 'stage' ? keys.find((k) => /mix/i.test(body.questions[q].criteria[k])) ?? keys[0] : keys[0];
@@ -26,13 +28,14 @@ copyFileSync('supabase/functions/esther/index.ts', tmp);
 await import(tmp);
 const call = (path, init = {}) => handler(new Request('https://x.supabase.co/functions/v1/esther' + path, init));
 const app = { 'x-esther-key': 'app', 'content-type': 'application/json' };
-const tgMsg = (text, from = 42) => call('/telegram', { method: 'POST', headers: { 'x-telegram-bot-api-secret-token': 'hook' }, body: JSON.stringify({ message: { chat: { id: 1 }, from: { id: from }, text } }) });
+const tgMsg = (text, from = 42) => call('/telegram', { method: 'POST', headers: { 'x-telegram-bot-api-secret-token': hookSecret }, body: JSON.stringify({ message: { chat: { id: 1 }, from: { id: from }, text } }) });
 const check = (n, c, x = '') => console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${c ? '' : '  → ' + x}`);
 
 check('health needs the app key', (await call('/health')).status === 401);
 await call('/context', { method: 'PUT', headers: app, body: JSON.stringify({ brands: ['sundey ສະບາຍດີຈຸເຈົ້າ', 'Eli Lao Origin'], projects: [{ id: 'p-just', artist: 'Just', title: 'Debut EP', stages: [{ id: 's1', name: 'Produce', inScope: true, done: false, items: [] }, { id: 's2', name: 'Record', inScope: false, done: false, items: [] }] }, { id: 'p-jing', artist: 'Jing', title: 'First single', stages: [{ id: 's3', name: 'Record', inScope: true, done: false, items: [] }, { id: 's4', name: 'Mix', inScope: true, done: false, items: [] }] }] }) });
 const h = await (await call('/health', { headers: app })).json();
 check('health reports Telegram, Jev and the saved context', h.ok && h.telegram && h.jev && h.context, JSON.stringify(h));
+check('health connects the Telegram webhook by itself, with a secret made from the app key', hookUrl === 'https://db.test/functions/v1/esther/telegram' && /^[0-9a-f]{48}$/.test(hookSecret), hookUrl + ' ' + hookSecret);
 await tgMsg('record just vocal on friday this week');
 check('Telegram: rules place Just\'s vocal on the Record stage without asking Jev', inbox[0]?.parsed.music?.stage === 'Record' && inbox[0].sorted_by === 'rules' && jevCalls.length === 0, JSON.stringify(inbox[0]));
 check('Telegram: replies with what it kept', /Kept: “Record vocal” · Just · Debut EP · Record stage/.test(sent.at(-1)), sent.at(-1));

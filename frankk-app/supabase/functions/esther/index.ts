@@ -322,8 +322,9 @@ function describe(p, today) {
 *   GET  /esther/health     what's connected
 *
 * Secrets (Supabase → Edge Functions → Secrets), pasted by you, never written here:
-*   TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, ALLOWED_TELEGRAM_ID, ESTHER_APP_KEY,
-*   JEV_API_KEY (optional), JEV_URL (optional), JEV_MODEL (optional), TIMEZONE (optional, default Asia/Vientiane)
+*   TELEGRAM_BOT_TOKEN, ALLOWED_TELEGRAM_ID, ESTHER_APP_KEY, JEV_API_KEY (optional)
+*   Optional: JEV_URL, JEV_MODEL, TIMEZONE (default Asia/Vientiane), TELEGRAM_WEBHOOK_SECRET (default: made from the app key)
+* The Telegram webhook connects itself the first time the app checks the connection (GET /health).
 * SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase automatically.
 */
 const env = (k, d = "") => Deno.env.get(k) ?? d;
@@ -514,6 +515,27 @@ async function sortCapture(text, day) {
 		};
 	}
 }
+/** The secret Telegram sends with every message. Made from your app key unless you set one, so it's one less secret to add. */
+async function hookSecret() {
+	if (env("TELEGRAM_WEBHOOK_SECRET")) return env("TELEGRAM_WEBHOOK_SECRET");
+	return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`esther-telegram:${env("ESTHER_APP_KEY")}`)))].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 48);
+}
+/** Points the Telegram bot at this function if it isn't already, so you never paste a webhook link yourself. */
+async function ensureWebhook() {
+	const token = env("TELEGRAM_BOT_TOKEN");
+	if (!token) return false;
+	const want = `${env("SUPABASE_URL")}/functions/v1/esther/telegram`;
+	if ((await (await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)).json().catch(() => ({})))?.result?.url === want) return true;
+	return !!(await (await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			url: want,
+			secret_token: await hookSecret(),
+			allowed_updates: ["message", "edited_message"]
+		})
+	})).json().catch(() => ({})))?.ok;
+}
 async function tg(method, body) {
 	await fetch(`https://api.telegram.org/bot${env("TELEGRAM_BOT_TOKEN")}/${method}`, {
 		method: "POST",
@@ -529,7 +551,7 @@ const HELP = [
 	"/jevtest checks the Jev connection."
 ].join("\n");
 async function onTelegram(req) {
-	if (req.headers.get("x-telegram-bot-api-secret-token") !== env("TELEGRAM_WEBHOOK_SECRET")) return new Response("forbidden", { status: 403 });
+	if (req.headers.get("x-telegram-bot-api-secret-token") !== await hookSecret()) return new Response("forbidden", { status: 403 });
 	const u = await req.json();
 	const msg = u.message ?? u.edited_message;
 	if (!msg) return json({ ok: true });
@@ -598,9 +620,10 @@ Deno.serve(async (req) => {
 		if (path.endsWith("/health")) {
 			const waiting = await db("esther_inbox?taken_at=is.null&select=id");
 			const ctx = await db("esther_context?id=eq.1&select=id");
+			const telegram = await ensureWebhook().catch(() => false);
 			return json({
 				ok: true,
-				telegram: !!env("TELEGRAM_BOT_TOKEN"),
+				telegram,
 				jev: !!env("JEV_API_KEY"),
 				inbox: waiting?.length ?? 0,
 				context: !!ctx?.length

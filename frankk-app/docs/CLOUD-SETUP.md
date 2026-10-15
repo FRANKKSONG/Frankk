@@ -1,6 +1,6 @@
 # Esther cloud: phone capture and Jev sorting
 
-About 20 minutes. You need your iPhone (Telegram) and your PC (browser). **Never paste a key or token into a chat**, only into Supabase or your own browser's address bar as shown.
+About 15 minutes. The easiest way is the clickable setup page (copy buttons, tick boxes, an app key made for you); this file is the same steps in text. You need your iPhone (Telegram) and your PC (browser). **Never paste a key or token into a chat**, only into Supabase or your own browser's address bar as shown.
 
 ## What you're building
 ```
@@ -33,22 +33,14 @@ Everything is free except Jev (about $0.04 per million tokens read, roughly cent
 | Name | Value |
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | the token from BotFather |
-| `TELEGRAM_WEBHOOK_SECRET` | make up a long random word (letters/numbers only) |
 | `ALLOWED_TELEGRAM_ID` | your numeric ID from @userinfobot |
-| `ESTHER_APP_KEY` | make up another long random password (you'll paste it into Esther once) |
-| `TIMEZONE` | `Asia/Vientiane` |
-| `JEV_API_KEY` | your TypeSafe key (optional; without it, Esther's own rules sort everything) |
-| `JEV_MODEL` | optional: the model name from TypeSafe's docs if it isn't `jev-latest` |
-| `JEV_URL` | optional: only if TypeSafe gives you a different address than `https://api.typesafe.ai/v1/systemone` |
+| `ESTHER_APP_KEY` | a long random password (the setup page makes one for you); you'll paste it into Esther once |
+| `JEV_API_KEY` | optional: your TypeSafe key. Without it, Esther's own rules sort everything |
 
-## 5. Connect Telegram to the function (PC, 1 min)
-In your browser's address bar, fill in your own values and press Enter:
-```
-https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=<FUNCTION_ADDRESS>/telegram&secret_token=<TELEGRAM_WEBHOOK_SECRET>
-```
-It should answer `"Webhook was set"`.
+Optional extras: `JEV_MODEL` / `JEV_URL` if TypeSafe's docs name a different model or address; `TIMEZONE` (default `Asia/Vientiane`).
+Telegram connects itself the first time you press **Connect & test** in Esther, so there's no webhook link to paste.
 
-## 6. Connect Esther (PC, 1 min)
+## 5. Connect Esther (PC, 1 min)
 The claude.ai preview page may not be allowed to talk to outside servers, so run Esther on your PC for this:
 1. Install **Node.js 22** (nodejs.org) and **Git** (git-scm.com) once.
 2. In a terminal: `git clone https://github.com/FRANKKSONG/Frankk.git`, then `cd Frankk/frankk-app`, `git checkout claude/new-session-ynjv6z`, `npm install`, `npm run dev`.
@@ -58,7 +50,7 @@ Then:
 Esther → **Settings → Phone & Jev** → paste the function address and your `ESTHER_APP_KEY` → **Connect & test**.
 You should see green dots for Esther cloud, Telegram and (if added) Jev.
 
-## 7. Try it
+## 6. Try it
 - In Telegram, send the bot: `record just vocal friday`. It replies with what it kept. Within 20 seconds it appears in Esther (Just's Record stage) and in today's journal.
 - Send `/jevtest`. It shows Jev's raw answer. **If it says failed, send me that message** (it contains no keys) and I'll match the code to Jev's real format.
 - In Esther's bar, type something with no clear place (`finish the event poster by friday`). The preview says "Jev will place it".
