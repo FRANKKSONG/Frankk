@@ -53,6 +53,11 @@ await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitF
   await bar.fill('Renew car insurance #car'); await bar.press('Enter');
   const st = await store();
   check('Command bar: Enter keeps a plain line as a General task (with #tags)', st.tasks.length === n0 + 1 && st.tasks.some((t) => t.title === 'Renew car insurance' && t.area === 'general' && t.tags.includes('car')));
+  await bar.fill('create a task for byou doing poster due date at 5th december and journal it to knowledge base');
+  check('Command bar: shows what it understood before Enter', (await page.locator('.cmd-preview').textContent()).includes('B-YOU') && (await page.locator('.cmd-preview').textContent()).includes('due 5 Dec'));
+  await bar.press('Enter');
+  const pt = (await store()).tasks.find((t) => t.title === 'Poster');
+  check('Command bar: a plain sentence becomes a task with its place, deadline and journal line', pt && pt.list === 'B-YOU' && pt.due === '2026-12-05' && pt.tags.includes('byou') && /Task: Poster \(B-YOU\), due 2026-12-05/.test((await store()).notes.find((n) => n.id === 'journal-2026-10-14')?.body ?? ''), JSON.stringify(pt));
   await bar.fill('p: mixed the second verse'); await bar.press('Enter');
   await bar.fill('idea: neon chant intro'); await bar.press('Enter');
   const st2 = await store();

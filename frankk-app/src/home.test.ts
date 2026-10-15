@@ -68,3 +68,34 @@ describe('sparks', () => {
     expect(ideaAge(d.entries.find((e) => e.id === 'e-chant')!, TODAY)).toBe('3w');
   });
 });
+
+import { findDate, parseCommand } from './lib/parse';
+
+describe('reading a sentence in the bar', () => {
+  const BR = ['sundey ສະບາຍດີຈຸເຈົ້າ', 'Eli Lao Origin', 'Reva Gem Cosmentics'];
+  it('understands the B-YOU poster example', () => {
+    const p = parseCommand('create a task for byou doing poster due date at 5th december and journal it to knowledge base', TODAY, BR);
+    expect(p).toMatchObject({ kind: 'task', title: 'Poster', list: 'B-YOU', due: '2026-12-05', journal: true, area: 'general' });
+    expect(p.tags).toContain('byou');
+  });
+  it('reads dates in many shapes', () => {
+    expect(findDate('by dec 5', TODAY)?.date).toBe('2026-12-05');
+    expect(findDate('on 5/12', TODAY)?.date).toBe('2026-12-05');
+    expect(findDate('tomorrow', TODAY)?.date).toBe('2026-10-15');
+    expect(findDate('friday', TODAY)?.date).toBe('2026-10-16');
+    expect(findDate('in 3 days', TODAY)?.date).toBe('2026-10-17');
+    expect(findDate('next week', TODAY)?.date).toBe('2026-10-19');
+    expect(findDate('2 march', TODAY)?.date).toBe('2027-03-02');
+  });
+  it('a date with due/by is a deadline; on its own it is when to do it', () => {
+    expect(parseCommand('call bank by friday', TODAY)).toMatchObject({ title: 'Call bank', due: '2026-10-16' });
+    expect(parseCommand('call bank tomorrow', TODAY)).toMatchObject({ title: 'Call bank', plan: '2026-10-15' });
+  });
+  it('finds the brand, the house and urgency', () => {
+    expect(parseCommand('sundey reel recap urgent', TODAY, BR)).toMatchObject({ area: 'seround', brand: BR[0], priority: 'high', title: 'Reel recap' });
+    expect(parseCommand('fix the tap at home', TODAY, BR)).toMatchObject({ area: 'house', title: 'Fix the tap' });
+  });
+  it('leaves prefixed kinds alone', () => {
+    expect(parseCommand('j: quiet morning', TODAY)).toMatchObject({ kind: 'journal', title: 'quiet morning' });
+  });
+});
