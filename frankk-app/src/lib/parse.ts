@@ -20,6 +20,8 @@ export interface Parsed {
   priority?: Priority;
   journal: boolean;
   explicit: boolean;
+  /** A re-file from Telegram: the id of the earlier capture this one replaces. */
+  replaces?: string;
   /** Music work that belongs to a project: added as an item on that project's stage. */
   music?: { projectId: string; stageId: string; stage: string; artist: string; title: string; addsScope: boolean };
 }
@@ -92,10 +94,24 @@ export function findDate(text: string, today: ISODate): { date: ISODate; match: 
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/**
+ * What a line is, from how it's written, when it has no prefix: a thing you did ("finished the mix") is progress,
+ * a feeling or reflection is a journal line, a fact about someone ("Tott wants…") is context, "what if…" is an idea,
+ * and anything else is a task. Jev double-checks this for phone captures.
+ */
+export function guessKind(text: string): Kind {
+  const t = text.trim().toLowerCase();
+  if (/^(?:idea\b|ideas?:|what if\b|maybe (?:we|i) could\b|could be (?:cool|nice|fun)\b|concept for\b|imagine\b)/.test(t) || (/\bidea\b.*\bfor\b/.test(t) && !/\b(?:send|share|pitch)\b/.test(t))) return 'idea';
+  if (/^(?:(?:i |we |just |today i |finally )?(?:finished|done with|completed|sent|mixed|recorded|mastered|posted|fixed|paid|delivered|wrapped|shipped|wrote|made|got|cleaned|booked|called|met|bought|submitted|uploaded))\b/.test(t)) return 'progress';
+  if (/^(?:i (?:feel|felt|am feeling|was)|feeling|felt|today was|this morning was|tonight (?:i|was)|so tired|grateful|happy|sad|stressed|proud)\b/.test(t)) return 'journal';
+  if (/^(?:fyi|note that|remember that|\S+ (?:said|says|told me|wants|prefers|likes|hates|is allergic|asked for|moved to|changed))\b/.test(t) && !/\b(?:by|due|tomorrow|today|tonight|before)\b/.test(t)) return 'context';
+  return 'task';
+}
+
 export function parseCommand(input: string, today: ISODate, brands: string[] = [], projects: ProjectRef[] = []): Parsed {
   const d = detectKind(input);
   let text = d.text;
-  const kind = d.kind;
+  const kind = d.explicit ? d.kind : guessKind(d.text);
   const out: Parsed = { kind, title: '', area: 'general', tags: [], journal: false, explicit: d.explicit };
   const cut = (re: RegExp) => { const m = text.match(re); if (m) text = text.replace(re, ' '); return m; };
 

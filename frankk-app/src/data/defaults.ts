@@ -1,4 +1,4 @@
-import { addDays, type ISODate } from '../lib/dates';
+import { addDays, longToday, type ISODate } from '../lib/dates';
 import type { Dashboard, Entry, Note, TypeDef, ViewDef } from './schema';
 
 const opt = (value: string, color: string) => ({ value, color });
@@ -117,9 +117,10 @@ export function defaultNotes(today: ISODate): Note[] {
     n('n-log', 'Esther/Knowledge', 'Librarian log',
       '# Librarian log\n\n- Created [[Vocal mixing notes]] from 2 session notes.\n- Linked [[sundey reposting playbook]] to the daily note.\n- Proposed adding a "BPM" field to Music projects (waiting for approval).',
       { author: 'ai', updated: at(0) }),
-    n('n-daily', 'Journal', '2026-10-14',
-      '# Wednesday\n\n- [ ] Record vocals with [[Jing]]\n- Idea: a [[Lao folk sample pack]] for Surftape.\n- Reposting works better in the evening — tell Esther.',
-      { tags: ['daily'], updated: at(0) }),
+    // Today's journal page: the same page the bar, the phone and the Notes page all write into.
+    n(`journal-${today}`, 'Esther/Journal', today,
+      `# ${longToday(today)}\n\n- [ ] Record vocals with [[Jing]]\n- Idea: a [[Lao folk sample pack]] for Surftape.\n- Reposting works better in the evening — tell Esther.`,
+      { tags: ['journal'], updated: at(0) }),
     n('n-single', 'Music/Releases', 'My next single',
       '# My next single\n\nWorking title. Bassline is the next step.\n\nReferences: warm Rhodes, lazy drums.\n\nSee [[Vocal mixing notes]].', { tags: ['surftape'] }),
     n('n-inbox', 'Inbox', 'Things to remember',

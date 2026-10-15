@@ -1,4 +1,4 @@
-# Esther — build 0.2.7 (prototype)
+# Esther — build 0.3.0 (prototype)
 
 An interactive, **fixture-only** prototype of Esther, the life control panel (React + TypeScript + Vite).
 It never reads or writes your Obsidian vault. All records are sample data kept in this browser's `localStorage`.
@@ -90,3 +90,9 @@ The morning check. Home is built around what Frankk asked for: today's mood, wha
 - **Settings → Phone & Jev**: connect with the function address and your app key; Esther pulls phone captures every 20 seconds and shares your brands and projects so choices are real.
 - The bar asks Jev (when connected) for sentences with no clear place; the preview says so.
 - Journal lines are appended in one step, so several captures arriving together never clash.
+
+## Build 0.3.0
+- **Notes is the one place you write.** Journal days sit at the top of the Notes tree (today first), your folders below. Every page opens in a word processor (headings, bold/italic/underline/strike, highlight, lists, checklists, quotes, code, dividers, web links, `[[links]]`, undo/redo) that saves as you type, as plain Markdown, so pages stay ordinary Obsidian files. Ctrl+click a `[[link]]` to open it; "Links in this note" lists them too.
+- **Save as, in the bar.** While you type, a row under the bar shows *Auto · (its guess)* and chips for Task, Idea, Progress, Context and Journal. Auto reads how you wrote it ("what if…" → idea, "finished…" → progress, "Jing wants…" → context, feelings → journal); tap a chip to override. Prefixes (`i:`, `p:`…) still work.
+- **Phone: Jev decides the kind.** With no prefix, the Esther bot asks Jev what kind of message it is. Each reply has buttons for the other kinds; tapping one re-files it (also if Esther already took it: the app swaps the old item for the new one) and keeps the choice as an example Jev sees next time, so it learns how you write. Correction examples stay in the inbox table marked `example`; they are never handed to the app.
+- Fixed: Ctrl+Z inside a note no longer also undoes the last app action.

@@ -25,6 +25,8 @@ export function detectKind(input: string): { kind: Kind; text: string; explicit:
 /** Each day's journal is one note in Esther's own folder, named by its date. */
 export const JOURNAL_FOLDER = 'Esther/Journal';
 export const journalId = (day: ISODate) => `journal-${day}`;
+/** Folders whose notes are journal days (Journal is where older notes and Obsidian daily notes may live). */
+export const isJournal = (folder: string) => folder === JOURNAL_FOLDER || folder === 'Journal';
 export const findJournal = (notes: Note[], day: ISODate) => notes.find((n) => n.id === journalId(day));
 
 const LABEL: Partial<Record<Kind, string>> = { progress: 'Progress', context: 'Context', idea: 'Idea', task: 'Task' };
@@ -47,7 +49,10 @@ export function parseJournal(body: string): JournalEntry[] {
   const out: JournalEntry[] = [];
   for (const line of body.split('\n')) {
     const m = line.match(/^- (\d\d:\d\d) · (?:(Progress|Context|Idea|Task): )?(.*)$/);
-    if (m) out.push({ time: m[1], kind: (m[2]?.toLowerCase() as Kind) ?? 'journal', text: m[3] });
+    if (m) { out.push({ time: m[1], kind: (m[2]?.toLowerCase() as Kind) ?? 'journal', text: m[3] }); continue; }
+    // Lines you wrote yourself on the page (no time) are part of the day too.
+    const plain = line.match(/^\s*[-*] (?:\[[ x]\] )?(.+)$/i);
+    if (plain) out.push({ time: '', kind: 'journal', text: plain[1] });
   }
   return out;
 }

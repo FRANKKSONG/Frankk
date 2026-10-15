@@ -50,7 +50,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const typing = !!(e.target as HTMLElement).closest?.('input,select,textarea');
+      const typing = !!(e.target as HTMLElement).closest?.('input,select,textarea,[contenteditable="true"]');
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPalette(true); }
       else if ((e.ctrlKey || e.metaKey) && e.key === '\\') { e.preventDefault(); setNav((n) => ({ collapsed: !n.collapsed })); }
       else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing) {

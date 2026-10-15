@@ -15,6 +15,7 @@
  * SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase automatically.
  */
 import { parseCommand, type Parsed, type ProjectRef } from '../lib/parse';
+import { KINDS, type Kind } from '../lib/journal';
 import { describe, needsSort } from '../lib/sortRules';
 
 declare const Deno: { env: { get(k: string): string | undefined }; serve(h: (r: Request) => Response | Promise<Response>): void };
@@ -77,10 +78,34 @@ async function jevChoose(state: string, name: string, instructions: string, crit
 }
 
 /** Rules first; when they found no place for a task, Jev chooses the area, then the project and stage for music. */
-async function sortCapture(text: string, day: string): Promise<{ parsed: Parsed; sortedBy: string }> {
+/** How you filed earlier messages when you corrected Esther: shown to Jev so it learns your way of writing. */
+async function examples(): Promise<string> {
+  const rows = await db('esther_inbox?source=eq.example&order=created_at.desc&limit=12&select=raw,parsed').catch(() => []);
+  return (rows ?? []).map((r: { raw: string; parsed: Parsed }) => `"${r.raw}" was a ${r.parsed.kind}`).join('; ');
+}
+
+const KIND_CRITERIA: Record<Kind, string> = {
+  task: 'Something Frankk has to do: an action, errand, job or deadline',
+  idea: 'A spark or possibility he wants to keep, not yet something to do ("what if", a concept, something to try one day)',
+  progress: 'Something he already did or that moved forward (usually past tense)',
+  context: 'A fact to remember about a person, client, place or situation (who wants what, preferences, news)',
+  journal: 'A feeling, reflection or note about his day',
+};
+
+async function sortCapture(text: string, day: string, forced?: Kind): Promise<{ parsed: Parsed; sortedBy: string }> {
   const ctx = await context();
-  const p = parseCommand(text, day, ctx.brands, ctx.projects);
-  if (!needsSort(p) || !env('JEV_API_KEY')) return { parsed: p, sortedBy: 'rules' };
+  const read = (k?: Kind) => parseCommand(k ? `${KINDS.find((x) => x.id === k)!.prefix} ${text.replace(/^\s*(?:t|task|i|idea|p|progress|c|context|j|journal)\s*:\s*/i, '')}` : text, day, ctx.brands, ctx.projects);
+  let p = read(forced);
+  let byJev = false;
+  // No prefix and nothing chosen: Jev decides what kind of thing this is, with your past corrections as examples.
+  if (!forced && !p.explicit && env('JEV_API_KEY')) {
+    try {
+      const ex = await examples();
+      const kind = await jevChoose(text, 'kind', `What kind of message is this from Frankk?${ex ? ` How he filed earlier messages: ${ex}.` : ''}`, KIND_CRITERIA) as Kind | undefined;
+      if (kind && kind !== p.kind) { p = read(kind); byJev = true; }
+    } catch { /* Jev unreachable: keep Esther's own reading */ }
+  }
+  if (!needsSort(p) || !env('JEV_API_KEY')) return { parsed: p, sortedBy: byJev ? 'jev' : forced ? 'you' : 'rules' };
   try {
     const area = await jevChoose(text, 'area', 'Which part of Frankk’s life does this task belong to?', {
       general: 'Personal errands, admin, learning, health, anything else',
@@ -133,8 +158,9 @@ async function ensureWebhook(base?: string): Promise<{ ok: boolean; error?: stri
   const want = `${fromApp || `${env('SUPABASE_URL')}/functions/v1/esther`}/telegram`;
   const info = await (await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`)).json().catch(() => ({}));
   if (info?.ok === false) return { ok: false, error: `Telegram refused the bot token (${info.description ?? 'check TELEGRAM_BOT_TOKEN'})` };
-  if (info?.result?.url === want) return { ok: true, error: info.result.last_error_message };
-  const r = await (await fetch(`https://api.telegram.org/bot${token}/setWebhook`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: want, secret_token: await hookSecret(), allowed_updates: ['message', 'edited_message'] }) })).json().catch(() => ({}));
+  // Re-point when the address differs, or when Telegram isn't yet sending button taps (callback_query).
+  if (info?.result?.url === want && (info.result.allowed_updates ?? []).includes('callback_query')) return { ok: true, error: info.result.last_error_message };
+  const r = await (await fetch(`https://api.telegram.org/bot${token}/setWebhook`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: want, secret_token: await hookSecret(), allowed_updates: ['message', 'edited_message', 'callback_query'] }) })).json().catch(() => ({}));
   return r?.ok ? { ok: true } : { ok: false, error: `Telegram: ${r?.description ?? 'could not set the webhook'}` };
 }
 
@@ -142,10 +168,38 @@ async function tg(method: string, body: unknown) {
   await fetch(`https://api.telegram.org/bot${env('TELEGRAM_BOT_TOKEN')}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 }
 
+const kindLabel = (k: Kind) => KINDS.find((x) => x.id === k)!.label;
+function keptText(p: Parsed, day: string, by: string) {
+  return `${kindLabel(p.kind)}: ${describe(p, day).join(' \u00b7 ')}${by === 'jev' ? ' \u2726 sorted by Jev' : by === 'you' ? ' \u2713 filed by you' : ''}`;
+}
+/** Buttons under each reply: tap another kind to re-file it. */
+function buttons(id: string, current: Kind) {
+  return { inline_keyboard: [KINDS.filter((k) => k.id !== current).map((k) => ({ text: k.label, callback_data: `k:${id}:${k.id}` }))] };
+}
+
+/** A tap on a re-file button: file it as that kind, and remember the choice as an example for Jev. */
+async function onButton(q: { id: string; from: { id: number }; data?: string; message?: { chat: { id: number }; message_id: number } }) {
+  const answer = (text: string) => tg('answerCallbackQuery', { callback_query_id: q.id, text });
+  if (String(q.from?.id) !== env('ALLOWED_TELEGRAM_ID').trim()) { await answer('Not your Esther.'); return json({ ok: true }); }
+  const m = (q.data ?? '').match(/^k:([0-9a-f-]+):(task|idea|progress|context|journal)$/);
+  if (!m) { await answer('Unknown button.'); return json({ ok: true }); }
+  const [, id, kind] = m as unknown as [string, string, Kind];
+  const [row] = await db(`esther_inbox?id=eq.${id}&select=id,raw,taken_at,source`);
+  if (!row) { await answer('That message is too old to re-file.'); return json({ ok: true }); }
+  const day = today();
+  const { parsed } = await sortCapture(row.raw, day, kind);
+  if (!row.taken_at) await db(`esther_inbox?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ parsed, sorted_by: 'you' }) });
+  else await db('esther_inbox', { method: 'POST', body: JSON.stringify({ source: 'refile', raw: row.raw, parsed: { ...parsed, replaces: id }, sorted_by: 'you' }) });
+  await db('esther_inbox', { method: 'POST', body: JSON.stringify({ source: 'example', raw: row.raw, parsed: { kind }, sorted_by: 'you', taken_at: new Date().toISOString() }) });
+  if (q.message) await tg('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: keptText(parsed, day, 'you'), reply_markup: buttons(id, kind) });
+  await answer(`Filed as ${kindLabel(kind)}. Esther will remember.`);
+  return json({ ok: true });
+}
+
 const HELP = [
   'Tell me anything and I’ll keep it for Esther:',
   '• a task: "poster for B-YOU due 5 Dec", "record Just vocal friday"',
-  '• i: an idea  • p: progress  • c: context  • j: a journal line',
+  'Just write it your way: I work out whether it’s a task, idea, progress, context or journal line. Tap a button under my reply to re-file it, and I’ll learn from it.',
   'It reaches Esther on your PC the next time Esther is open.',
   '/jevtest checks the Jev connection.',
 ].join('\n');
@@ -153,6 +207,7 @@ const HELP = [
 async function onTelegram(req: Request) {
   if (req.headers.get('x-telegram-bot-api-secret-token') !== await hookSecret()) return new Response('forbidden', { status: 403 });
   const u = await req.json();
+  if (u.callback_query) return await onButton(u.callback_query);
   const msg = u.message ?? u.edited_message;
   if (!msg) return json({ ok: true });
   const chat = msg.chat.id;
@@ -173,8 +228,8 @@ async function onTelegram(req: Request) {
   }
   const day = today();
   const { parsed, sortedBy } = await sortCapture(text, day);
-  await db('esther_inbox', { method: 'POST', body: JSON.stringify({ source: 'telegram', raw: text, parsed, sorted_by: sortedBy }) });
-  await tg('sendMessage', { chat_id: chat, text: `Kept: ${describe(parsed, day).join(' · ')}${sortedBy === 'jev' ? ' ✦ sorted by Jev' : ''}` });
+  const [row] = await db('esther_inbox', { method: 'POST', body: JSON.stringify({ source: 'telegram', raw: text, parsed, sorted_by: sortedBy }) });
+  await tg('sendMessage', { chat_id: chat, text: keptText(parsed, day, sortedBy), reply_markup: buttons(row.id, parsed.kind) });
   return json({ ok: true });
 }
 
@@ -187,7 +242,7 @@ Deno.serve(async (req) => {
     if (path.endsWith('/telegram')) return await onTelegram(req);
     if (req.headers.get('x-esther-key') !== env('ESTHER_APP_KEY') || !env('ESTHER_APP_KEY')) return json({ error: 'wrong app key' }, 401);
     if (path.endsWith('/health')) {
-      const waiting = await db('esther_inbox?taken_at=is.null&select=id');
+      const waiting = await db('esther_inbox?taken_at=is.null&source=neq.example&select=id');
       const ctx = await db('esther_context?id=eq.1&select=id');
       // Connecting Telegram never holds up the test for more than 5 seconds.
       const base = new URL(req.url).searchParams.get('base') ?? undefined;
@@ -200,9 +255,9 @@ Deno.serve(async (req) => {
       return json(await sortCapture(String(text ?? ''), String(day ?? today())));
     }
     if (path.endsWith('/inbox')) {
-      const rows = await db('esther_inbox?taken_at=is.null&order=created_at.asc&select=id,created_at,source,raw,parsed,sorted_by');
+      const rows = await db('esther_inbox?taken_at=is.null&source=neq.example&order=created_at.asc&select=id,created_at,source,raw,parsed,sorted_by');
       // Little stays online: captures taken more than a week ago are deleted.
-      await db(`esther_inbox?taken_at=lt.${new Date(Date.now() - 7 * 86_400_000).toISOString()}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
+      await db(`esther_inbox?source=neq.example&taken_at=lt.${new Date(Date.now() - 7 * 86_400_000).toISOString()}`, { method: 'DELETE', headers: { prefer: 'return=minimal' } });
       if (rows?.length) await db(`esther_inbox?id=in.(${rows.map((r: { id: string }) => r.id).join(',')})`, { method: 'PATCH', body: JSON.stringify({ taken_at: new Date().toISOString() }) });
       return json({ rows: rows ?? [] });
     }

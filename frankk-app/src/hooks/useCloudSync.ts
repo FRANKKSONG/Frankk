@@ -2,7 +2,11 @@ import { useEffect, useRef } from 'react';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { cloud, cloudCfg, contextOf } from '../lib/cloud';
-import { useApplyCapture } from '../lib/capture';
+import { useApplyCapture, useUndoCapture, type CaptureRef } from '../lib/capture';
+
+const REFS = 'esther.captureRefs';
+const loadRefs = (): Record<string, CaptureRef> => { try { return JSON.parse(localStorage.getItem(REFS) ?? '{}'); } catch { return {}; } };
+const saveRefs = (r: Record<string, CaptureRef>) => { try { const keys = Object.keys(r).slice(-300); localStorage.setItem(REFS, JSON.stringify(Object.fromEntries(keys.map((k) => [k, r[k]])))); } catch { /* storage blocked */ } };
 
 /**
  * When Esther cloud is set up: brings in what you sent from your phone (every 20 seconds while Esther is open and
@@ -14,6 +18,9 @@ export function useCloudSync() {
   const apply = useApplyCapture();
   const applyRef = useRef(apply);
   applyRef.current = apply;
+  const undo = useUndoCapture();
+  const undoRef = useRef(undo);
+  undoRef.current = undo;
   const sayRef = useRef(say);
   sayRef.current = say;
   const ctx = JSON.stringify(contextOf(data));
@@ -39,8 +46,19 @@ export function useCloudSync() {
       busy = true;
       try {
         const { rows } = await cloud.pull();
-        for (const r of rows) applyRef.current(r.parsed, r.source === 'telegram' ? 'from your phone' : r.source);
-        if (rows.length) sayRef.current(`${rows.length} capture${rows.length === 1 ? '' : 's'} from your phone came in.`, true);
+        const refs = loadRefs();
+        let moved = 0;
+        for (const r of rows) {
+          // A re-file from Telegram: take back what the earlier capture made, then file it the new way.
+          if (r.parsed.replaces) { const old = refs[r.parsed.replaces]; if (old) undoRef.current(old); moved++; }
+          const { ref } = applyRef.current(r.parsed, r.parsed.replaces ? 'moved from your phone' : 'from your phone');
+          refs[r.parsed.replaces ?? r.id] = ref;
+          if (r.parsed.replaces) refs[r.id] = ref;
+        }
+        saveRefs(refs);
+        const fresh = rows.length - moved;
+        if (fresh) sayRef.current(`${fresh} capture${fresh === 1 ? '' : 's'} from your phone came in.`, true);
+        if (moved) sayRef.current(`${moved} capture${moved === 1 ? '' : 's'} re-filed from your phone.`, true);
       } catch { /* offline or not set up: try again later */ }
       busy = false;
     };

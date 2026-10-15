@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Icon } from './Icons';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
-import { KINDS, journalLine, newJournal, type Kind } from '../lib/journal';
+import { KINDS, detectKind, journalLine, newJournal, type Kind } from '../lib/journal';
 import { parseCommand } from '../lib/parse';
 import { describe, needsSort, useApplyCapture } from '../lib/capture';
 import { cloud, cloudCfg } from '../lib/cloud';
@@ -31,10 +31,10 @@ export function CommandBar() {
   const [ai, setAi] = useState(false);
   const [chosen, setChosen] = useState<Kind | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  // Reads the sentence as you type; a kind picked on the pill wins unless the line starts with a prefix.
-  const p = parseCommand(text, today, data.brands, data.projects);
-  const kind = p.explicit ? p.kind : chosen ?? 'task';
-  const info = KINDS.find((k) => k.id === kind)!;
+  // Reads the sentence as you type. A kind you pick re-reads it as that kind; otherwise a prefix, otherwise Esther's guess.
+  const pick = chosen ? KINDS.find((k) => k.id === chosen)! : null;
+  const p = parseCommand(pick ? `${pick.prefix} ${detectKind(text).text}` : text, today, data.brands, data.projects);
+  const kind = p.kind;
 
   const q = { ...p, kind };
   const sorter = !!cloudCfg() && needsSort(q);
@@ -58,15 +58,27 @@ export function CommandBar() {
       catch { via = ''; }
       setBusy(false);
     }
-    say(`${apply(final, via)}${via ? ' ✦ Sorted by Jev.' : sorter ? ' (Jev not reached: kept in General.)' : ''}`, true);
+    say(`${apply(final, via).summary}${via ? ' ✦ Sorted by Jev.' : sorter ? ' (Jev not reached: kept in General.)' : ''}`, true);
     setText(''); setChosen(null);
   };
 
-  const cycle = () => { const i = KINDS.findIndex((k) => k.id === kind); setChosen(KINDS[(i + 1) % KINDS.length].id); input.current?.focus(); };
 
   return (
     <div className={`ask-bar cmd${ai ? ' ai' : ''}${busy ? ' busy' : ''}`} onClick={() => input.current?.focus()}>
-      {preview.length > 0 && <div className="cmd-preview" aria-live="polite"><span>Enter will add</span>{preview.map((x, i) => <b key={i}>{x}</b>)}</div>}
+      {text.trim() && !ai && (
+        <div className="cmd-under" onClick={(e) => e.stopPropagation()}>
+          <span className="cmd-saveas" role="radiogroup" aria-label="Save as">
+            <span className="cmd-lbl">Save as</span>
+            <button type="button" role="radio" aria-checked={!chosen} className="cmd-chip auto" onClick={() => { setChosen(null); input.current?.focus(); }}
+              title="Esther reads what kind of thing it is from how you wrote it">Auto{!chosen ? ` · ${KINDS.find((k) => k.id === p.kind)!.label}` : ''}</button>
+            {KINDS.map((k) => (
+              <button key={k.id} type="button" role="radio" aria-checked={chosen === k.id} className={`cmd-chip k-${k.id}`} title={k.hint}
+                onClick={() => { setChosen(k.id); input.current?.focus(); }}>{k.label}</button>
+            ))}
+          </span>
+          <span className="cmd-preview" aria-live="polite">{preview.map((x, i) => <b key={i}>{x}</b>)}</span>
+        </div>
+      )}
       <Icon name={ai ? 'sparkle' : 'bolt'} size={16} />
       <input ref={input} value={text} aria-label="Tell Esther"
         placeholder={ai ? 'Ask Esther… (AI not connected yet)' : 'Say it plainly: “poster for B-YOU due 5 Dec, journal it” · Enter keeps it · Tab asks Esther'}
@@ -77,10 +89,7 @@ export function CommandBar() {
           else if (e.key === 'Tab' && !e.shiftKey && (text || ai)) { e.preventDefault(); setAi((a) => !a); }
           else if (e.key === 'Escape') { setText(''); setAi(false); setChosen(null); }
         }} />
-      {ai
-        ? <span className="cmd-kind ai" title="Tab again to go back">Ask Esther</span>
-        : <button type="button" className={`cmd-kind k-${kind}`} title={`${info.hint}. Click to change, or start with ${KINDS.map((k) => k.prefix).join(' ')}`}
-            onClick={(e) => { e.stopPropagation(); cycle(); }}>{info.label}</button>}
+      {ai && <span className="cmd-kind ai" title="Tab again to go back">Ask Esther</span>}
     </div>
   );
 }

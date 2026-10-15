@@ -133,3 +133,15 @@ describe('song names in the bar', () => {
     expect(p.title).toBe('Record my vocal on \u201cSpotlight\u201d');
   });
 });
+
+import { guessKind } from './lib/parse';
+describe('knowing what a line is without prefixes', () => {
+  it('reads the kind from how it is written', () => {
+    expect(guessKind('finished the second verse mix for Jing')).toBe('progress');
+    expect(guessKind('what if the intro used a Lao chant')).toBe('idea');
+    expect(guessKind('felt really tired after the office')).toBe('journal');
+    expect(guessKind('Tott wants the sundey reels in vertical')).toBe('context');
+    expect(guessKind('record just vocal friday')).toBe('task');
+    expect(guessKind('Tott wants the reels by Monday')).toBe('task'); // a deadline makes it something to do
+  });
+});

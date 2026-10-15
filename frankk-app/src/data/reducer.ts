@@ -40,7 +40,7 @@ export type Action =
   | { type: 'stage/patch'; projectId: string; stageId: string; patch: Partial<Stage> }
   | { type: 'stage/move'; projectId: string; stageId: string; dir: -1 | 1 }
   | { type: 'stage/add'; projectId: string; name: string; track?: 'main' | 'side' }
-  | { type: 'item/add'; projectId: string; stageId: string; text: string; date?: ISODate }
+  | { type: 'item/add'; projectId: string; stageId: string; text: string; date?: ISODate; id?: string }
   | { type: 'item/patch'; projectId: string; stageId: string; itemId: string; patch: Partial<StageItem> }
   | { type: 'type/add'; def: TypeDef }
   | { type: 'type/update'; id: string; patch: Partial<Pick<TypeDef, 'name' | 'plural' | 'icon' | 'color' | 'folder'>> }
@@ -403,7 +403,7 @@ export function reducer(state: AppData, a: Action): AppData {
     case 'item/add': {
       const text = a.text.trim();
       if (!text) return state;
-      return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, done: false, items: [...st.items, { id: newId('it'), text, done: false, ...(a.date ? { date: a.date } : {}) }] }));
+      return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, done: false, items: [...st.items, { id: a.id ?? newId('it'), text, done: false, ...(a.date ? { date: a.date } : {}) }] }));
     }
     case 'item/patch':
       return mapStage(state, a.projectId, a.stageId, (st) => ({ ...st, items: st.items.map((i) => (i.id === a.itemId ? { ...i, ...a.patch } : i)) }));

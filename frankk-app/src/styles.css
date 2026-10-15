@@ -1967,3 +1967,49 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none !important; width: 
 .cloud-status li::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--faint, #888); }
 .cloud-status li.ok::before { background: var(--ok, #4f9e83); } .cloud-status li.off::before { background: var(--warn, #d4a03c); }
 p.cloud-status.bad { color: #e0705a; }
+
+/* ── Notes: one writing place. A word-processor toolbar over a page that saves as Markdown. ── */
+.note-editor-wrap { display: grid; gap: 8px; min-height: 0; }
+.note-toolbar { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 4px; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-2) 92%, transparent); box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent); }
+.tb-btn { min-width: 30px; height: 28px; padding: 0 7px; border-radius: 6px; font: 600 12.5px var(--font-body); color: var(--muted); }
+.tb-btn:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.tb-btn.on { color: var(--text); background: color-mix(in srgb, var(--accent) 26%, transparent); }
+.tb-btn[aria-label^='Italic'] { font-style: italic; } .tb-btn[aria-label^='Underline'] { text-decoration: underline; } .tb-btn[aria-label^='Strike'] { text-decoration: line-through; }
+.tb-sep { width: 1px; height: 18px; margin: 0 4px; background: color-mix(in srgb, var(--text) 12%, transparent); }
+.tb-link { display: inline-flex; gap: 4px; align-items: center; flex: 1 1 240px; }
+:is([data-style], html) .tb-link input:not([type=checkbox]):not([type=color]):not([type=range]):is(*, :focus) { flex: 1; min-width: 0; height: 28px; padding: 0 8px !important; border: 0 !important; border-radius: 6px; background: color-mix(in srgb, var(--text) 7%, transparent) !important; box-shadow: none !important; }
+.note-doc { outline: none; min-height: 50vh; padding: 6px 2px 40px; font: 15.5px/1.7 var(--font-serif); color: var(--text); }
+.note-doc > * + * { margin-top: .55em; }
+.note-doc h1 { font: 500 30px/1.2 var(--font-display); margin-top: .6em; } .note-doc h2 { font: 500 23px/1.25 var(--font-display); margin-top: .8em; } .note-doc h3 { font: 600 17px/1.3 var(--font-body); margin-top: .8em; }
+.note-doc ul, .note-doc ol { padding-left: 1.4em; } .note-doc li > p { margin: 0; }
+.note-doc ul[data-type='taskList'] { list-style: none; padding-left: .2em; }
+.note-doc ul[data-type='taskList'] li { display: flex; gap: 8px; align-items: flex-start; }
+.note-doc ul[data-type='taskList'] li > label { margin-top: .32em; } .note-doc ul[data-type='taskList'] li > div { flex: 1; min-width: 0; }
+.note-doc ul[data-type='taskList'] li[data-checked='true'] > div { color: var(--muted); text-decoration: line-through; }
+.note-doc ul[data-type='taskList'] input { accent-color: var(--accent); width: 15px; height: 15px; }
+.note-doc blockquote { margin-left: 0; padding: 6px 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 9%, transparent); font-style: italic; }
+.note-doc pre { padding: 10px 12px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--text) 7%, transparent); font: 13px/1.5 ui-monospace, Consolas, monospace; overflow-x: auto; }
+.note-doc code { font: 13px ui-monospace, Consolas, monospace; padding: 1px 4px; border-radius: 4px; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.note-doc mark { background: color-mix(in srgb, #f3c454 45%, transparent); color: inherit; padding: 0 2px; border-radius: 3px; }
+.note-doc a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.note-doc hr { border: 0; height: 1px; background: color-mix(in srgb, var(--text) 14%, transparent); margin: 1.2em 0; }
+.note-doc p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--faint, var(--muted)); float: left; height: 0; pointer-events: none; }
+.tree-journal .tree-note.today { font-weight: 600; }
+.note-head h2.note-title { margin: 0; }
+/* the page is the whole column, not a box */
+:is([data-style], html) .note-doc.ProseMirror, :is([data-style], html) .note-doc.ProseMirror:focus, :is([data-style], html) .note-doc.ProseMirror:focus-visible { border: 0 !important; outline: none !important; box-shadow: none !important; background: none !important; max-width: 74ch; width: 100%; padding: 6px 2px 40px; }
+.tb-btn[aria-label='Highlight'] { background: color-mix(in srgb, #f3c454 30%, transparent); color: var(--text); }
+.tb-btn[aria-label='Highlight'].on { background: color-mix(in srgb, #f3c454 60%, transparent); }
+/* a journal day already shows its date as the page title */
+.journal-doc .note-doc > h1:first-child { display: none; }
+/* Save as: pick what a line becomes, or leave it on Auto */
+.cmd-under { position: absolute; left: 10px; right: 10px; top: calc(100% + 6px); z-index: 25; display: grid; gap: 6px; padding: 8px 10px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-2) 96%, transparent); box-shadow: 0 12px 32px rgb(0 0 0 / .35); border: 1px solid color-mix(in srgb, var(--text) 8%, transparent); }
+.cmd-saveas { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.cmd-lbl { font: 600 10.5px var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.cmd-chip { padding: 3px 10px; border-radius: 999px; font-size: 12px; color: var(--muted); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.cmd-chip:hover { color: var(--text); }
+.cmd-chip[aria-checked='true'] { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.cmd-under .cmd-preview { position: static; pointer-events: none; display: flex; flex-wrap: wrap; gap: 5px; }
+.cmd-under .cmd-preview b { box-shadow: none; }

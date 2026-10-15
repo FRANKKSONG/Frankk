@@ -70,6 +70,14 @@ await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitF
   const st2 = await store();
   const jr = st2.notes.find((n) => n.id === 'journal-2026-10-14');
   check('Command bar: p: goes to today\'s journal page (timestamped), idea: to the Ideas board', !!jr && /- \d\d:\d\d · Progress: mixed the second verse/.test(jr.body) && st2.entries.some((e) => e.typeId === 'idea' && e.title === 'neon chant intro'), jr?.body);
+  await bar.fill('what if the EP opened with a lao chant');
+  check('Save as: Auto reads "what if…" as an idea without a prefix', /Auto · Idea/.test(await page.getByRole('radio', { name: /^Auto/ }).textContent()));
+  await bar.fill('call Jing about the hook');
+  await page.locator('.cmd-saveas').getByRole('radio', { name: 'Context', exact: true }).click();
+  check('Save as: tapping a chip overrides the guess, and the cursor stays in the bar', (await page.locator('.cmd-saveas').getByRole('radio', { name: 'Context', exact: true }).getAttribute('aria-checked')) === 'true' && await bar.evaluate((el) => el === document.activeElement));
+  const ctxN = (await store()).entries.length;
+  await bar.press('Enter');
+  check('Save as: Context chip files the line as context, not a task', !(await store()).tasks.some((t) => t.title.includes('call Jing about the hook')) && ((await store()).entries.length > ctxN || /Context: call Jing about the hook/.test((await store()).notes.find((n) => n.id === 'journal-2026-10-14').body)), JSON.stringify((await store()).entries.slice(-1)));
   check('Home: Today\'s journal shows what you wrote', (await page.locator('[data-widget="w-journal"] .wj-lines li').count()) >= 3);
   const jw = page.getByLabel('Write in today’s journal');
   await jw.fill('quiet walk with Goose and Miko'); await jw.press('Enter');
@@ -141,9 +149,27 @@ await page.getByRole('button', { name: 'Notes', exact: true }).click();
 await page.locator('.tree-note', { hasText: 'My next single' }).click();
 check('Notes: backlinks list notes that link here', (await page.locator('.note-side .side-link', { hasText: 'Knowledge index' }).count()) === 1);
 await page.locator('.tree-note', { hasText: 'Vocal mixing notes' }).click();
-await page.locator('.note-read .wikilink', { hasText: 'Jing' }).click();
+await page.locator('.note-side .side-link', { hasText: 'Jing' }).first().click();
 check('Notes: [[Jing]] opens the person record', await page.getByRole('dialog', { name: /Details: Jing/ }).isVisible());
 await page.keyboard.press('Escape');
+{
+  // The page is a word processor: format with the toolbar, and it saves as plain Markdown for Obsidian.
+  const doc = page.locator('.note-doc');
+  await page.waitForTimeout(400);
+  // (Short pauses: the browser reports a click's caret a few milliseconds later, faster than anyone types.)
+  await doc.locator('li', { hasText: 'De-ess after' }).click(); await page.waitForTimeout(100);
+  await page.keyboard.press('End'); await page.waitForTimeout(100);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Ride the fader');
+  await page.keyboard.down('Shift'); for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowLeft'); await page.keyboard.up('Shift'); await page.waitForTimeout(100);
+  await page.getByRole('button', { name: 'Bold (Ctrl+B)' }).click();
+  await page.waitForTimeout(800);
+  const body = (await store()).notes.find((n) => n.id === 'n-vocal').body;
+  check('Notes: typing and Bold save as Markdown, links kept as [[ ]]', body.includes('- Ride the **fader**') && body.includes('[[Jing]]') && !body.includes('\\['), body);
+  await page.locator('.tree-note', { hasText: 'My next single' }).click();
+  await page.locator('.tree-note', { hasText: 'Vocal mixing notes' }).click();
+  check('Notes: switching notes keeps the page and its edits', (await doc.textContent()).includes('Ride the fader'));
+}
 await page.locator('.proposal', { hasText: 'Mood' }).getByRole('button', { name: 'Approve' }).click();
 check('Notes: approving a librarian proposal applies it', (await store()).types.find((t) => t.id === 'idea').fields.some((f) => f.key === 'mood'));
 
