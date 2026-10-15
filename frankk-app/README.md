@@ -1,4 +1,4 @@
-# Esther — Milestone 1 prototype
+# Esther — build 0.2.5 (prototype)
 
 An interactive, **fixture-only** prototype of Esther, the life control panel (React + TypeScript + Vite).
 It never reads or writes your Obsidian vault. All records are sample data kept in this browser's `localStorage`.
@@ -68,3 +68,14 @@ Screenshots: `docs/screens/`.
 - Column headers: click to sort (▲/▼, third click = manual order), larger resize handles, double-click to fit. Library tables too; view changes save automatically.
 - Date chips that look editable (calendar icon, dashed "Add date" when empty).
 - Type: Instrument Serif for headings, Instrument Sans for everything else.
+
+## Build 0.2.5
+The morning check. Home is built around what Frankk asked for: today's mood, what to start first, the tasks, the calendar, and one place to write anything.
+- **Matins header**: today's mood takes the greeting's place. A painted glory brightens, and the chapel darkens, the heavier the day (late items, deadlines, the B-YOU office day). A blessing pairs an Aramaic word with an inscription-style line and a verse quoted from public-domain translations (KJV, Yusuf Ali, Long, Gummere, Legge, Müller). Your saying and your motto ("An ancient dreams in a modern land") are part of it. A small month sits in the corner.
+- **Tell Esther bar**: reads plain sentences without AI: where a task belongs (B-YOU, a Seround brand, the house), its deadline or day, urgency and #tags, shown before Enter. Prefixes `i:` `p:` `c:` `j:` keep ideas, progress, context and journal lines. Tab will ask the AI once one is connected.
+- **Begin here**: what to start first and why, with a per-task shortcut that opens it.
+- **Today's journal**: every capture is a timestamped line on today's page in `Esther/Journal`; write in it directly too.
+- **Sparks**: ideas come back instead of piling up; one older idea to revisit each day, the newest below.
+- **Task details** as a property sheet; the Tasks board panels are compact summaries of their pages; table headers sit above their scrolling rows; overlay scrollbars can be dragged.
+- Life brief of Frankk's answers: `docs/LIFE-BRIEF.md`.
+- Still sample data only: no vault, phone, calendar or AI connection yet.

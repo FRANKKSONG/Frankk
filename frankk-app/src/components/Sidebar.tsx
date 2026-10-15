@@ -37,6 +37,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           <div className="vault-name"><Icon name="folder" size={16} /><span><small>Obsidian vault</small><b>Sample data</b></span></div>
           <button className="btn small" onClick={() => go('settings')} title="See Vault & storage in Settings">Not connected</button>
         </div>
+        <span className="build-tag" title="Esther build number">Esther build {__ESTHER_BUILD__}</span>
         <button className={page === 'settings' ? 'active' : ''} onClick={() => go('settings')} title="Settings"><Icon name="settings" size={18} /><span>Settings</span></button>
         <button className="nav-toggle" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? 'Expand menu' : 'Collapse menu'} title={`${collapsed ? 'Expand' : 'Collapse'} menu (Ctrl+\\)`}>
           <Icon name="chevronR" size={16} style={{ transform: collapsed ? undefined : 'rotate(180deg)' }} /><span>Collapse</span>
