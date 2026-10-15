@@ -93,6 +93,8 @@ export function defaultEntries(today: ISODate): Entry[] {
     i('e-lao-pack', 'Lao folk sample pack', { status: 'Exploring', space: 'Music', rating: 5, captured: addDays(today, -6) }, ['surftape']),
     i('e-merch', 'sundey sticker merch', { status: 'Spark', space: 'Seround', rating: 3, captured: addDays(today, -2) }, ['design']),
     i('e-studio', 'Treat the home studio walls', { status: 'Doing', space: 'Life', rating: 4, captured: addDays(today, -14) }, ['home']),
+    i('e-chant', 'Lao chant intro for the next single', { status: 'Spark', space: 'Music', captured: addDays(today, -21) }, ['surftape']),
+    i('e-audit', 'Brand audit template for Seround clients', { status: 'Spark', space: 'Seround', captured: addDays(today, -30) }, ['seround']),
   ];
 }
 
@@ -136,7 +138,7 @@ export function defaultViews(): ViewDef[] {
 }
 
 /** Bump to rebuild saved homes with a new default layout (backgrounds are kept). */
-export const HOME_REV = 4;
+export const HOME_REV = 5;
 
 export function defaultDashboard(): Dashboard {
   const W = (id: string, kind: Dashboard['widgets'][number]['kind'], title: string, config: Dashboard['widgets'][number]['config'] = {}, color?: string) => ({ id, kind, title, config, color });
@@ -150,13 +152,13 @@ export function defaultDashboard(): Dashboard {
       W('w-week', 'week', 'This week'),
       W('w-music', 'music', 'Music'),
       W('w-money', 'money', 'Money & bills'),
-      W('w-ideas', 'view', 'Ideas', { viewId: 'v-ideas' }),
+      W('w-sparks', 'sparks', 'Sparks', {}, '#d4a03c'),
     ],
     layout: [
       // three columns that end level, sized to what they hold; the calendar lives in the Matins header
       { i: 'w-begin', x: 0, y: 0, w: 8, h: 6 }, { i: 'w-journal', x: 0, y: 6, w: 8, h: 7 },
       { i: 'w-today', x: 8, y: 0, w: 8, h: 7 }, { i: 'w-money', x: 8, y: 7, w: 8, h: 6 },
-      { i: 'w-music', x: 16, y: 0, w: 8, h: 6 }, { i: 'w-ideas', x: 16, y: 6, w: 8, h: 7 },
+      { i: 'w-music', x: 16, y: 0, w: 8, h: 6 }, { i: 'w-sparks', x: 16, y: 6, w: 8, h: 7 },
       { i: 'w-week', x: 0, y: 13, w: 24, h: 4 },
     ],
   };

@@ -42,3 +42,29 @@ describe('the bar and the journal', () => {
     ]);
   });
 });
+
+import { pickSparks, ideaAge } from './lib/sparks';
+
+describe('sparks', () => {
+  it('brings back the idea left alone longest (at least a week old), and lists the newest sparks', () => {
+    const d = buildFixtures(TODAY);
+    const { revisit, fresh } = pickSparks(d, TODAY);
+    expect(revisit?.id).toBe('e-audit'); // caught 30 days ago, never revisited
+    expect(fresh.map((e) => e.id)).not.toContain('e-audit');
+    expect(fresh[0].id).toBe('e-merch'); // the newest spark first
+  });
+  it('a kept idea rests three weeks; shelved and in-progress ideas leave', () => {
+    const d = buildFixtures(TODAY);
+    d.entries = d.entries.map((e) => (e.id === 'e-audit' ? { ...e, props: { ...e.props, revisited: TODAY } } : e.id === 'e-chant' ? { ...e, props: { ...e.props, status: 'Shelved' } } : e));
+    const { revisit, fresh } = pickSparks(d, TODAY);
+    expect(revisit?.id).not.toBe('e-audit');
+    expect([revisit?.id, ...fresh.map((e) => e.id)]).not.toContain('e-chant');
+    expect(d.entries.find((e) => e.id === 'e-studio')).toBeTruthy();
+    expect([revisit?.id, ...fresh.map((e) => e.id)]).not.toContain('e-studio'); // already Doing
+  });
+  it('says how old an idea is in short words', () => {
+    const d = buildFixtures(TODAY);
+    expect(ideaAge(d.entries.find((e) => e.id === 'e-merch')!, TODAY)).toBe('2d');
+    expect(ideaAge(d.entries.find((e) => e.id === 'e-chant')!, TODAY)).toBe('3w');
+  });
+});

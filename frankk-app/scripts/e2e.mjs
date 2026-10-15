@@ -62,6 +62,14 @@ await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitF
   const jw = page.getByLabel('Write in today’s journal');
   await jw.fill('quiet walk with Goose and Miko'); await jw.press('Enter');
   check('Journal: write a line straight into today\'s page from the widget', /- \d\d:\d\d · quiet walk with Goose and Miko/.test((await store()).notes.find((n) => n.id === 'journal-2026-10-14').body) && (await jw.inputValue()) === '');
+  const sp = page.locator('[data-widget="w-sparks"]');
+  check('Sparks: an old idea comes back to revisit; the one you just typed is listed first', (await sp.locator('.sp-big').textContent()).includes('Brand audit') && (await sp.locator('.sp-row').first().textContent()).includes('neon chant intro'));
+  const t0 = (await store()).tasks.length;
+  await sp.getByRole('button', { name: 'Make it a task' }).click();
+  const st3 = await store();
+  check('Sparks: "Make it a task" turns the idea into a General task and marks it Doing', st3.tasks.length === t0 + 1 && st3.tasks.some((t) => t.title === 'Brand audit template for Seround clients') && st3.entries.find((e) => e.id === 'e-audit').props.status === 'Doing');
+  await sp.getByRole('button', { name: 'Keep' }).click();
+  check('Sparks: Keep rests the idea and brings the next one', (await store()).entries.find((e) => e.id === 'e-chant').props.revisited === '2026-10-14' && await sp.locator('.sp-revisit').count() === 0);
   await bar.fill('what did Jing say'); await bar.press('Tab');
   check('Command bar: Tab switches to asking Esther', await page.locator('.ask-bar.cmd.ai').count() === 1);
   await bar.press('Escape');

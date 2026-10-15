@@ -84,7 +84,7 @@ export interface ViewDef {
   widths?: Record<string, number>;
 }
 
-export type WidgetKind = 'stat' | 'today' | 'week' | 'music' | 'money' | 'view' | 'note' | 'image' | 'capture' | 'notes-recent' | 'begin' | 'calendar' | 'journal';
+export type WidgetKind = 'stat' | 'today' | 'week' | 'music' | 'money' | 'view' | 'note' | 'image' | 'capture' | 'notes-recent' | 'begin' | 'calendar' | 'journal' | 'sparks';
 export type StatMetric = 'due-today' | 'overdue' | 'open-tasks' | 'bills-unpaid' | 'release-progress' | 'done-week' | 'notes-count' | 'records-count';
 
 export interface WidgetDef {

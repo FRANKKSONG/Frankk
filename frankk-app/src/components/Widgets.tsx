@@ -13,6 +13,9 @@ import { addDays, longToday, monthKey, monthName, parseISO, relLabel, weekdaySho
 import { beginOrder, canOpenHere } from '../lib/begin';
 import { detectKind, findJournal, parseJournal, KINDS } from '../lib/journal';
 import { useJournal } from './CommandBar';
+import { RecordDrawer } from './RecordDrawer';
+import { useContextMenu } from './ContextMenu';
+import { pickSparks, ideaAge } from '../lib/sparks';
 import { projectProgress, stageComplete } from '../lib/progress';
 import { recordsOf } from '../lib/records';
 import { renderMarkdown } from '../lib/markdown';
@@ -24,6 +27,7 @@ import type { AppData } from '../data/types';
 
 export const WIDGET_CATALOG: { kind: WidgetDef['kind']; name: string; blurb: string; icon: Parameters<typeof Icon>[0]['name']; size: { w: number; h: number }; config?: WidgetDef['config'] }[] = [
   { kind: 'begin', name: 'Begin here', blurb: 'What to start first, why, and a shortcut that opens it', icon: 'bolt', size: { w: 8, h: 7 } },
+  { kind: 'sparks', name: 'Sparks', blurb: 'Your newest ideas, one older idea to revisit each day, and a one-click way to act on them', icon: 'idea', size: { w: 8, h: 7 } },
   { kind: 'calendar', name: 'Calendar', blurb: 'The month, and what falls on the day you pick', icon: 'calendar', size: { w: 8, h: 12 } },
   { kind: 'journal', name: 'Today’s journal', blurb: 'What you wrote today: progress, context, ideas and journal lines', icon: 'note', size: { w: 8, h: 8 } },
   { kind: 'stat', name: 'Number', blurb: 'One big number: due today, overdue, bills, release progress…', icon: 'bolt', size: { w: 6, h: 4 }, config: { metric: 'open-tasks' } },
@@ -82,6 +86,7 @@ export function WidgetBody({ w }: { w: WidgetDef }) {
     case 'begin': return <BeginWidget />;
     case 'calendar': return <CalendarWidget />;
     case 'journal': return <JournalWidget />;
+    case 'sparks': return <SparksWidget />;
   }
 }
 
@@ -324,6 +329,63 @@ function JournalWidget() {
         onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } else if (e.key === 'Escape') setText(''); }} />
       <span className="wj-hint">Enter writes it with the time · start with p: for progress, c: for context</span>
       {page && <button className="link-btn wj-open" onClick={() => go('notes', { noteId: page.id })}>Open today’s page</button>}
+    </div>
+  );
+}
+
+/* ---------- Sparks: ideas you come back to, not a board you file into ---------- */
+
+function SparksWidget() {
+  const { data, today, dispatch } = useStore();
+  const { go, say } = useUi();
+  const journal = useJournal();
+  const menu = useContextMenu();
+  const [open, setOpen] = useState<string | null>(null);
+  const { fresh, revisit, counts } = useMemo(() => pickSparks(data, today), [data, today]);
+  const space = (e: { props: Record<string, unknown> }) => String(e.props.space ?? '');
+  const toTask = (e: { id: string; title: string; props: Record<string, unknown> }) => {
+    const sp = space(e).toLowerCase();
+    dispatch({ type: 'task/add', title: e.title, area: 'general', extra: { tags: sp ? [sp] : [], mode: 'simple', notes: 'From an idea in your Sparks.' } });
+    dispatch({ type: 'record/set', typeId: 'idea', id: e.id, key: 'status', value: 'Doing' });
+    journal('task', `${e.title} (from an idea)`);
+    say(`“${e.title}” is now a task in General.`, true);
+  };
+  const shelve = (e: { id: string; title: string }) => { dispatch({ type: 'record/set', typeId: 'idea', id: e.id, key: 'status', value: 'Shelved' }); say(`Shelved “${e.title}”.`, true); };
+  const keep = (e: { id: string; title: string }) => { dispatch({ type: 'record/set', typeId: 'idea', id: e.id, key: 'revisited', value: today }); say(`Kept “${e.title}”. It will come back in a few weeks.`); };
+  const rowMenu = (ev: React.MouseEvent, e: { id: string; title: string; props: Record<string, unknown> }) => menu(ev, [
+    { label: 'Open', icon: 'external', onClick: () => setOpen(e.id) },
+    { label: 'Make it a task', icon: 'check', onClick: () => toTask(e) },
+    { label: 'Mark as exploring', icon: 'idea', onClick: () => dispatch({ type: 'record/set', typeId: 'idea', id: e.id, key: 'status', value: 'Exploring' }) },
+    { label: 'Shelve', icon: 'trash', danger: true, sep: true, onClick: () => shelve(e) },
+  ]);
+  const row = (e: (typeof fresh)[number]) => (
+    <li key={e.id} className="sp-row" onContextMenu={(ev) => rowMenu(ev, e)}>
+      <i className={`sp-dot sp-${space(e).toLowerCase() || 'none'}`} title={space(e) || 'No space'} />
+      <button className="w-item sp-title" onClick={() => setOpen(e.id)}>{e.title}</button>
+      <span className="sp-age">{ideaAge(e, today)}</span>
+      <span className="sp-acts">
+        <button className="icon-btn tiny" aria-label={`Make “${e.title}” a task`} title="Make it a task" onClick={() => toTask(e)}><Icon name="check" size={12} /></button>
+      </span>
+    </li>
+  );
+  return (
+    <div className="w-sparks">
+      {revisit && (
+        <div className="sp-revisit" onContextMenu={(ev) => rowMenu(ev, revisit)}>
+          <span className="sp-kicker">Revisit · {ideaAge(revisit, today)} old{space(revisit) ? ` · ${space(revisit)}` : ''}</span>
+          <button className="sp-big" onClick={() => setOpen(revisit.id)}>{revisit.title}</button>
+          <span className="sp-q">Still alive?</span>
+          <span className="sp-btns">
+            <button className="btn small primary" onClick={() => toTask(revisit)}>Make it a task</button>
+            <button className="btn small" onClick={() => keep(revisit)}>Keep</button>
+            <button className="btn small ghost" onClick={() => shelve(revisit)}>Shelve</button>
+          </span>
+        </div>
+      )}
+      {fresh.length > 0 ? <ul className="sp-list" aria-label="Newest sparks">{fresh.map(row)}</ul>
+        : !revisit && <p className="w-empty">No sparks yet. Type <code>idea:</code> in the bar above to keep one.</p>}
+      <footer className="sp-foot"><span>{counts.spark} spark{counts.spark === 1 ? '' : 's'} · {counts.exploring} exploring</span><button className="link-btn" onClick={() => go('library')}>Idea board</button></footer>
+      {open && <RecordDrawer typeId="idea" id={open} onClose={() => setOpen(null)} />}
     </div>
   );
 }
