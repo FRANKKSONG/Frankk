@@ -620,7 +620,7 @@ Deno.serve(async (req) => {
 		if (path.endsWith("/health")) {
 			const waiting = await db("esther_inbox?taken_at=is.null&select=id");
 			const ctx = await db("esther_context?id=eq.1&select=id");
-			const telegram = await ensureWebhook().catch(() => false);
+			const telegram = await Promise.race([ensureWebhook().catch(() => false), new Promise((r) => setTimeout(() => r(false), 5e3))]);
 			return json({
 				ok: true,
 				telegram,

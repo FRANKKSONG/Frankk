@@ -31,11 +31,11 @@ export interface Health { ok: boolean; telegram: boolean; jev: boolean; inbox: n
 export interface InboxRow { id: string; created_at: string; source: string; raw: string; parsed: Parsed; sorted_by: string }
 
 export const cloud = {
-  health: (cfg?: CloudCfg) => call<Health>('health', {}, 6000, cfg ?? cloudCfg()),
+  health: (cfg?: CloudCfg) => call<Health>('health', {}, 25000, cfg ?? cloudCfg()),
   /** Ask the cloud (Jev) to place a sentence the local reader wasn't sure about. */
   sort: (text: string, today: string) => call<{ parsed: Parsed; sortedBy: string }>('sort', { method: 'POST', body: JSON.stringify({ text, today }) }, 3500),
   /** Captures from your phone that haven't been brought in yet; the cloud marks them as taken. */
-  pull: () => call<{ rows: InboxRow[] }>('inbox', {}, 6000),
+  pull: () => call<{ rows: InboxRow[] }>('inbox', {}, 15000),
   /** Tells the cloud your brands and projects, so phone captures and Jev choose from your real lists. */
   pushContext: (data: AppData) => call<{ ok: boolean }>('context', { method: 'PUT', body: JSON.stringify(contextOf(data)) }, 6000),
 };

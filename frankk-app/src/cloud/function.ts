@@ -181,7 +181,8 @@ Deno.serve(async (req) => {
     if (path.endsWith('/health')) {
       const waiting = await db('esther_inbox?taken_at=is.null&select=id');
       const ctx = await db('esther_context?id=eq.1&select=id');
-      const telegram = await ensureWebhook().catch(() => false);
+      // Connecting Telegram never holds up the test for more than 5 seconds.
+      const telegram = await Promise.race([ensureWebhook().catch(() => false), new Promise<boolean>((r) => setTimeout(() => r(false), 5000))]);
       return json({ ok: true, telegram, jev: !!env('JEV_API_KEY'), inbox: waiting?.length ?? 0, context: !!ctx?.length });
     }
     if (path.endsWith('/sort') && req.method === 'POST') {
