@@ -1,5 +1,6 @@
 import { todayISO } from '../lib/dates';
 import { buildFixtures } from './fixtures';
+import { HOME_REV, defaultDashboard } from './defaults';
 import type { AppData } from './types';
 import type { FieldDef } from './schema';
 
@@ -36,6 +37,11 @@ function migratePeople(d: AppData): AppData {
   };
 }
 
+/** Saved homes from before the morning check get the new default layout once; their background and dimming stay. */
+function migrateHome(d: AppData): AppData {
+  return { ...d, dashboards: d.dashboards.map((x) => (x.id === 'd-home' && (x.rev ?? 1) < HOME_REV ? { ...defaultDashboard(), background: x.background, dim: x.dim } : x)) };
+}
+
 export class FixtureRepository implements Repository {
   readonly kind = 'fixture' as const;
 
@@ -44,7 +50,7 @@ export class FixtureRepository implements Repository {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as AppData;
-        if (parsed.version === 1 && Array.isArray(parsed.tasks) && Array.isArray(parsed.tags) && Array.isArray(parsed.types)) return migratePeople(parsed);
+        if (parsed.version === 1 && Array.isArray(parsed.tasks) && Array.isArray(parsed.tags) && Array.isArray(parsed.types)) return migrateHome(migratePeople(parsed));
       }
     } catch {
       /* corrupt or unavailable storage: fall back to the sample data */

@@ -14,13 +14,14 @@ import { newId } from '../data/fixtures';
 import { PIGMENTS } from '../data/types';
 import { AppearanceButton } from '../components/Appearance';
 import { Matins } from '../components/Matins';
+import { CommandBar } from '../components/CommandBar';
 import type { ThemePrefs } from '../lib/theme';
 import type { WidgetDef } from '../data/schema';
 
 /** Home: an at-a-glance dashboard you build yourself out of widgets. */
 export function HomePage({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
   const { data, today, dispatch } = useStore();
-  const { setPalette, go } = useUi();
+  const { setPalette } = useUi();
   const dash = data.dashboards[0];
   const [editing, setEditing] = useState(false);
   const { width, containerRef, mounted } = useContainerWidth();
@@ -45,7 +46,7 @@ export function HomePage({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t:
             <p className="hp-date">{longToday(today)}</p>
           </div>
         </div>
-        <button className="ask-bar" onClick={() => go('notes')}><Icon name="sparkle" size={16} /><span>Ask Esther or search your library…</span></button>
+        <CommandBar />
         <div className="head-actions">
           <button className="btn" onClick={() => setPalette(true)} aria-label="Search (Ctrl+K)"><Icon name="search" size={14} /> Search</button>
           <AppearanceButton prefs={theme} setPrefs={setTheme} />

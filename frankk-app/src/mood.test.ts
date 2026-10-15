@@ -33,10 +33,13 @@ describe('blessing', () => {
     expect(b.verse.moods).toContain('chill');
   });
   it('a day with a lot already late picks a verse for hard days', () => {
-    expect(blessing(TODAY, 'locked', 0, 'Frankk', true).verse.hard).toBe(true);
+    expect(blessing(TODAY, 'locked', 0, true).verse.hard).toBe(true);
   });
-  it('speaks to you by name', () => {
-    expect(blessing(TODAY, 'steady').line).toContain('Frankk');
+  it('never names anyone, so it reads like an inscription', () => {
+    for (let t = 0; t < 12; t++) expect(blessing(TODAY, 'steady', t).line).not.toMatch(/Frankk|Anousone/);
+  });
+  it('your own sayings come round too', () => {
+    expect(Array.from({ length: 12 }, (_, t) => blessing(TODAY, 'focused', t)).some((b) => b.yours)).toBe(true);
   });
 });
 

@@ -135,27 +135,27 @@ export function defaultViews(): ViewDef[] {
   ];
 }
 
+/** Bump to rebuild saved homes with a new default layout (backgrounds are kept). */
+export const HOME_REV = 2;
+
 export function defaultDashboard(): Dashboard {
   const W = (id: string, kind: Dashboard['widgets'][number]['kind'], title: string, config: Dashboard['widgets'][number]['config'] = {}, color?: string) => ({ id, kind, title, config, color });
   return {
-    id: 'd-home', name: 'Home', background: 'inherit', dim: 0.78,
+    id: 'd-home', name: 'Home', background: 'inherit', dim: 0.78, rev: HOME_REV,
+    // The morning check: what to start, today's tasks, the calendar, and what you've written today; the rest of life below.
     widgets: [
-      W('w-due', 'stat', 'Due today', { metric: 'due-today' }, '#d4a03c'),
-      W('w-over', 'stat', 'Overdue', { metric: 'overdue' }, '#c8553a'),
-      W('w-bills', 'stat', 'Bills unpaid', { metric: 'bills-unpaid' }, '#3f9a80'),
-      W('w-rel', 'stat', 'Next single', { metric: 'release-progress' }, '#4c6fb8'),
+      W('w-begin', 'begin', 'Begin here', {}, '#d4a03c'),
       W('w-today', 'today', 'Today'),
+      W('w-cal', 'calendar', 'Calendar'),
+      W('w-journal', 'journal', 'Today’s journal', {}, '#8a6fb8'),
       W('w-week', 'week', 'This week'),
       W('w-music', 'music', 'Music'),
       W('w-money', 'money', 'Money & bills'),
-      W('w-notes', 'notes-recent', 'From the library'),
-      W('w-capture', 'capture', 'Quick capture'),
-      W('w-ideas', 'view', 'Ideas', { viewId: 'v-ideas' }),
     ],
     layout: [
-      { i: 'w-due', x: 0, y: 0, w: 6, h: 3 }, { i: 'w-over', x: 6, y: 0, w: 6, h: 3 }, { i: 'w-bills', x: 12, y: 0, w: 6, h: 3 }, { i: 'w-rel', x: 18, y: 0, w: 6, h: 3 },
-      { i: 'w-today', x: 0, y: 3, w: 8, h: 9 }, { i: 'w-week', x: 8, y: 3, w: 16, h: 4 }, { i: 'w-music', x: 8, y: 7, w: 9, h: 5 }, { i: 'w-money', x: 17, y: 7, w: 7, h: 5 },
-      { i: 'w-capture', x: 0, y: 12, w: 8, h: 5 }, { i: 'w-notes', x: 8, y: 12, w: 7, h: 5 }, { i: 'w-ideas', x: 15, y: 12, w: 9, h: 5 },
+      { i: 'w-begin', x: 0, y: 0, w: 8, h: 7 }, { i: 'w-today', x: 8, y: 0, w: 8, h: 16 }, { i: 'w-cal', x: 16, y: 0, w: 8, h: 16 },
+      { i: 'w-journal', x: 0, y: 7, w: 8, h: 9 }, { i: 'w-week', x: 0, y: 16, w: 24, h: 4 },
+      { i: 'w-music', x: 0, y: 20, w: 13, h: 6 }, { i: 'w-money', x: 13, y: 20, w: 11, h: 6 },
     ],
   };
 }

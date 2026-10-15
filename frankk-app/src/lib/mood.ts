@@ -1,7 +1,7 @@
 import { buildAgenda } from './agenda';
 import { addDays, parseISO, type ISODate } from './dates';
 import { checklistProgress } from './progress';
-import { ARAMAIC, VERSES, type Mood, type Verse } from '../data/verses';
+import { ARAMAIC, SAYINGS, VERSES, type Mood, type Verse } from '../data/verses';
 import type { AppData } from '../data/types';
 
 export const MOODS: { id: Mood; label: string; hint: string }[] = [
@@ -43,45 +43,54 @@ export function dayLoad(data: AppData, today: ISODate): Load {
   return { score, mood, reasons, overdue, dueToday, officeDay };
 }
 
+/**
+ * The line before the verse: short, old-sounding sayings that never name anyone, so they read like an inscription.
+ * Your own saved sayings join every mood's list.
+ */
 const LINES: Record<Mood, string[]> = {
   locked: [
-    'Rise, {name}. The day is heavy, and thou art equal to it.',
-    'Gird thyself, {name}; the field is wide and the hour is short.',
-    'Bar the gate against distraction, {name}. Today the work is the prayer.',
+    'The furnace is lit. What is gold in thee will stay.',
+    'Heavy days are the forge where the strong are made.',
+    'Close the gates. Let the work be the prayer.',
+    'What is carried today need not be carried tomorrow.',
   ],
   focused: [
-    'Set thy hand to the plough, {name}, and look not back.',
-    'One labour at a time, {name}; let each be finished ere the next is begun.',
-    'The road is full but plain, {name}. Walk it in order.',
+    'The arrow does not look at the other targets.',
+    'One road, walked to its end.',
+    'Finish, and only then begin.',
+    'A single flame, held still, burns through the night.',
   ],
   steady: [
-    'Walk at the pace of the candle, {name}: steady, and never out.',
-    'A fair day lies before thee, {name}. Tend it as a garden.',
-    'Neither haste nor sloth today, {name}; the middle way is the strong one.',
+    'The lamp burns longest at a low flame.',
+    'Slow rivers cut the deepest stone.',
+    'Neither haste nor sloth; the middle way is strong.',
+    'Tend the day as a monk tends his garden.',
   ],
   chill: [
-    'Peace upon thee this morn, {name}. The field is fallow; let it rest.',
-    'The bells are quiet today, {name}. Mend thy strength.',
-    'Little is asked of thee today, {name}. Receive the day as a gift.',
+    'The field that rests bears the fuller grain.',
+    'Even the bells keep silence between the hours.',
+    'Stillness, too, is a labour.',
+    'The vine does not hurry, and yet the wine is made.',
   ],
 };
 
 /** A small, stable number from text, so a day keeps its blessing until you ask for another. */
 function seed(s: string) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-export interface Blessing { word: (typeof ARAMAIC)[number]; line: string; verse: Verse }
+export interface Blessing { word: (typeof ARAMAIC)[number]; line: string; yours: boolean; verse: Verse }
 
 /** The morning blessing for a day and mood. `turn` steps to another verse and line; the same inputs always give the same words. */
-export function blessing(today: ISODate, mood: Mood, turn = 0, name = 'Frankk', hard = false): Blessing {
+export function blessing(today: ISODate, mood: Mood, turn = 0, hard = false): Blessing {
   const s = seed(today);
   const pool = VERSES.filter((v) => v.moods.includes(mood) && (!hard || v.hard));
   const verses = pool.length ? pool : VERSES.filter((v) => v.moods.includes(mood));
   const words = ARAMAIC.filter((w) => w.moods.includes(mood));
-  const lines = LINES[mood];
+  const lines = [...LINES[mood].map((t) => ({ t, yours: false })), ...SAYINGS.map((t) => ({ t, yours: true }))];
   return {
     // each turn moves every part one step on, so "another" never repeats until the list comes round again
     word: words[((s >>> 5) + turn) % words.length],
-    line: lines[((s >>> 3) + turn) % lines.length].replace('{name}', name),
+    line: lines[((s >>> 3) + turn) % lines.length].t,
+    yours: lines[((s >>> 3) + turn) % lines.length].yours,
     verse: verses[(s + turn) % verses.length],
   };
 }

@@ -41,22 +41,38 @@ await page.goto(BASE); await page.waitForSelector('.homepage'); await page.waitF
   check('Matins: tap a mood to set it yourself; the dial and blessing follow', await mt.getByRole('radio', { name: 'Chill' }).getAttribute('aria-checked') === 'true' && (await mt.locator('.mt-why').textContent()).includes('Set by you'));
   await mt.getByRole('button', { name: /use Esther/ }).click();
 }
-const overdueNum = await page.locator('[data-widget="w-over"] .w-stat-num').textContent();
-check('Home: at-a-glance numbers come from the data (2 overdue)', overdueNum === '2', overdueNum);
-check('Home: Today, This week, Music, Money widgets render', (await page.locator('.wcard').count()) >= 10 && (await page.locator('.w-week .w-day').count()) === 7);
+{
+  const begin = page.locator('[data-widget="w-begin"]');
+  check('Home: Begin here puts the oldest late item first and says why', (await begin.locator('.wb-why').textContent()).startsWith('Late since') && await begin.locator('.wb-next li').count() > 0, await begin.locator('.wb-why').textContent());
+  check('Home: the morning check widgets render (Begin, Today, Calendar, Journal, This week)', ['w-begin', 'w-today', 'w-cal', 'w-journal', 'w-week'].every(Boolean) && await page.locator('[data-widget="w-cal"] .cal-grid').count() === 1 && (await page.locator('.w-week .w-day').count()) === 7);
+  const bar = page.getByLabel('Tell Esther');
+  const n0 = (await store()).tasks.length;
+  await bar.fill('Renew car insurance #car'); await bar.press('Enter');
+  const st = await store();
+  check('Command bar: Enter keeps a plain line as a General task (with #tags)', st.tasks.length === n0 + 1 && st.tasks.some((t) => t.title === 'Renew car insurance' && t.area === 'general' && t.tags.includes('car')));
+  await bar.fill('p: mixed the second verse'); await bar.press('Enter');
+  await bar.fill('idea: neon chant intro'); await bar.press('Enter');
+  const st2 = await store();
+  const jr = st2.notes.find((n) => n.id === 'journal-2026-10-14');
+  check('Command bar: p: goes to today\'s journal page (timestamped), idea: to the Ideas board', !!jr && /- \d\d:\d\d · Progress: mixed the second verse/.test(jr.body) && st2.entries.some((e) => e.typeId === 'idea' && e.title === 'neon chant intro'), jr?.body);
+  check('Home: Today\'s journal shows what you wrote', (await page.locator('[data-widget="w-journal"] .wj-lines li').count()) >= 3);
+  await bar.fill('what did Jing say'); await bar.press('Tab');
+  check('Command bar: Tab switches to asking Esther', await page.locator('.ask-bar.cmd.ai').count() === 1);
+  await bar.press('Escape');
+}
 await page.getByRole('button', { name: 'Customize' }).click();
 const wBefore = await page.locator('.wcard').count();
 await page.getByRole('button', { name: 'Add widget' }).click();
 await page.locator('.catalog-item', { hasText: 'Pinned note' }).click();
 await page.waitForTimeout(300);
 check('Home: add a widget from the catalog', (await page.locator('.wcard').count()) === wBefore + 1);
-await page.locator('[data-widget="w-capture"]').getByRole('button', { name: /Settings for/ }).click();
+await page.locator('.wcard.kind-note').last().getByRole('button', { name: /Settings for/ }).click();
 await page.getByRole('button', { name: 'Remove widget' }).click();
 check('Home: remove a widget', (await page.locator('.wcard').count()) === wBefore);
 await page.getByRole('button', { name: 'Background' }).click();
 await page.locator('.bg-tile', { hasText: 'Starred lapis' }).click();
 await page.keyboard.press('Escape');
-await page.getByRole('button', { name: 'Done' }).click();
+await page.getByRole('button', { name: 'Done', exact: true }).click();
 await reloadHome();
 check('Home: dashboard changes persist after restart', (await page.locator('.wcard').count()) === wBefore && (await store()).dashboards[0].background === 'lapis');
 

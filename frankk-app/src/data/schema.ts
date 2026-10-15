@@ -84,7 +84,7 @@ export interface ViewDef {
   widths?: Record<string, number>;
 }
 
-export type WidgetKind = 'stat' | 'today' | 'week' | 'music' | 'money' | 'view' | 'note' | 'image' | 'capture' | 'notes-recent';
+export type WidgetKind = 'stat' | 'today' | 'week' | 'music' | 'money' | 'view' | 'note' | 'image' | 'capture' | 'notes-recent' | 'begin' | 'calendar' | 'journal';
 export type StatMetric = 'due-today' | 'overdue' | 'open-tasks' | 'bills-unpaid' | 'release-progress' | 'done-week' | 'notes-count' | 'records-count';
 
 export interface WidgetDef {
@@ -103,6 +103,8 @@ export interface Dashboard {
   dim: number;
   widgets: WidgetDef[];
   layout: { i: string; x: number; y: number; w: number; h: number }[];
+  /** Layout generation; older saved homes are rebuilt around the morning check once. */
+  rev?: number;
 }
 
 /* ---------- smart field kinds ---------- */

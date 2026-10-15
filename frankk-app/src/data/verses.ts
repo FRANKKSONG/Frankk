@@ -55,3 +55,11 @@ export const ARAMAIC: { word: string; gloss: string; ref?: string; moods: Mood[]
   { word: 'Ephphatha', gloss: 'be opened', ref: 'Mark 7:34', moods: ['steady', 'focused'] },
   { word: 'Maranatha', gloss: 'our Lord, come', ref: '1 Corinthians 16:22', moods: ['locked', 'focused'] },
 ];
+
+/** Your own saved sayings, kept exactly as you wrote them. They join the blessing on any day. */
+export const SAYINGS: string[] = [
+  'The moment you\u2019re disturbed by insult or pleased by praise, you\u2019re still slave',
+];
+
+/** Your motto: written above Matins every day. */
+export const MOTTO = 'An ancient dreams in a modern land';
