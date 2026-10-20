@@ -1,4 +1,4 @@
-# Esther 1.5
+# Esther 1.6
 
 A simple to-do list for the PC that lives on your desktop, in the Esther looks (Gilded, Illuminated, Nocturne, Modern).
 React + TypeScript + Vite. Everything is saved in this browser (`localStorage`, key `esther.todo.v1`); nothing is sent anywhere.
@@ -9,26 +9,31 @@ Everything is on one page.
 - **Lists as tabs:** All, then each of your lists with its open count. `+` makes a list (name it straight away); double-click a tab to rename it; drag to reorder; right-click for colour and delete (it asks whether to move the tasks or delete them).
 - **Task table:** columns Task, List (on All), Subtasks (progress), Date. Click a column to sort, click again to reverse, “Back to my order” to return to your own order (drag ⠿). Open / Done / All toggle. The first row adds a task with Enter. Click a name to rename, the List pill to move, the date chip to set a day, ▸ for subtasks. Right-click a row to move or delete.
 - **Beside the table:** the month (dots for days with open tasks; click a day to show only that day in the table) and **This week**, Monday to Sunday, with anything still open from before. Click a task there to open it in the table.
-- **Settings menu:** the four looks, window background, highlight colour; save a copy of your tasks as `.json`; start fresh.
+- **Settings (gear):** sections like Windows 11 Settings. Look: the four looks, panel colour, opacity, blur, highlight colour, page background. Tasks: when finished tasks clear, save or load a copy as `.json`, start fresh. About: version and updates.
 - Ctrl+Z undoes the last 50 changes.
 
 ## On the desktop (Windows)
 Esther lives on the desktop like a set of Rainmeter skins: **every card is its own window** you can drag anywhere, so the desktop works like an operation room. The cards are the header (logo, greeting, gear, hide), Tasks (list tabs and the table), Calendar and This week; Settings opens as its own card from the gear.
 - Drag a card by its title area; resize it from its bottom-right corner. Each card remembers where you put it. **Double-click the Esther logo** to put every card back where it started.
+- **Snapping** (on by default, Settings → Desktop): let go of a card near another and it lines up with it, with an even 16 px gap; resizing near a neighbour's width or height matches it; screen edges snap too.
+- **Size** (Settings → Desktop): 50% to 150% for every card and its contents.
+- **Cards on and off** (Settings → Cards, or the tray's *Cards* menu): closing a card (Alt+F4) only turns it off; turn it back on there.
 - The cards keep each other up to date: a task added in Tasks shows in This week at once, picking a day on the Calendar filters Tasks, clicking a task in This week opens it in Tasks.
-- **Sits on the desktop** by default: above the wallpaper and icons, under your apps, like a Rainmeter skin set to *On desktop*. It only steps in when a card has actually fallen under the desktop, so it doesn't flicker when you minimise windows or show the desktop. Gear → *Sits*: on the desktop / like a window / always on top.
+- **Sits on the desktop** by default: above the wallpaper and icons, under your apps, like a Rainmeter skin set to *On desktop*. It only steps in when a card has actually fallen under the desktop, so it doesn't flicker when you minimise windows or show the desktop. Settings → Desktop → *Where the cards sit*: on the desktop / like a window / always on top.
 - **Ctrl+Alt+E** shows and hides all the cards (or brings them in front of your apps until you click elsewhere). **Esc** or the ✕ hides them. The tray icon has the rest, including *Put the cards back where they started*.
-- **Frosted glass** (Windows 11 22H2+): Windows blurs only what's behind each card, never the gaps between them. Gear → *On the desktop* turns it off (restarts to switch).
-- Text is always a solid colour; panel colour and opacity in gear → *Panels*. The Esther logo is always set in Instrument Serif.
+- **Esther's own blur:** each card shows a blurred copy of the wallpaper behind it, lined up with the real one (read from Windows' current wallpaper and checked every 20 seconds). Settings → Look → *Blur behind the cards* sets how blurry, from 0 (sharp) to 60 px; *Opacity* sets how much panel colour sits over it. The gaps between cards stay sharp.
+- **Rounded** cards and Windows 11 style menus, dropdowns and switches.
+- **No Windows window animations:** the cards are tool windows with Windows' transitions switched off (so Windhawk-style animation mods and Windows' own open/close effects leave them alone); Esther fades them in itself.
+- Text is always a solid colour. The Esther logo is always set in Instrument Serif.
 - Cards can't be maximised, snapped, minimised or made full screen, and come back on screen after a monitor change.
 - Finished tasks stay crossed out and clear themselves after a week (gear: a day, a week, a month or never).
-- Gear → *On the desktop*: the shortcut, *Start with Windows*, *Quit*.
+- Settings → Desktop: the shortcut, where the cards sit, size, snapping, *Start with Windows*. Settings → About: updates and *Quit*.
 
 **Updates itself.** Installed with the Setup file, Esther checks the release a minute after starting and every 4 hours, downloads new versions quietly, and shows *Restart to update* in the top bar (also in the gear menu and tray). If you ignore it, it installs the next time Esther quits. The portable .exe doesn't update itself.
 
 Get it from the **Esther desktop** release on GitHub (built by `.github/workflows/esther-desktop.yml` on every push): `Esther-Setup-<version>.exe` installs it for you (no admin), `Esther-<version>-portable.exe` runs without installing. The app isn't code-signed, so Windows SmartScreen will ask the first time: *More info → Run anyway*.
 
-Desktop development: `npm run desktop` (opens it), `npm run test:desktop` (31 checks, plus window-stack checks on Windows inside Electron; on Linux run it with `xvfb-run`), `npm run build:desktop` (Windows installer, on Windows).
+Desktop development: `npm run desktop` (opens it), `npm run test:desktop` (44 checks, plus window-stack checks on Windows inside Electron; on Linux run it with `xvfb-run`), `npm run build:desktop` (Windows installer, on Windows).
 
 The first time 1.0 opens, tasks from the earlier Esther (key `esther.proto.data.v4`) are brought over: General, Seround, House and B-YOU become lists, steps become subtasks, the plan or due day becomes the date. The old data is left untouched.
 

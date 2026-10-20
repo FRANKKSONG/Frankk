@@ -8,6 +8,17 @@ const { app, BrowserWindow, globalShortcut } = require('electron');
 process.env.ESTHER_TEST = '1';
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'esther-desk-'));
 app.setPath('userData', userData);
+// A test wallpaper (a 64×36 gradient PNG) for Esther's own blur.
+process.env.ESTHER_WALLPAPER = path.join(userData, 'wall.png');
+fs.writeFileSync(process.env.ESTHER_WALLPAPER, (() => {
+  const zlib = require('node:zlib');
+  const W = 64, H = 36, raw = Buffer.alloc((W * 4 + 1) * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) raw.set([x * 4, y * 7, 160, 255], y * (W * 4 + 1) + 1 + x * 4);
+  const crc = (b) => { let c = ~0; for (const v of b) { c ^= v; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)); } return ~c >>> 0; };
+  const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr.set([8, 6, 0, 0, 0], 8);
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+})());
 require(path.join(__dirname, '..', 'electron', 'main.cjs'));
 
 const results = [];
@@ -57,7 +68,16 @@ app.whenReady().then(async () => {
   await js('week', `[...document.querySelectorAll('.tline-title')].find((b) => b.textContent === 'Synced across cards').click()`); await wait(500);
   check('Clicking a task in the Week card opens it in the Tasks card', (await js('tasks', `document.querySelector('.task.open .task-title')?.textContent`)) === 'Synced across cards');
 
-  // Placing cards.
+  // Esther's own blur, rounded corners.
+  check('Each card gets the wallpaper behind it for its own blur', (await js('calendar', `document.documentElement.dataset.wall === '1' && getComputedStyle(document.documentElement).getPropertyValue('--wall').startsWith('url("data:image/jpeg')`)));
+  check('The blurred copy is drawn under the card, with the Blur setting', (await js('calendar', `getComputedStyle(document.querySelector('.app > .card'), '::before').filter`)).startsWith('blur('));
+  check('Cards have rounded corners', parseFloat(await js('tasks', `getComputedStyle(document.querySelector('.app > .card')).borderTopLeftRadius`)) >= 6);
+  const wx = await js('calendar', `getComputedStyle(document.documentElement).getPropertyValue('--wall-x')`);
+  C('calendar').setPosition(C('calendar').getBounds().x + 40, C('calendar').getBounds().y); await wait(500);
+  check('Moving a card keeps its blurred wallpaper lined up with the real one', parseFloat(await js('calendar', `getComputedStyle(document.documentElement).getPropertyValue('--wall-x')`)) !== parseFloat(wx));
+
+  // Placing cards (snapping off for exact sizes; it has its own check below).
+  await js('tasks', `window.estherDesktop.set({ snap: false })`);
   const t0 = C('tasks').getBounds();
   await js('tasks', `window.estherDesktop.size(700, 420)`); await wait(400);
   const t1 = C('tasks').getBounds();
@@ -68,6 +88,31 @@ app.whenReady().then(async () => {
   await js('header', `document.querySelector('.brand').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`); await wait(500);
   const home = E.defaultPlace('calendar'), now = C('calendar').getBounds();
   check('Double-clicking the Esther logo puts every card back', now.x === home.x && now.y === home.y && C('tasks').getBounds().width === E.defaultPlace('tasks').width, JSON.stringify({ home, now }));
+
+  // Snapping: a card let go near another lines up with it, with an even gap; a resize matches its neighbour.
+  await js('tasks', `window.estherDesktop.set({ snap: true })`);
+  const cal = C('calendar').getBounds(), wk = C('week').getBounds();
+  C('week').setPosition(cal.x + 9, cal.y + cal.height + 16 + 7); await wait(900);
+  const wk2 = C('week').getBounds();
+  check('Snapping: a card dropped near another lines up with it, with an even gap', wk2.x === cal.x && wk2.y === cal.y + cal.height + 16, JSON.stringify({ cal, wk2 }));
+  await js('week', `window.estherDesktop.size(${cal.width - 8}, ${wk.height})`); await wait(400);
+  check('Snapping: resizing a card near its neighbour\'s width matches it', C('week').getBounds().width === cal.width, JSON.stringify({ cal: cal.width, week: C('week').getBounds().width }));
+  E.resetLayout(); await wait(500);
+
+  // Closing a card (Alt+F4) only turns it off; Settings or the tray brings it back.
+  C('calendar').close(); await wait(400);
+  check('Closing a card hides it instead of losing it', !C('calendar').isDestroyed() && !C('calendar').isVisible() && E.prefs().hiddenCards.includes('calendar'));
+  E.hide(); await wait(300); E.show(); await wait(500);
+  check('A card you turned off stays off when Esther shows again', !C('calendar').isVisible() && C('tasks').isVisible());
+  const st2 = await js('tasks', `window.estherDesktop.set({ card: { id: 'calendar', on: true } })`); await wait(500);
+  check('Turning the card back on in Settings brings it back', C('calendar').isVisible() && st2.cards.find((c) => c.id === 'calendar').on, JSON.stringify(st2.cards));
+
+  // Size (scale).
+  const w100 = C('tasks').getBounds().width;
+  await js('tasks', `window.estherDesktop.set({ scale: 0.75 })`); await wait(600);
+  check('Size 75% shrinks every card and its contents', C('tasks').webContents.getZoomFactor() === 0.75 && Math.abs(C('tasks').getBounds().width - w100 * 0.75) <= 2, JSON.stringify({ w100, now: C('tasks').getBounds().width, z: C('tasks').webContents.getZoomFactor() }));
+  await js('tasks', `window.estherDesktop.set({ scale: 1 })`); await wait(600);
+  check('Size back to 100%', C('tasks').webContents.getZoomFactor() === 1 && Math.abs(C('tasks').getBounds().width - w100) <= 2, JSON.stringify({ w100, now: C('tasks').getBounds().width }));
 
   // Hiding and coming back.
   E.hide(); await wait(300);
@@ -85,11 +130,16 @@ app.whenReady().then(async () => {
   E.openSettings(); await wait(1500);
   const S = E.settings();
   check('The gear opens the Settings card', !!S && S.isVisible() && (await S.webContents.executeJavaScript(`document.documentElement.dataset.card`)) === 'settings');
+  check('Settings has a sidebar of sections', await S.webContents.executeJavaScript(`document.querySelectorAll('.set-nav button').length === 5 && !!document.querySelector('.set-body .set-row')`));
+  await S.webContents.executeJavaScript(`[...document.querySelectorAll('.set-nav button')].find((b) => b.textContent === 'Cards').click()`); await wait(300);
+  check('Settings → Cards lists every card with an on/off switch', (await S.webContents.executeJavaScript(`document.querySelectorAll('.set-body [role=switch]').length`)) === 4);
+  await S.webContents.executeJavaScript(`[...document.querySelectorAll('.set-nav button')].find((b) => b.textContent === 'Look').click()`); await wait(300);
   await S.webContents.executeJavaScript(`[...document.querySelectorAll('[role=radio]')].find((b) => b.textContent.includes('Illuminated')).click()`); await wait(700);
   check('Changing the look in Settings changes every card', (await js('tasks', `document.documentElement.dataset.look`)) === 'illuminated' && (await js('calendar', `document.documentElement.dataset.look`)) === 'illuminated');
 
   // Windows only: the desktop layer, checked against the real window stack.
   if (process.platform === 'win32') {
+    check('Windows: cards skip Windows\' window animations and are tool windows', IDS.every((id) => C(id).styled?.applied && C(id).styled.transitions && C(id).styled.tool), JSON.stringify(IDS.map((id) => C(id).styled)));
     const L = E.layer();
     S.hide();
     const other = new BrowserWindow({ width: 900, height: 700, x: 50, y: 50, title: 'Another app' });

@@ -3,7 +3,7 @@ import { ArchEmblem, Initial } from './components/Ornaments';
 import { ListTabs } from './components/ListTabs';
 import { TaskTable } from './components/TaskTable';
 import { MonthCalendar, ThisWeek } from './components/Side';
-import { SettingsMenu, SettingsPanel } from './components/SettingsMenu';
+import { SettingsMenu, SettingsPanel } from './components/Settings';
 import { ResizeGrip, UpdatePill } from './components/DesktopBits';
 import { Icon } from './components/Icons';
 import { card, desktop, prettyKeys } from './lib/desktop';
@@ -48,7 +48,28 @@ export default function App() {
     const root = document.documentElement;
     root.dataset.desktop = '1';
     if (card) root.dataset.card = card;
-    desktop.state().then((s) => { if (s.glass) root.dataset.glass = '1'; });
+    // Esther's own blur: the main process sends the wallpaper behind this screen and where the card sits on it,
+    // and the CSS blurs that copy under the card, so only the card is frosted, never the desktop.
+    let scale = 1, screen = { x: 0, y: 0 };
+    const place = (x: number, y: number) => {
+      root.style.setProperty('--wall-x', `${(screen.x - x) / scale}px`);
+      root.style.setProperty('--wall-y', `${(screen.y - y) / scale}px`);
+    };
+    const offBackdrop = desktop.onBackdrop((b) => {
+      scale = b.scale || 1; screen = b.screen;
+      if (!b.image) { delete root.dataset.wall; return; }
+      root.style.setProperty('--wall', `url("${b.image}")`);
+      root.style.setProperty('--wall-w', `${b.screen.width / scale}px`);
+      root.style.setProperty('--wall-h', `${b.screen.height / scale}px`);
+      place(b.x, b.y);
+      root.dataset.wall = '1';
+    });
+    const offPlace = desktop.onPlace((p) => { screen = p.screen; place(p.x, p.y); });
+    // Esther's own appear effect, in place of Windows' window animations.
+    const appear = () => { if (document.visibilityState === 'visible') { root.classList.remove('appear'); void root.offsetWidth; root.classList.add('appear'); } };
+    document.addEventListener('visibilitychange', appear);
+    appear();
+    return () => { offBackdrop?.(); offPlace?.(); document.removeEventListener('visibilitychange', appear); };
   }, []);
 
   const body = (() => {

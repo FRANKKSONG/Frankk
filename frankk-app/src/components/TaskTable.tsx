@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from './Icons';
 import { Check } from './Check';
+import { Select } from './Select';
 import { DateChip } from './DateChip';
 import { Editable } from './Editable';
 import { SortableList } from './SortableList';
@@ -95,9 +96,7 @@ function AddRow({ listId, day }: { listId: string | null; day: ISODate | null })
       <span /><Icon name="plus" size={14} />
       <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a task, Enter" aria-label="Add a task" />
       {!listId && (
-        <select className="list-pick" aria-label="List for the new task" value={target} onChange={(e) => setPick(e.target.value)}>
-          {data.lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
+        <Select className="list-pick" label="List for the new task" value={target ?? ''} onChange={setPick} options={data.lists.map((l) => ({ value: l.id, label: l.name, dot: l.color }))} />
       )}
       <span />
       <DateChip value={when} today={today} label="Date of the new task" onChange={setDate} />
@@ -138,13 +137,9 @@ function Row({ task, grip, showList, open, onOpen, listName }: { task: Task; gri
         </span>
         {showList && (
           <span className="td" role="cell">
-            <span className="list-pill" style={{ '--lc': list?.color } as React.CSSProperties}>
-              <i className="dot" style={{ background: list?.color }} />
-              <select aria-label={`List of ${task.title}`} value={task.listId} onChange={(e) => dispatch({ type: 'task/update', id: task.id, patch: { listId: e.target.value } })}>
-                {data.lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-              <span aria-hidden="true">{listName}</span>
-            </span>
+            <Select label={`List of ${task.title}`} value={task.listId} onChange={(listId) => dispatch({ type: 'task/update', id: task.id, patch: { listId } })}
+              options={data.lists.map((l) => ({ value: l.id, label: l.name, dot: l.color }))}
+              trigger={() => <span className="list-pill" style={{ '--lc': list?.color } as React.CSSProperties}><i className="dot" style={{ background: list?.color }} /><span>{listName}</span></span>} />
           </span>
         )}
         <span className="td num" role="cell">

@@ -44,7 +44,8 @@ check('This week runs Monday to Sunday', (await page.locator('.week .wday:not(.l
 
 /* ---------- table ---------- */
 await page.getByLabel('Add a task', { exact: true }).fill('Renew car insurance');
-await page.getByLabel('List for the new task').selectOption({ label: 'Home' });
+await page.getByLabel('List for the new task').click();
+await page.getByRole('option', { name: 'Home' }).click();
 await page.getByLabel('Add a task', { exact: true }).press('Enter');
 { const d = await store(); const t = d.tasks.find((x) => x.title === 'Renew car insurance'); check('Add a task from the table into a chosen list', d.lists.find((l) => l.id === t.listId).name === 'Home' && !t.date); }
 await page.getByRole('tab', { name: /^General/ }).click();

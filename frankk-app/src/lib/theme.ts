@@ -39,7 +39,7 @@ export interface ThemePrefs {
   window?: WindowPrefs;
 }
 
-export const DEFAULT_WINDOW: WindowPrefs = { background: 'millefleur', color: '#0e0c0a', opacity: 0.8, blur: 16, dim: 0.8 };
+export const DEFAULT_WINDOW: WindowPrefs = { background: 'millefleur', color: '#0e0c0a', opacity: 0.72, blur: 24, dim: 0.8 };
 
 interface Theme {
   label: string;

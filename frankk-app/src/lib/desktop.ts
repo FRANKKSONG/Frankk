@@ -1,18 +1,25 @@
 /** Present only inside the Esther desktop app (see electron/preload.cjs). */
 /** Where the window sits: on the desktop under other windows, like a normal window, or always on top. */
 export type Layer = 'desktop' | 'normal' | 'top';
-export interface DesktopState { shortcut: string; shortcutOk: boolean; layer: Layer; pinsToDesktop: boolean; glass: boolean; glassSupported: boolean; startWithWindows: boolean; version: string }
+export interface DesktopState {
+  shortcut: string; shortcutOk: boolean; layer: Layer; pinsToDesktop: boolean; snap: boolean; scale: number; scales: number[];
+  cards: { id: Card; on: boolean }[]; startWithWindows: boolean; version: string;
+}
+export interface Backdrop { image: string | null; screen: { x: number; y: number; width: number; height: number }; x: number; y: number; scale: number }
 /** The self-updater: 'dev' and 'portable' builds don't update themselves. */
 export interface UpdateStatus { state: 'idle' | 'checking' | 'current' | 'downloading' | 'ready' | 'error' | 'dev' | 'portable'; version: string; next?: string; percent?: number; error?: string }
 export interface Desktop {
   updates: { status: () => Promise<UpdateStatus>; check: () => void; install: () => void; on: (cb: (s: UpdateStatus) => void) => () => void };
   state: () => Promise<DesktopState>;
-  set: (p: Partial<Pick<DesktopState, 'shortcut' | 'layer' | 'startWithWindows' | 'glass'>>) => Promise<DesktopState>;
+  set: (p: Partial<Pick<DesktopState, 'shortcut' | 'layer' | 'startWithWindows' | 'snap' | 'scale'>> & { card?: { id: Card; on: boolean } }) => Promise<DesktopState>;
   hide: () => void;
   card: string;
   openSettings: () => void;
   closeSettings: () => void;
   resetLayout: () => void;
+  onBackdrop: (cb: (b: Backdrop) => void) => () => void;
+  onPlace: (cb: (p: { x: number; y: number; screen: Backdrop['screen'] }) => void) => () => void;
+  onChanged: (cb: () => void) => () => void;
   quit: () => void;
   size: (width: number, height: number) => void;
 }

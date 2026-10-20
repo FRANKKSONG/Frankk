@@ -384,9 +384,6 @@ span.update-pill { background: none; border-color: transparent; }
 [data-desktop] .wday.past h3 { color: var(--faint); }
 [data-desktop] :is(.card, .top, .tab-item, .tab-add) { -webkit-font-smoothing: antialiased; }
 
-/* Frosted glass (Windows 11): Windows blurs the wallpaper behind the whole window; panels sit on it as tinted glass. */
-[data-glass] body, [data-glass] .app { background: transparent !important; }
-[data-glass] .app { padding: 10px; }
 
 /* ---------- 1.5: the desktop as an operation room: every card is its own window ---------- */
 /* The Esther logo is always Instrument Serif, in every look. */
@@ -397,7 +394,6 @@ span.update-pill { background: none; border-color: transparent; }
 [data-card] .app { height: 100%; padding: 0 !important; overflow: hidden; display: block; }
 [data-card] .app > .card, [data-card] .app > .top { height: 100%; margin: 0; border-radius: var(--radius); }
 [data-card] .app > .card { display: flex; flex-direction: column; overflow: hidden; }
-[data-card][data-glass] .app > :is(.card, .top) { border-radius: 8px; } /* the same corners Windows 11 draws */
 [data-card][data-style='medieval'] .app > :is(.card, .top) { border-radius: 0; }
 [data-card] .week { overflow: auto; }
 
@@ -425,3 +421,94 @@ span.update-pill { background: none; border-color: transparent; }
 /* Calendar and week fill their cards. */
 [data-card='calendar'] .cal { justify-content: flex-start; }
 [data-card='calendar'] .cal-grid { flex: 1; align-content: space-evenly; }
+
+/* ---------- 1.6: Esther's own blur, rounded cards, Windows 11 menus, a tidier Settings ---------- */
+/* Each card is rounded, in every look (the window itself is see-through and square, so the card draws the corners). */
+[data-card] .app > :is(.card, .top) { position: relative; border-radius: 12px; }
+[data-card][data-style='medieval'] .app > :is(.card, .top) { border-radius: 6px; }
+
+/* Esther's own blur: a copy of the wallpaper, lined up with the real one, blurred by the Blur slider and tinted by
+   the panel colour at the Opacity slider. Only the card is frosted; the desktop around it stays sharp. */
+[data-card][data-wall] .app > :is(.card, .top) { isolation: isolate; overflow: hidden; background: none !important; }
+[data-card][data-wall] .app > :is(.card, .top)::before { content: ''; position: absolute; inset: -60px; z-index: -2; pointer-events: none;
+  background: var(--wall) no-repeat; background-size: var(--wall-w) var(--wall-h);
+  background-position: calc(var(--wall-x) + 60px) calc(var(--wall-y) + 60px); filter: blur(var(--blur)); }
+[data-card][data-wall] .app > :is(.card, .top)::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent); }
+
+/* Esther's own appear effect (Windows' window animations are switched off for the cards). */
+@keyframes esther-appear { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+[data-card].appear .app > :is(.card, .top) { animation: esther-appear .16s cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) { [data-card].appear .app > :is(.card, .top) { animation: none; } }
+
+/* Menus, dropdowns and right-click menus: Windows 11 (Fluent) shape in every look. */
+.popover, [data-style='medieval'] .popover { border-radius: 8px; padding: 4px; gap: 2px; border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: color-mix(in srgb, var(--pop-bg) 97%, transparent); box-shadow: 0 8px 16px rgba(0,0,0,.26), 0 0 0 .5px rgba(0,0,0,.2); }
+[data-desktop] .popover { box-shadow: 0 8px 16px rgba(0,0,0,.26); }
+.popover.settings-pop { padding: 12px 14px; }
+.popover > button, .context-menu button, .menu-item { min-height: 32px; padding: 0 12px 0 10px; border-radius: 4px; font-size: 13.5px; gap: 10px; }
+.menu-list { display: grid; gap: 2px; min-width: 160px; max-height: 320px; overflow: auto; }
+.menu-item { display: flex; align-items: center; width: 100%; text-align: left; color: var(--text); }
+.menu-item > span:not(.menu-noicon) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-item:hover, .menu-item:focus-visible { background: color-mix(in srgb, var(--text) 8%, transparent); outline: none; }
+.menu-item[aria-selected='true'] { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.menu-item svg { color: var(--accent); }
+.menu-item .dot, .select-btn .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.menu-noicon { width: 9px; flex: none; }
+.context-menu button:hover:not(:disabled), .context-menu button:focus-visible, .popover > button:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.context-menu .cm-sep { margin: 3px -4px; border-top-color: color-mix(in srgb, var(--text) 10%, transparent); }
+
+/* Dropdown buttons and switches (Windows 11 style). */
+.select-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 10px 0 12px; border-radius: 4px; font-size: 13.5px; white-space: nowrap;
+  background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid color-mix(in srgb, var(--text) 9%, transparent); color: var(--text); }
+.select-btn:hover { background: color-mix(in srgb, var(--text) 11%, transparent); }
+.select-btn > svg { color: var(--muted); margin-left: 2px; }
+.select-btn:has(.list-pill) { min-height: 0; padding: 0; background: none; border: 0; }
+.select-btn.list-pick { max-width: 150px; }
+.select-btn.list-pick > span { overflow: hidden; text-overflow: ellipsis; }
+.switch { display: inline-flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--text); }
+.switch small { min-width: 22px; font-size: 13.5px; color: var(--muted); }
+.switch .knob { position: relative; width: 40px; height: 20px; border-radius: 10px; border: 1px solid var(--muted); flex: none; transition: background .15s, border-color .15s; }
+.switch .knob::after { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.switch.on .knob { background: var(--accent); border-color: var(--accent); }
+.switch.on .knob::after { transform: translateX(20px); background: var(--accent-ink); }
+.switch:focus-visible { outline: none; }
+.switch:focus-visible .knob { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Settings: a sidebar of sections and grouped rows, like Windows 11 Settings. */
+.settings.two-pane { display: grid; grid-template-columns: 168px 1fr; gap: 16px; align-items: start; }
+.settings-card .settings.two-pane { overflow: hidden; height: 100%; }
+.set-nav { display: grid; gap: 2px; align-content: start; }
+.set-nav button { display: flex; align-items: center; gap: 12px; height: 36px; padding: 0 12px; border-radius: 4px; font-size: 14px; color: var(--text); text-align: left; position: relative; }
+.set-nav button svg { color: var(--muted); }
+.set-nav button:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.set-nav button.on { background: color-mix(in srgb, var(--text) 9%, transparent); font-weight: 600; }
+.set-nav button.on svg { color: var(--accent); }
+.set-body { min-width: 0; height: 100%; overflow: auto; padding: 0 4px 12px 0; display: grid; gap: 14px; align-content: start; }
+.set-body > h3, .set-section > h3 { margin: 2px 0 0; font: 600 20px/1.2 var(--font-body); letter-spacing: 0; }
+.set-section > h3 { font-size: 15px; margin-bottom: 8px; }
+.settings.stacked { display: grid; gap: 18px; }
+.set-group { display: grid; gap: 3px; }
+.set-row { display: flex; align-items: center; gap: 16px; min-height: 64px; padding: 12px 16px; border-radius: 6px;
+  background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid color-mix(in srgb, var(--text) 6%, transparent); }
+.set-row.wide { flex-wrap: wrap; }
+.set-row.wide .set-control { width: 100%; justify-content: flex-start; }
+.set-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.set-text b { font-weight: 500; font-size: 14px; }
+.set-text small { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.set-control { flex: none; display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.set-control output { min-width: 40px; text-align: right; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.set-control input[type=range] { width: 150px; accent-color: var(--accent); }
+.set-control .btn { min-height: 32px; border-radius: 4px; }
+.set-body .theme-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stacked .set-row { min-height: 0; padding: 10px 12px; }
+@media (max-width: 560px) { .settings.two-pane { grid-template-columns: 1fr; } .set-nav { grid-auto-flow: column; overflow-x: auto; } .set-row { flex-wrap: wrap; } }
+
+/* Icons sit on the same optical size and weight everywhere. */
+.icon-btn svg { stroke-width: 1.6; }
+.top-actions .icon-btn { width: 34px; height: 34px; border-radius: 6px; }
+.top-actions .icon-btn:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.add-row .select-btn { background: none; border-color: transparent; color: var(--muted); }
+.add-row .select-btn:hover { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
+.set-row.wide .bg-tiles { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.set-row.wide .bg-tile { width: auto; }
