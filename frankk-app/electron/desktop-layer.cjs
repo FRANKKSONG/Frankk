@@ -6,20 +6,17 @@
 //
 // How 'desktop' works (the same idea Rainmeter uses): a tiny invisible helper window is "owned" by the desktop
 // window (the one holding the icons). Windows always keeps owned windows directly above their owner, so the helper
-// sits just above the desktop. Every time Windows is about to restack Esther (WM_WINDOWPOSCHANGING) it is told to
-// go right under the helper: above the desktop, below every app. Esther itself is not owned by the desktop, so if
+// sits just above the desktop, and Esther is kept right under the helper (checked at every focus change and twice a
+// second): above the desktop, below every app. Esther itself is not owned by the desktop, so if
 // Explorer restarts Esther survives; the helper is simply made again.
 // Anywhere but Windows (or if koffi can't load) it is a normal window.
 const { BrowserWindow } = require('electron');
 
-const WM_WINDOWPOSCHANGING = 0x0046;
 const HWND_TOP = 0, HWND_BOTTOM = 1;
 const SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
 const KEEP = SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE;
 const GWLP_HWNDPARENT = -8;
 const GW_HWNDNEXT = 2, GW_OWNER = 4;
-/** WINDOWPOS on 64-bit Windows: { HWND hwnd; HWND hwndInsertAfter; ... }, so the "insert after" handle is at byte 8. */
-const INSERT_AFTER_OFFSET = 8;
 
 const handleOf = (w) => Number(w.getNativeWindowHandle().readBigUInt64LE(0));
 
@@ -34,7 +31,6 @@ function desktopLayer(win, initialMode, log = () => {}) {
   try {
     const koffi = require('koffi');
     const user32 = koffi.load('user32.dll');
-    const kernel32 = koffi.load('kernel32.dll');
     api = {
       SetWindowPos: user32.func('bool __stdcall SetWindowPos(uintptr_t hWnd, uintptr_t hWndInsertAfter, int X, int Y, int cx, int cy, uint32_t uFlags)'),
       FindWindowW: user32.func('uintptr_t __stdcall FindWindowW(str16 lpClassName, str16 lpWindowName)'),
@@ -42,8 +38,6 @@ function desktopLayer(win, initialMode, log = () => {}) {
       SetWindowLongPtrW: user32.func('intptr_t __stdcall SetWindowLongPtrW(uintptr_t hWnd, int nIndex, intptr_t dwNewLong)'),
       GetWindow: user32.func('uintptr_t __stdcall GetWindow(uintptr_t hWnd, uint32_t uCmd)'),
       IsWindow: user32.func('bool __stdcall IsWindow(uintptr_t hWnd)'),
-      // Writes bytes to an address Windows hands us (the WINDOWPOS of WM_WINDOWPOSCHANGING).
-      Poke: kernel32.func('void __stdcall RtlMoveMemory(uintptr_t Destination, const uint8_t *Source, size_t Length)'),
     };
   } catch (e) { log(`desktop layer unavailable: ${e.message}`); apply(); return plain; }
 
@@ -59,7 +53,6 @@ function desktopLayer(win, initialMode, log = () => {}) {
 
   const hwnd = handleOf(win);
   let helper = null, helperHwnd = 0, desk = 0;
-  const after = Buffer.alloc(8);
 
   /** (Re)make the helper and attach it to the desktop window. */
   function makeHelper() {
@@ -84,11 +77,10 @@ function desktopLayer(win, initialMode, log = () => {}) {
   };
   const toTop = () => api.SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, KEEP);
 
-  win.hookWindowMessage(WM_WINDOWPOSCHANGING, (_wParam, lParam) => {
-    if (!pinned() || !helperHwnd) return;
-    after.writeBigUInt64LE(BigInt(helperHwnd));
-    try { api.Poke(Number(lParam.readBigUInt64LE(0)) + INSERT_AFTER_OFFSET, after, 8); } catch { /* leave Windows' choice */ }
-  });
+  // No low-level message hooks: writing into Windows' own structures from JavaScript can land late and corrupt the
+  // window's position. Esther is placed with ordinary SetWindowPos calls instead, at every focus change and twice a
+  // second, which keeps it on the desktop without touching Windows' memory.
+  win.on('focus', () => setTimeout(toBottom, 0));
 
   // Keep it in place: Explorer restarts, the desktop being raised (Win+D), wallpaper changes. Cheap check twice a second.
   const keep = setInterval(() => { if (!win.isDestroyed() && win.isVisible() && pinned()) toBottom(); }, 500);
@@ -116,4 +108,4 @@ function desktopLayer(win, initialMode, log = () => {}) {
   };
 }
 
-module.exports = { desktopLayer, INSERT_AFTER_OFFSET };
+module.exports = { desktopLayer };
