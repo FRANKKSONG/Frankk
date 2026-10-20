@@ -35,11 +35,17 @@ export function TaskTable() {
     return [...r].sort((a, b) => (val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : 0) * sort.dir);
   }, [data, listId, day, show, sort]);
 
-  const head = (key: SortKey, label: string, cls = '') => (
-    <button className={`th ${cls}${sort.key === key ? ' sorted' : ''}`} role="columnheader" aria-sort={sort.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}
-      onClick={() => setSort((s) => (s.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : { key: 'manual', dir: 1 }))}>
-      {label}{sort.key === key && <Icon name={sort.dir === 1 ? 'up' : 'down'} size={11} />}
-    </button>
+  // Column widths: drag the line between two column headers; double-click it to go back to the usual widths.
+  const [cols, setCols] = usePersistentState<Cols>('table.cols', COLS);
+  const order: (keyof Cols)[] = allTab ? ['list', 'subs', 'date'] : ['subs', 'date'];
+  const head = (key: SortKey, label: string, cls = '', col?: keyof Cols) => (
+    <span className={`th-cell ${cls}`} role="columnheader" aria-sort={sort.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+      {col && <ColResize col={col} order={order} cols={cols} setCols={setCols} />}
+      <button className={`th ${cls}${sort.key === key ? ' sorted' : ''}`}
+        onClick={() => setSort((s) => (s.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : { key: 'manual', dir: 1 }))}>
+        {label}{sort.key === key && <Icon name={sort.dir === 1 ? 'up' : 'down'} size={11} />}
+      </button>
+    </span>
   );
   const counts = { open: 0, done: 0 };
   for (const t of data.tasks) if (!listId || t.listId === listId) counts[t.done ? 'done' : 'open']++;
@@ -57,13 +63,13 @@ export function TaskTable() {
         {day && <span className="filter-chip">{day === today ? 'Today' : longToday(day)}<button className="icon-btn tiny" aria-label="Show every day" onClick={() => setDay(null)}><Icon name="close" size={11} /></button></span>}
         {sort.key !== 'manual' && <button className="link-btn" onClick={() => setSort({ key: 'manual', dir: 1 })}>Back to my order</button>}
       </div>
-      <div className="table" role="table" aria-label="Tasks">
+      <div className="table" role="table" aria-label="Tasks" style={{ '--c-list': `${cols.list}px`, '--c-subs': `${cols.subs}px`, '--c-date': `${cols.date}px` } as React.CSSProperties}>
         <div className="tr thead" role="row">
           <span /><span />
           {head('title', 'Task')}
-          {allTab && head('list', 'List')}
-          {head('subs', 'Subtasks', 'num')}
-          {head('date', 'Date')}
+          {allTab && head('list', 'List', '', 'list')}
+          {head('subs', 'Subtasks', 'num', 'subs')}
+          {head('date', 'Date', '', 'date')}
         </div>
         <AddRow listId={listId} day={day} />
         {rows.length ? (
@@ -76,6 +82,40 @@ export function TaskTable() {
       </div>
       <p className="hint">Click a column to sort · drag ⠿ to reorder · right-click a row for more · Ctrl+Z undoes</p>
     </section>
+  );
+}
+
+type Cols = { list: number; subs: number; date: number };
+const COLS: Cols = { list: 150, subs: 110, date: 120 };
+const MIN: Cols = { list: 80, subs: 64, date: 92 };
+
+/**
+ * The line at the left edge of a column header. Dragging it moves the border between two columns: the column on the
+ * left of the line grows and this one shrinks (the Task column takes up whatever is left).
+ */
+function ColResize({ col, order, cols, setCols }: { col: keyof Cols; order: (keyof Cols)[]; cols: Cols; setCols: (c: Cols) => void }) {
+  const left = order[order.indexOf(col) - 1]; // undefined: the column on the left is Task
+  return (
+    <span className="col-resize" role="separator" aria-orientation="vertical" aria-label={`Resize the ${col === 'subs' ? 'Subtasks' : col === 'list' ? 'List' : 'Date'} column`}
+      onDoubleClick={() => setCols(COLS)}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.preventDefault(); e.stopPropagation();
+        const el = e.currentTarget, x0 = e.clientX, start = { ...cols };
+        el.setPointerCapture(e.pointerId);
+        document.documentElement.classList.add('col-resizing');
+        const move = (ev: PointerEvent) => {
+          const dx = Math.round(ev.clientX - x0);
+          const next = { ...start };
+          // Moving the line right makes this column narrower.
+          next[col] = Math.max(MIN[col], start[col] - dx);
+          if (left) next[left] = Math.max(MIN[left], start[left] + (start[col] - next[col]));
+          setCols(next);
+        };
+        const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); document.documentElement.classList.remove('col-resizing'); };
+        el.addEventListener('pointermove', move);
+        el.addEventListener('pointerup', up);
+      }} />
   );
 }
 

@@ -1,16 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { desktop, type UpdateStatus } from '../lib/desktop';
 
 
-/** Bottom-right grip: drag to resize the desktop window (transparent windows can't be resized from their edges). */
+/** Bottom-right corner: drag to resize the card (Esther resizes it itself, on the grid). Shows on hover. */
 export function ResizeGrip() {
-  const start = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   if (!desktop) return null;
   return (
     <div className="resize-grip" title="Drag to resize" aria-hidden="true"
-      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); start.current = { x: e.screenX, y: e.screenY, w: window.innerWidth, h: window.innerHeight }; }}
-      onPointerMove={(e) => { const s = start.current; if (s) desktop!.size(s.w + e.screenX - s.x, s.h + e.screenY - s.y); }}
-      onPointerUp={() => { start.current = null; }} />
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        const el = e.currentTarget;
+        el.setPointerCapture(e.pointerId);
+        desktop!.track('resize', 'start');
+        const end = () => { desktop!.track('resize', 'end'); el.removeEventListener('pointerup', end); el.removeEventListener('lostpointercapture', end); };
+        el.addEventListener('pointerup', end);
+        el.addEventListener('lostpointercapture', end);
+      }} />
   );
 }
 

@@ -148,8 +148,8 @@ input.tab-edit { width: 150px; color: var(--text); }
 .filter-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: var(--pill-radius); background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text); font-size: 13px; }
 
 .table { display: grid; }
-.tr { display: grid; grid-template-columns: 16px 22px minmax(0, 1fr) 110px 120px; align-items: center; gap: 10px; padding: 0 8px 0 2px; min-height: 42px; }
-.table-card.all .tr { grid-template-columns: 16px 22px minmax(0, 1fr) 150px 110px 120px; }
+.tr { display: grid; grid-template-columns: 16px 22px minmax(0, 1fr) var(--c-subs, 110px) var(--c-date, 120px); align-items: center; gap: 10px; padding: 0 8px 0 2px; min-height: 42px; }
+.table-card.all .tr { grid-template-columns: 16px 22px minmax(0, 1fr) var(--c-list, 150px) var(--c-subs, 110px) var(--c-date, 120px); }
 .thead { min-height: 30px; border-bottom: 1px solid var(--edge); }
 [data-style='medieval'] .thead { border-bottom-color: var(--line); }
 .th { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); font-weight: 600; justify-self: start; padding: 4px 0; }
@@ -308,10 +308,9 @@ input.tab-edit { width: 150px; color: var(--text); }
 [data-desktop] body, [data-desktop] .app { background: transparent !important; }
 [data-desktop] body::before { display: none; }
 [data-desktop] .app { padding: 8px; overflow: auto; }
-[data-desktop] .top { -webkit-app-region: drag; user-select: none; border-radius: var(--radius); margin-bottom: 10px;
+[data-desktop] .top { user-select: none; border-radius: var(--radius); margin-bottom: 10px;
   background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent); border: 1px solid var(--edge); box-shadow: var(--shadow); }
 [data-desktop][data-style='medieval'] .top { background-color: var(--bg-2); border-radius: 0; border-color: var(--line); }
-[data-desktop] .top :is(button, input, a, select) { -webkit-app-region: no-drag; }
 [data-desktop] .layout { padding: 0 0 8px; max-width: none; }
 [data-desktop] :is(.card, .tab, .popover) { backdrop-filter: none; }
 .resize-grip { position: fixed; right: 2px; bottom: 2px; width: 18px; height: 18px; cursor: nwse-resize; z-index: 700; border-radius: 0 0 6px 0;
@@ -398,8 +397,8 @@ span.update-pill { background: none; border-color: transparent; }
 [data-card] .week { overflow: auto; }
 
 /* Drag a card by its title area (anything that isn't a button, field or tab). */
-[data-card] :is(.top, .card-head, .table-tools, .tabs-wrap, .tabs) { -webkit-app-region: drag; user-select: none; }
-[data-card] :is(button, input, select, textarea, a, label, [role=tab], .tab-item, .seg, .filter-chip, .drag-grip, .list-pill) { -webkit-app-region: no-drag; }
+/* (Esther moves the card itself, see App: Windows' title-bar dragging isn't used, so buttons always click.) */
+[data-card] :is(.top, .card-head, .table-tools, .tabs-wrap, .tabs) { user-select: none; }
 [data-card] .card-head h2 { cursor: grab; }
 
 /* Tasks card: list tabs and the table in one card. */
@@ -427,29 +426,15 @@ span.update-pill { background: none; border-color: transparent; }
 [data-card] .app > :is(.card, .top) { position: relative; border-radius: 12px; }
 [data-card][data-style='medieval'] .app > :is(.card, .top) { border-radius: 6px; }
 
-/* Esther's own blur: a copy of the wallpaper, lined up with the real one, blurred by the Blur slider and tinted by
-   the panel colour at the Opacity slider. Only the card is frosted; the desktop around it stays sharp. */
-[data-card][data-wall] .app > :is(.card, .top) { isolation: isolate; overflow: hidden; background: none !important; }
-[data-card][data-wall] .app > :is(.card, .top)::before { content: ''; position: absolute; inset: -60px; z-index: -2; pointer-events: none;
-  background: var(--wall) no-repeat; background-size: var(--wall-w) var(--wall-h);
-  background-position: calc(var(--wall-x) + 60px) calc(var(--wall-y) + 60px); filter: blur(var(--blur)); }
-[data-card][data-wall] .app > :is(.card, .top)::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
-  background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent); }
-
-/* Esther's own appear effect (Windows' window animations are switched off for the cards). */
-@keyframes esther-appear { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
-[data-card].appear .app > :is(.card, .top) { animation: esther-appear .16s cubic-bezier(.2, .8, .2, 1); }
-@media (prefers-reduced-motion: reduce) { [data-card].appear .app > :is(.card, .top) { animation: none; } }
-
 /* Menus, dropdowns and right-click menus: Windows 11 (Fluent) shape in every look. */
 .popover, [data-style='medieval'] .popover { border-radius: 8px; padding: 4px; gap: 2px; border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
-  background: color-mix(in srgb, var(--pop-bg) 97%, transparent); box-shadow: 0 8px 16px rgba(0,0,0,.26), 0 0 0 .5px rgba(0,0,0,.2); }
+  background: var(--pop-bg); box-shadow: 0 8px 16px rgba(0,0,0,.26), 0 0 0 .5px rgba(0,0,0,.2); }
 [data-desktop] .popover { box-shadow: 0 8px 16px rgba(0,0,0,.26); }
 .popover.settings-pop { padding: 12px 14px; }
 .popover > button, .context-menu button, .menu-item { min-height: 32px; padding: 0 12px 0 10px; border-radius: 4px; font-size: 13.5px; gap: 10px; }
 .menu-list { display: grid; gap: 2px; min-width: 160px; max-height: 320px; overflow: auto; }
 .menu-item { display: flex; align-items: center; width: 100%; text-align: left; color: var(--text); }
-.menu-item > span:not(.menu-noicon) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-item > span:not(.menu-noicon, .menu-mark) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-item:hover, .menu-item:focus-visible { background: color-mix(in srgb, var(--text) 8%, transparent); outline: none; }
 .menu-item[aria-selected='true'] { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .menu-item svg { color: var(--accent); }
@@ -512,3 +497,70 @@ span.update-pill { background: none; border-color: transparent; }
 .add-row .select-btn:hover { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
 .set-row.wide .bg-tiles { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
 .set-row.wide .bg-tile { width: auto; }
+
+/* ---------- 1.7: Fluent glass, call-up animation, grid, date picker, tray menu, column widths ---------- */
+/* Windows 11 acrylic, done Esther's way: a pre-blurred copy of the wallpaper (worked out once, see lib/backdrop),
+   slid into line with the real one, under the panel tint and a fine grain, with Fluent's hairline edge. */
+[data-card][data-wall] .app > :is(.card, .top) { isolation: isolate; overflow: hidden; background: none !important;
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent) !important; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent) !important; }
+[data-card][data-wall] .app > :is(.card, .top)::before { content: ''; position: absolute; left: -1px; top: -1px; z-index: -2; pointer-events: none;
+  width: var(--wall-w); height: var(--wall-h); background: var(--wall) 0 0 / 100% 100% no-repeat;
+  transform: translate(var(--wall-x), var(--wall-y)); will-change: transform; }
+[data-card][data-wall] .app > :is(.card, .top)::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--noise), linear-gradient(color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent), color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent)); }
+
+/* Call-up when Esther is shown, fade-out when it's hidden: Esther's own, Windows' window animations are off. */
+@keyframes esther-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes esther-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(6px) scale(.98); } }
+[data-card].entering .app > :is(.card, .top, .tray-menu) { animation: esther-in .26s cubic-bezier(.2, .9, .25, 1) var(--enter-delay, 0ms) both; }
+[data-card].leaving .app > :is(.card, .top, .tray-menu) { animation: esther-out .14s cubic-bezier(.4, 0, 1, 1) forwards; }
+[data-card='menu'].entering .app > .tray-menu { animation-duration: .16s; }
+[data-card].leaving .resize-grip { display: none; }
+@media (prefers-reduced-motion: reduce) { [data-card].entering .app > *, [data-card].leaving .app > * { animation-duration: .01s !important; } }
+
+/* The resize corner: a small rounded corner line that follows the card's corner, only on hover. */
+.resize-grip, [data-desktop] .resize-grip { position: fixed; right: 0; bottom: 0; width: 18px; height: 18px; background: none !important; opacity: 0 !important; transition: opacity .15s; cursor: nwse-resize; z-index: 700; }
+.resize-grip::after { content: ''; position: absolute; right: 5px; bottom: 5px; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); border-bottom-right-radius: 7px; }
+.app:hover .resize-grip { opacity: .55 !important; }
+.app .resize-grip:hover { opacity: 1 !important; }
+
+/* Calendar: today is a rounded-square outline; the dates are Instrument Serif italic. */
+.day .num { font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-size: 18px; line-height: 1; font-weight: 400; }
+.day.today .num, [data-style='medieval'] .day.today .num { background: none; color: var(--accent); border: 1.5px solid var(--accent); border-radius: 8px; width: 30px; height: 30px; display: grid; place-items: center; font-weight: 400; }
+.dp-day { font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-size: 16px; }
+
+/* Date picker: Esther's own, in the Windows 11 menu shape. */
+.popover.date-pop { padding: 10px; max-width: none; }
+.date-picker { width: 252px; display: grid; gap: 8px; }
+.dp-head { display: flex; align-items: center; gap: 2px; padding-left: 6px; }
+.dp-head b { flex: 1; font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; font-size: 18px; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-grid .dow { text-align: center; font-size: 11px; color: var(--faint); padding: 2px 0; }
+.dp-day { height: 32px; border-radius: 6px; display: grid; place-items: center; color: var(--text); }
+.dp-day:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.dp-day.other { color: var(--faint); }
+.dp-day.today { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent); }
+.dp-day.on { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+.dp-quick { display: flex; flex-wrap: wrap; gap: 4px; border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent); padding-top: 8px; }
+.dp-quick button { padding: 4px 10px; border-radius: 4px; font-size: 12.5px; color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.dp-quick button:hover { background: color-mix(in srgb, var(--text) 11%, transparent); }
+.dp-quick .dp-clear { margin-left: auto; color: var(--muted); background: none; }
+
+/* Column headers: drag the line between two headers to resize; double-click it for the usual widths. */
+.th-cell { position: relative; display: flex; align-items: center; min-width: 0; height: 100%; }
+.th-cell .th { min-width: 0; overflow: hidden; }
+.col-resize { position: absolute; left: -9px; top: 4px; bottom: 4px; width: 8px; cursor: col-resize; touch-action: none; z-index: 1; }
+.col-resize::after { content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 2px; border-radius: 1px; background: transparent; transition: background .12s; }
+.thead:hover .col-resize::after { background: color-mix(in srgb, var(--text) 14%, transparent); }
+.col-resize:hover::after, .col-resizing .col-resize::after { background: var(--accent) !important; }
+.col-resizing, .col-resizing * { cursor: col-resize !important; user-select: none; }
+
+/* The tray icon's menu (Windows): a window of its own, drawn like the other menus. */
+[data-card='menu'] .app { display: block; padding: 0; height: auto; overflow: visible; }
+.tray-menu { width: 280px; padding: 4px; border-radius: 8px; background: var(--pop-bg); border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); max-height: none; display: grid; gap: 1px; }
+.tray-menu hr { border: 0; border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent); margin: 3px -4px; }
+.menu-label { margin: 4px 10px 2px; font-size: 11.5px; color: var(--faint); }
+.menu-item kbd { margin-left: auto; font: inherit; font-size: 12px; color: var(--faint); }
+.menu-mark { width: 15px; display: grid; place-items: center; flex: none; color: var(--accent); }
+.radio-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.tray-menu .menu-item > svg { color: var(--muted); }

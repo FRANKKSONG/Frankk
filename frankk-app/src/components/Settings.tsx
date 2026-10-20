@@ -132,6 +132,7 @@ const CARD_LABEL: Record<Card, { label: string; hint: string }> = {
   calendar: { label: 'Calendar', hint: 'The month. Pick a day to filter Tasks.' },
   week: { label: 'This week', hint: 'Monday to Sunday at a glance.' },
   settings: { label: 'Settings', hint: '' },
+  menu: { label: 'Menu', hint: '' },
 };
 
 function CardsSection({ st, setSt }: { st: DesktopState; setSt: (s: DesktopState) => void }) {
@@ -254,6 +255,7 @@ function AboutSection() {
         {st?.state === 'ready' ? <button className="btn primary" onClick={() => desktop!.updates.install()}>Restart to update</button>
           : st && ['idle', 'current', 'error'].includes(st.state) && <button className="btn" onClick={() => desktop!.updates.check()}>Check now</button>}
       </Row>
+      {desktop && <Row label="Window log" hint="A short record of what Esther’s windows did (shown, hidden, put back on the desktop…), with no tasks or settings in it. Save it if something flickers or won’t open, and send it along."><button className="btn" onClick={() => void desktop!.saveLog()}>Save…</button></Row>}
       {desktop && <Row label="Quit Esther" hint="Closes every card. Esther has no taskbar button; the tray icon by the clock has these settings too."><button className="btn" onClick={() => desktop!.quit()}>Quit</button></Row>}
     </div>
   );

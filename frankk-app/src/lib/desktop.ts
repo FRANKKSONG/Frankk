@@ -3,7 +3,7 @@
 export type Layer = 'desktop' | 'normal' | 'top';
 export interface DesktopState {
   shortcut: string; shortcutOk: boolean; layer: Layer; pinsToDesktop: boolean; snap: boolean; scale: number; scales: number[];
-  cards: { id: Card; on: boolean }[]; startWithWindows: boolean; version: string;
+  cards: { id: Card; on: boolean }[]; startWithWindows: boolean; version: string; visible: boolean;
 }
 export interface Backdrop { image: string | null; screen: { x: number; y: number; width: number; height: number }; x: number; y: number; scale: number }
 /** The self-updater: 'dev' and 'portable' builds don't update themselves. */
@@ -20,6 +20,13 @@ export interface Desktop {
   onBackdrop: (cb: (b: Backdrop) => void) => () => void;
   onPlace: (cb: (p: { x: number; y: number; screen: Backdrop['screen'] }) => void) => () => void;
   onChanged: (cb: () => void) => () => void;
+  onEnter: (cb: (p: { delay: number }) => void) => () => void;
+  onLeave: (cb: () => void) => () => void;
+  show: () => void;
+  track: (kind: 'move' | 'resize', phase: 'start' | 'end') => void;
+  menuSize: (width: number, height: number) => void;
+  menuClose: () => void;
+  saveLog: () => Promise<boolean>;
   quit: () => void;
   size: (width: number, height: number) => void;
 }
@@ -40,5 +47,5 @@ export function accelerator(e: { key: string; code: string; ctrlKey: boolean; al
 }
 
 /** The card this window shows in the desktop app ('' on the website, where everything is one page). */
-export type Card = 'header' | 'tasks' | 'calendar' | 'week' | 'settings';
+export type Card = 'header' | 'tasks' | 'calendar' | 'week' | 'settings' | 'menu';
 export const card = (desktop?.card || '') as Card | '';

@@ -59,7 +59,9 @@ app.whenReady().then(async () => {
   // Cards keep each other up to date.
   await js('tasks', `(() => { const i = document.querySelector('input[aria-label="Add a task"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'Synced across cards'); i.dispatchEvent(new Event('input', { bubbles: true })); i.form.requestSubmit(); })()`);
   await wait(300);
-  await js('tasks', `(() => { const row = [...document.querySelectorAll('.task')].find((r) => r.textContent.includes('Synced across cards')); const inp = row.querySelector('.date-chip input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(inp, new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)); inp.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await js('tasks', `[...document.querySelectorAll('.task')].find((r) => r.textContent.includes('Synced across cards')).querySelector('.date-chip button').click()`); await wait(300);
+  check('The date chip opens Esther\'s own rounded date picker', await js('tasks', `!!document.querySelector('.popover.date-pop .date-picker') && parseFloat(getComputedStyle(document.querySelector('.popover.date-pop')).borderTopLeftRadius) >= 6`));
+  await js('tasks', `document.querySelector('.date-pop .dp-today').click()`);
   await wait(800);
   check('A task typed in the Tasks card appears in the Week card', await js('week', `document.querySelector('.wday.today')?.textContent.includes('Synced across cards')`));
   await js('calendar', `document.querySelector('.day.today').click()`); await wait(500);
@@ -70,7 +72,8 @@ app.whenReady().then(async () => {
 
   // Esther's own blur, rounded corners.
   check('Each card gets the wallpaper behind it for its own blur', (await js('calendar', `document.documentElement.dataset.wall === '1' && getComputedStyle(document.documentElement).getPropertyValue('--wall').startsWith('url("data:image/jpeg')`)));
-  check('The blurred copy is drawn under the card, with the Blur setting', (await js('calendar', `getComputedStyle(document.querySelector('.app > .card'), '::before').filter`)).startsWith('blur('));
+  check('The frosted copy is worked out once and slid into place (no live blur filter)', await js('calendar', `(() => { const b = getComputedStyle(document.querySelector('.app > .card'), '::before'); return b.backgroundImage.startsWith('url("data:image/jpeg') && b.filter === 'none' && b.transform !== 'none'; })()`));
+  check('Fluent grain and tint over the glass', (await js('calendar', `getComputedStyle(document.querySelector('.app > .card'), '::after').backgroundImage`)).includes('data:image/png'));
   check('Cards have rounded corners', parseFloat(await js('tasks', `getComputedStyle(document.querySelector('.app > .card')).borderTopLeftRadius`)) >= 6);
   const wx = await js('calendar', `getComputedStyle(document.documentElement).getPropertyValue('--wall-x')`);
   C('calendar').setPosition(C('calendar').getBounds().x + 40, C('calendar').getBounds().y); await wait(500);
@@ -89,15 +92,29 @@ app.whenReady().then(async () => {
   const home = E.defaultPlace('calendar'), now = C('calendar').getBounds();
   check('Double-clicking the Esther logo puts every card back', now.x === home.x && now.y === home.y && C('tasks').getBounds().width === E.defaultPlace('tasks').width, JSON.stringify({ home, now }));
 
-  // Snapping: a card let go near another lines up with it, with an even gap; a resize matches its neighbour.
+  // Moving and resizing: Esther follows the mouse itself and lands the card on an 8 px grid.
   await js('tasks', `window.estherDesktop.set({ snap: true })`);
-  const cal = C('calendar').getBounds(), wk = C('week').getBounds();
-  // On Windows, snapping happens when a drag ends ('moved'), which a programmatic move doesn't send, so send it.
-  C('week').setPosition(cal.x + 9, cal.y + cal.height + 16 + 7); if (process.platform === 'win32') C('week').emit('moved'); await wait(900);
+  const { screen: scr } = require('electron');
+  let fake = { x: 0, y: 0 };
+  const realPointer = { at: E.pointer.at, down: E.pointer.down };
+  E.pointer.at = () => fake; E.pointer.down = null;
+  const wk = C('week').getBounds(), wa = scr.getDisplayMatching(wk).workArea;
+  fake = { x: wk.x + 60, y: wk.y + 20 };
+  await js('week', `window.estherDesktop.track('move', 'start')`); await wait(100);
+  fake = { x: wk.x + 60 - 37, y: wk.y + 20 - 21 }; await wait(200);
+  await js('week', `window.estherDesktop.track('move', 'end')`); await wait(200);
   const wk2 = C('week').getBounds();
-  check('Snapping: a card dropped near another lines up with it, with an even gap', wk2.x === cal.x && wk2.y === cal.y + cal.height + 16, JSON.stringify({ cal, wk2 }));
-  await js('week', `window.estherDesktop.size(${cal.width - 8}, ${wk.height})`); await wait(400);
-  check('Snapping: resizing a card near its neighbour\'s width matches it', C('week').getBounds().width === cal.width, JSON.stringify({ cal: cal.width, week: C('week').getBounds().width }));
+  check('Dragging a card by its title moves it with the mouse, onto the grid', (wk2.x - wa.x) % E.GRID === 0 && (wk2.y - wa.y) % E.GRID === 0 && Math.abs(wk2.x - (wk.x - 37)) <= 4 && Math.abs(wk2.y - (wk.y - 21)) <= 4, JSON.stringify({ wk, wk2, wa }));
+  fake = { x: wk2.x + wk2.width - 5, y: wk2.y + wk2.height - 5 };
+  await js('week', `window.estherDesktop.track('resize', 'start')`); await wait(100);
+  fake = { x: fake.x + 29, y: fake.y + 13 }; await wait(200);
+  await js('week', `window.estherDesktop.track('resize', 'end')`); await wait(200);
+  const wk3 = C('week').getBounds();
+  check('Resizing from the corner follows the mouse, edges on the grid', (wk3.x + wk3.width - wa.x) % E.GRID === 0 && (wk3.y + wk3.height - wa.y) % E.GRID === 0 && Math.abs(wk3.width - (wk2.width + 29)) <= 4, JSON.stringify({ wk2, wk3 }));
+  fake = { x: 5, y: 5 }; await wait(100);
+  check('Letting go stops following the mouse', C('week').getBounds().x === wk3.x);
+  check('Cards use no Windows title-bar dragging (buttons in them always click)', (await js('header', `[...document.querySelectorAll('*')].filter((e) => getComputedStyle(e).webkitAppRegion === 'drag').length`)) === 0);
+  E.pointer.at = realPointer.at; E.pointer.down = realPointer.down;
   E.resetLayout(); await wait(500);
 
   // Closing a card (Alt+F4) only turns it off; Settings or the tray brings it back.
@@ -115,17 +132,33 @@ app.whenReady().then(async () => {
   await js('tasks', `window.estherDesktop.set({ scale: 1 })`); await wait(600);
   check('Size back to 100%', C('tasks').webContents.getZoomFactor() === 1 && Math.abs(C('tasks').getBounds().width - w100) <= 2, JSON.stringify({ w100, now: C('tasks').getBounds().width }));
 
-  // Hiding and coming back.
-  E.hide(); await wait(300);
+  // Hiding and coming back, with Esther's own fade-out and call-up.
+  E.hide(); await wait(40);
+  check('Hiding fades the cards out first', IDS.every((id) => C(id).isVisible()) && (await js('tasks', `document.documentElement.classList.contains('leaving')`)));
+  await wait(300);
   check('Hide tucks every card away', IDS.every((id) => !C(id).isVisible()));
-  E.toggle(); await wait(500);
-  check('The shortcut brings every card back', IDS.every((id) => C(id).isVisible()));
+  E.toggle(); await wait(60);
+  check('The shortcut calls the cards up with an animation', await js('tasks', `document.documentElement.classList.contains('entering') && getComputedStyle(document.querySelector('.app > .card')).animationName === 'esther-in'`));
+  await wait(450);
+  check('The shortcut brings every card back', IDS.every((id) => C(id).isVisible()) && (await js('tasks', `getComputedStyle(document.querySelector('.app > .card')).opacity`)) === '1');
   C('week').setBounds({ x: -5000, y: -5000, width: 360, height: 300 }); await wait(200); E.show(); await wait(400);
   check('A card stranded off-screen (monitor change) comes back on screen', C('week').getBounds().x > -1000);
   if (process.platform === 'win32') check('Windows: cards can\'t be maximised, minimised or made full screen', IDS.every((id) => !C(id).isMaximizable() && !C(id).isMinimizable() && !C(id).isFullScreenable()));
   C('tasks').maximize(); await wait(300);
   check('Asking a card to maximise does nothing', !C('tasks').isMaximized());
   check('Text is a solid colour (no see-through grey)', await js('week', `(() => { const c = getComputedStyle(document.querySelector('.card-head .quiet')).color; return !c.includes('/') && !c.startsWith('rgba'); })()`));
+
+  // The tray menu: Esther's own, rounded.
+  E.openTrayMenu(); await wait(1500);
+  const M = E.menu();
+  check('The tray menu opens as a rounded Windows 11 style menu', !!M && M.isVisible() && (await M.webContents.executeJavaScript(`parseFloat(getComputedStyle(document.querySelector('.tray-menu')).borderTopLeftRadius) >= 6 && document.querySelectorAll('.tray-menu .menu-item').length >= 9`)));
+  check('The tray menu fits its items', Math.abs(M.getBounds().height - (await M.webContents.executeJavaScript(`document.querySelector('.tray-menu').offsetHeight`))) <= 2, JSON.stringify(M.getBounds()));
+  await M.webContents.executeJavaScript(`[...document.querySelectorAll('.menu-item')].find((b) => b.textContent === 'Calendar').click()`); await wait(500);
+  check('Turning a card off from the tray menu', !C('calendar').isVisible() && (await M.webContents.executeJavaScript(`document.querySelector('[role=menuitemcheckbox][aria-checked=false]')?.textContent`)) === 'Calendar');
+  await M.webContents.executeJavaScript(`[...document.querySelectorAll('.menu-item')].find((b) => b.textContent === 'Calendar').click()`); await wait(500);
+  check('…and back on', C('calendar').isVisible());
+  await M.webContents.executeJavaScript(`[...document.querySelectorAll('.menu-item')].find((b) => b.textContent === 'Settings…').click()`); await wait(1500);
+  check('Settings… in the tray menu opens Settings and closes the menu', !M.isVisible() && !!E.settings() && E.settings().isVisible());
 
   // Settings: its own card; a change there reaches the other cards.
   E.openSettings(); await wait(1500);
@@ -143,10 +176,41 @@ app.whenReady().then(async () => {
     check('Windows: cards skip Windows\' window animations and are tool windows', IDS.every((id) => C(id).styled?.applied && C(id).styled.transitions && C(id).styled.tool), JSON.stringify(IDS.map((id) => C(id).styled)));
     const L = E.layer();
     S.hide();
+    // The gear, clicked with the real mouse: nothing in the header may act as a title bar or cover it.
+    {
+      const koffi = require('koffi');
+      const u = koffi.load('user32.dll');
+      const SetCursorPos = u.func('bool __stdcall SetCursorPos(int X, int Y)');
+      const mouse_event = u.func('void __stdcall mouse_event(uint32_t f, uint32_t dx, uint32_t dy, uint32_t d, uintptr_t e)');
+      const WindowFromPoint = u.func('uintptr_t __stdcall WindowFromPoint(int64_t pt)');
+      const SendMessageW = u.func('intptr_t __stdcall SendMessageW(uintptr_t h, uint32_t m, uintptr_t w, intptr_t l)');
+      const GetAncestor = u.func('uintptr_t __stdcall GetAncestor(uintptr_t h, uint32_t f)');
+      E.show(); await wait(800);
+      const r = await js('header', `(() => { const b = document.querySelector('button[aria-label=Settings]').getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
+      const hb = C('header').getBounds(), z = C('header').webContents.getZoomFactor();
+      const dip = { x: Math.round(hb.x + r.x * z), y: Math.round(hb.y + r.y * z) };
+      const px = scr.dipToScreenPoint(dip);
+      const hh = Number(C('header').getNativeWindowHandle().readBigUInt64LE(0));
+      const under = Number(GetAncestor(Number(WindowFromPoint(BigInt(px.x) & 0xffffffffn | (BigInt(px.y) << 32n))), 2));
+      const hit = Number(SendMessageW(hh, 0x84, 0, (px.y << 16) | (px.x & 0xffff)));
+      check('Windows: the gear is on top at its spot and is a normal clickable area (not a title bar)', under === hh && hit === 1, JSON.stringify({ under, hh, hit, px }));
+      SetCursorPos(px.x, px.y); await wait(100);
+      mouse_event(0x2, 0, 0, 0, 0); await wait(60); mouse_event(0x4, 0, 0, 0, 0); await wait(1500);
+      check('Windows: clicking the gear with the mouse opens Settings', !!E.settings() && E.settings().isVisible(), E.diag.text().split('\n').slice(-12).join(' | '));
+      E.settings()?.hide();
+    }
     const other = new BrowserWindow({ width: 900, height: 700, x: 50, y: 50, title: 'Another app' });
     await other.loadURL('data:text/html,<h1>another app</h1>');
     other.show(); other.focus(); await wait(1500);
     const oh = Number(other.getNativeWindowHandle().readBigUInt64LE(0));
+    // Minimising another app leaves the cards alone: nothing hidden, minimised or re-layered.
+    {
+      const before = E.diag.text().split('\n').length;
+      other.minimize(); await wait(1200);
+      const after = E.diag.text().split('\n').slice(before - 1).join(' | ');
+      check('Windows: minimising another app doesn\'t touch the cards (no flicker)', IDS.every((id) => C(id).isVisible()) && !/(hide|minimize|restore|lowered (?!nothing)|slipped)/.test(after), after);
+      other.restore(); other.focus(); await wait(1500);
+    }
     for (const id of ['tasks', 'calendar']) {
       const d = L.debug(C(id));
       check(`Windows: after clicking another app, the ${id} card is above the desktop, under the app, and showing`, d && d.helperOwner === d.desk && d.aboveDesktop && d.below(oh) && C(id).isVisible(), JSON.stringify({ ...d, below: undefined }));

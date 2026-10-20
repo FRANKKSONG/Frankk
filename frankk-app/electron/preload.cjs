@@ -19,6 +19,16 @@ contextBridge.exposeInMainWorld('estherDesktop', {
   onPlace: (cb) => { const h = (_e, b) => cb(b); ipcRenderer.on('esther:place', h); return () => ipcRenderer.removeListener('esther:place', h); },
   /** Something in the desktop settings changed (e.g. a card was turned on or off from the tray). */
   onChanged: (cb) => { const h = () => cb(); ipcRenderer.on('esther:changed', h); return () => ipcRenderer.removeListener('esther:changed', h); },
+  /** Esther's own call-up and fade-out. */
+  onEnter: (cb) => { const h = (_e, p) => cb(p); ipcRenderer.on('esther:enter', h); return () => ipcRenderer.removeListener('esther:enter', h); },
+  onLeave: (cb) => { const h = () => cb(); ipcRenderer.on('esther:leave', h); return () => ipcRenderer.removeListener('esther:leave', h); },
+  show: () => ipcRenderer.send('esther:show'),
+  /** Move the card (or resize it from its corner) with the mouse, from now until the button is let go. */
+  track: (kind, phase) => ipcRenderer.send('esther:track', { kind, phase }),
+  /** The tray menu's size, so it can open by the mouse; and closing it. */
+  menuSize: (width, height) => ipcRenderer.send('esther:menu-size', { width, height }),
+  menuClose: () => ipcRenderer.send('esther:menu-close'),
+  saveLog: () => ipcRenderer.invoke('esther:save-log'),
   quit: () => ipcRenderer.send('esther:quit'),
   size: (width, height) => ipcRenderer.send('esther:size', { width, height }),
   updates: {

@@ -54,7 +54,8 @@ await page.getByLabel('Add a task', { exact: true }).fill('Pick up the suit');
 await page.getByLabel('Add a task', { exact: true }).press('Enter');
 { const d = await store(); const t = d.tasks.find((x) => x.title === 'Pick up the suit'); check('Adding on a list tab puts it in that list', d.lists.find((l) => l.id === t.listId).name === 'General'); }
 const suit = page.locator('.task', { hasText: 'Pick up the suit' });
-await suit.locator('.date-chip input').evaluate((el) => { const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(el, '2026-10-23'); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); });
+await suit.locator('.date-chip button').click();
+await page.locator('.date-pop [data-date="2026-10-23"]').click();
 check('Set a date in the Date column; it shows on the calendar and in This week', (await task('Pick up the suit')).date === '2026-10-23' && (await page.locator('.wday', { hasText: 'Fri 23' }).locator('.tline-title').allTextContents()).includes('Pick up the suit'));
 await suit.locator('.task-title').click();
 await page.getByRole('textbox', { name: 'Task name' }).fill('Pick up the suit (tailor)');
@@ -138,6 +139,17 @@ check('Settings: panel opacity', (await page.evaluate(() => getComputedStyle(doc
 await page.keyboard.press('Escape');
 check('One page: no sidebar or other pages', (await page.locator('.sidebar, .knight, .note-doc').count()) === 0);
 
+{
+  const h = page.locator('.th-cell', { hasText: 'Date' }).locator('.col-resize');
+  const b = await h.boundingBox();
+  await page.mouse.move(b.x + 4, b.y + b.height / 2); await page.mouse.down();
+  await page.mouse.move(b.x - 36, b.y + b.height / 2, { steps: 5 }); await page.mouse.up();
+  const w = await page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.v1.table.cols')));
+  const px = await page.locator('.thead').evaluate((el) => getComputedStyle(el).gridTemplateColumns);
+  check('Drag the line between two column headers to resize them', w.date === 160 && w.subs === 70 && px.endsWith('70px 160px'), JSON.stringify({ w, px }));
+  await h.dblclick();
+  check('Double-click the line for the usual widths', (await page.evaluate(() => JSON.parse(localStorage.getItem('esther.proto.v1.table.cols')))).date === 120);
+}
 check('No errors in the browser console', problems.length === 0, problems.join(' | '));
 await browser.close();
 console.log(`\n${results.filter(Boolean).length}/${results.length} checks passed`);

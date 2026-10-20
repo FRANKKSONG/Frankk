@@ -40,7 +40,13 @@ function desktopLayer(initialMode, log = () => {}) {
         SetWindowLongPtrW: user32.func('intptr_t __stdcall SetWindowLongPtrW(uintptr_t hWnd, int nIndex, intptr_t dwNewLong)'),
         GetWindow: user32.func('uintptr_t __stdcall GetWindow(uintptr_t hWnd, uint32_t uCmd)'),
         IsWindow: user32.func('bool __stdcall IsWindow(uintptr_t hWnd)'),
+        IsWindowVisible: user32.func('bool __stdcall IsWindowVisible(uintptr_t hWnd)'),
+        IsIconic: user32.func('bool __stdcall IsIconic(uintptr_t hWnd)'),
       };
+      try {
+        const dwm = koffi.load('dwmapi.dll');
+        api.DwmGetWindowAttribute = dwm.func('int32_t __stdcall DwmGetWindowAttribute(uintptr_t hwnd, uint32_t dwAttribute, _Out_ void *pvAttribute, uint32_t cbAttribute)');
+      } catch { /* no DWM: treat nothing as cloaked */ }
     } catch (e) { log(`desktop layer unavailable: ${e.message}`); api = null; }
   }
 
@@ -81,15 +87,35 @@ function desktopLayer(initialMode, log = () => {}) {
     for (const w of live()) {
       if (!w.isVisible()) continue;
       const h = handleOf(w);
-      if (!below(desk, h)) api.SetWindowPos(h, helperHwnd, 0, 0, 0, 0, KEEP);
+      if (!below(desk, h)) { api.SetWindowPos(h, helperHwnd, 0, 0, 0, 0, KEEP); log(`layer: ${w.getTitle()} had slipped under the desktop, put back`); }
     }
   }
-  /** After you click away: the cards go back down to the desktop (once, not in a loop). */
+  const DWMWA_CLOAKED = 14;
+  const cloaked = (h) => { if (!api.DwmGetWindowAttribute) return false; const b = Buffer.alloc(4); return api.DwmGetWindowAttribute(h, DWMWA_CLOAKED, b, 4) === 0 && b.readUInt32LE(0) !== 0; };
+  /** Is this card above some other app's window that you can see? (Then it isn't on the desktop layer any more.) */
+  function aboveAnApp(h) {
+    const ours = new Set(BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map(handleOf));
+    const desk = desktopWindow();
+    // Walk down the window stack from the card until the desktop: any app window on the way is under the card.
+    for (let w = api.GetWindow(h, GW_HWNDNEXT), i = 0; w && i < 5000; w = api.GetWindow(w, GW_HWNDNEXT), i++) {
+      if (w === helperHwnd || w === desk) return false;
+      if (!ours.has(w) && api.IsWindowVisible(w) && !api.IsIconic(w) && !cloaked(w)) return true;
+    }
+    return false;
+  }
+  /** After you click away: the cards that are above your apps go back down to the desktop (once, not in a loop).
+   *  Cards already in place aren't touched at all, so nothing redraws or flickers. */
   function lowerAll() {
     if (!api || !pinned()) return;
     if (!helperOk()) makeHelper();
     if (!helperHwnd) return;
-    for (const w of live()) if (w.isVisible()) api.SetWindowPos(handleOf(w), helperHwnd, 0, 0, 0, 0, KEEP);
+    const moved = [];
+    for (const w of live()) {
+      if (!w.isVisible()) continue;
+      const h = handleOf(w);
+      if (aboveAnApp(h)) { api.SetWindowPos(h, helperHwnd, 0, 0, 0, 0, KEEP); moved.push(w.getTitle()); }
+    }
+    log(`layer: lowered ${moved.length ? moved.join(', ') : 'nothing (all in place)'}`);
   }
   const anyFocused = () => live().some((w) => w.isFocused());
 
@@ -116,6 +142,7 @@ function desktopLayer(initialMode, log = () => {}) {
     lower() { raised = false; lowerAll(); },
     isRaised: () => raised,
     /** For the Windows test: where things are in the window stack. */
+    aboveAnApp: (w) => (api ? aboveAnApp(handleOf(w)) : false),
     debug: (w) => (api ? { hwnd: handleOf(w), helperHwnd, desk: desktopWindow(), helperOwner: helperHwnd ? api.GetWindow(helperHwnd, GW_OWNER) : 0, aboveDesktop: below(desktopWindow(), handleOf(w)), below: (other) => below(handleOf(w), other) } : null),
   };
 }

@@ -6,8 +6,10 @@ import { MonthCalendar, ThisWeek } from './components/Side';
 import { SettingsMenu, SettingsPanel } from './components/Settings';
 import { ResizeGrip, UpdatePill } from './components/DesktopBits';
 import { Icon } from './components/Icons';
-import { card, desktop, prettyKeys } from './lib/desktop';
-import { applyTheme, DEFAULT_THEME, type ThemePrefs } from './lib/theme';
+import { card, desktop, prettyKeys, type Backdrop } from './lib/desktop';
+import { applyTheme, DEFAULT_THEME, DEFAULT_WINDOW, type ThemePrefs } from './lib/theme';
+import { blurredWallpaper, noiseTile } from './lib/backdrop';
+import { TrayMenu } from './components/TrayMenu';
 import { greeting, longToday } from './lib/dates';
 import { lineFor } from './lib/greeting';
 import { useUi } from './ui';
@@ -29,7 +31,7 @@ export default function App() {
       const typing = !!(e.target as HTMLElement).closest?.('input,select,textarea,[contenteditable="true"]');
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing && canUndo) { e.preventDefault(); undo(); say('Undone.'); }
       // On the desktop, Esc tucks Esther away (or closes Settings), unless you're typing or a menu is open.
-      else if (e.key === 'Escape' && desktop && !typing && !document.querySelector('.popover')) (card === 'settings' ? desktop.closeSettings() : desktop.hide());
+      else if (e.key === 'Escape' && desktop && !typing && !document.querySelector('.popover')) (card === 'settings' ? desktop.closeSettings() : card === 'menu' ? desktop.menuClose() : desktop.hide());
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -43,13 +45,13 @@ export default function App() {
     const id = window.setInterval(run, 3_600_000);
     return () => window.clearInterval(id);
   }, [clearAfter, dispatch]);
+  // Desktop: which card this is, Esther's own frosted glass, moving by the title area, and the call-up and fade-out.
+  const [backdrop, setBackdrop] = useState<Backdrop | null>(null);
   useEffect(() => {
     if (!desktop) return;
     const root = document.documentElement;
     root.dataset.desktop = '1';
     if (card) root.dataset.card = card;
-    // Esther's own blur: the main process sends the wallpaper behind this screen and where the card sits on it,
-    // and the CSS blurs that copy under the card, so only the card is frosted, never the desktop.
     let scale = 1, screen = { x: 0, y: 0 };
     const place = (x: number, y: number) => {
       root.style.setProperty('--wall-x', `${(screen.x - x) / scale}px`);
@@ -57,20 +59,51 @@ export default function App() {
     };
     const offBackdrop = desktop.onBackdrop((b) => {
       scale = b.scale || 1; screen = b.screen;
-      if (!b.image) { delete root.dataset.wall; return; }
-      root.style.setProperty('--wall', `url("${b.image}")`);
       root.style.setProperty('--wall-w', `${b.screen.width / scale}px`);
       root.style.setProperty('--wall-h', `${b.screen.height / scale}px`);
       place(b.x, b.y);
-      root.dataset.wall = '1';
+      setBackdrop(b);
     });
     const offPlace = desktop.onPlace((p) => { screen = p.screen; place(p.x, p.y); });
-    // Esther's own appear effect, in place of Windows' window animations.
-    const appear = () => { if (document.visibilityState === 'visible') { root.classList.remove('appear'); void root.offsetWidth; root.classList.add('appear'); } };
-    document.addEventListener('visibilitychange', appear);
-    appear();
-    return () => { offBackdrop?.(); offPlace?.(); document.removeEventListener('visibilitychange', appear); };
+    // Call-up and fade-out (Windows' own window animations are off for the cards).
+    const play = (cls: 'entering' | 'leaving', delay = 0) => {
+      root.classList.remove('entering', 'leaving');
+      void root.offsetWidth; // restart the animation
+      root.style.setProperty('--enter-delay', `${delay}ms`);
+      root.classList.add(cls);
+    };
+    play('entering', Math.max(0, ['header', 'calendar', 'week', 'tasks'].indexOf(card)) * 40);
+    const offEnter = desktop.onEnter((p) => play('entering', p.delay));
+    const offLeave = desktop.onLeave(() => play('leaving'));
+    // Move a card by its title area: Esther moves the window itself (Windows' title-bar dragging is off).
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element;
+      if (e.button !== 0 || !t.closest?.(DRAG_AREAS) || t.closest(NOT_DRAG)) return;
+      desktop!.track('move', 'start');
+      root.setPointerCapture?.(e.pointerId);
+      const end = () => { desktop!.track('move', 'end'); root.removeEventListener('pointerup', end); root.removeEventListener('lostpointercapture', end); };
+      root.addEventListener('pointerup', end);
+      root.addEventListener('lostpointercapture', end);
+    };
+    root.addEventListener('pointerdown', onDown);
+    return () => { offBackdrop?.(); offPlace?.(); offEnter?.(); offLeave?.(); root.removeEventListener('pointerdown', onDown); };
   }, []);
+  // The frosted glass is worked out once per wallpaper and Blur setting (not every frame).
+  const blur = ({ ...DEFAULT_WINDOW, ...theme.window }).blur;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!backdrop?.image) { delete root.dataset.wall; return; }
+    let live = true;
+    const t = window.setTimeout(() => {
+      blurredWallpaper(backdrop.image!, backdrop.screen.width, backdrop.screen.height, blur).then((url) => {
+        if (!live) return;
+        root.style.setProperty('--wall', `url("${url}")`);
+        root.style.setProperty('--noise', `url("${noiseTile()}")`);
+        root.dataset.wall = '1';
+      }).catch(() => { delete root.dataset.wall; });
+    }, 60);
+    return () => { live = false; window.clearTimeout(t); };
+  }, [backdrop, blur]);
 
   const body = (() => {
     switch (card) {
@@ -78,6 +111,7 @@ export default function App() {
       case 'tasks': return <section className="card tasks-card" aria-label="Tasks"><ListTabs /><TaskTable /></section>;
       case 'calendar': return <MonthCalendar />;
       case 'week': return <ThisWeek />;
+      case 'menu': return <TrayMenu />;
       case 'settings': return (
         <section className="card settings-card" aria-label="Settings">
           <header className="card-head"><h2>Settings</h2><button className="icon-btn" aria-label="Close settings" onClick={() => desktop!.closeSettings()}><Icon name="close" size={16} /></button></header>
@@ -99,7 +133,7 @@ export default function App() {
   return (
     <div className={`app${card ? ` card-${card}` : ''}`}>
       {body}
-      {card !== 'header' && <ResizeGrip />}
+      {card !== 'header' && card !== 'menu' && <ResizeGrip />}
       <div className={`toast${toast ? ' show' : ''}`} role="status" aria-live="polite">
         {toast?.msg}
         {toast?.undo && canUndo && <button className="toast-undo" onClick={() => { undo(); say('Undone.'); }}>Undo</button>}
@@ -107,6 +141,10 @@ export default function App() {
     </div>
   );
 }
+
+/** Where a card can be picked up and moved, and the things inside those areas that are for clicking instead. */
+const DRAG_AREAS = '.top, .card-head, .table-tools, .tabs-wrap, .tabs, .set-nav';
+const NOT_DRAG = 'button, input, select, textarea, a, label, [role=tab], [role=switch], [contenteditable], .tab-item, .seg, .filter-chip, .drag-grip, .list-pill, .popover';
 
 /** Logo, greeting and the day's line; the gear and hide buttons. Double-click the logo to put every card back. */
 function Top({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
