@@ -39,6 +39,8 @@ jobs:
           name: Esther-windows
           path: |
             frankk-app/release/*.exe
+            frankk-app/release/latest.yml
+            frankk-app/release/*.blockmap
           if-no-files-found: error
       - name: Publish to the "Esther desktop" release
         env:
@@ -46,7 +48,9 @@ jobs:
         run: |
           version=$(node -p "require('./package.json').version")
           gh release delete esther-desktop --yes --cleanup-tag || true
-          gh release create esther-desktop release/*.exe \
+          # latest.yml tells installed copies of Esther that a new version is here (they update themselves).
+          test -f release/latest.yml
+          gh release create esther-desktop release/*.exe release/latest.yml release/*.blockmap \
             --target "$GITHUB_SHA" --prerelease \
             --title "Esther desktop $version" \
-            --notes "Esther $version for Windows. Esther-Setup-$version.exe installs it for you (no admin needed). Esther-$version-portable.exe runs without installing. Ctrl+Alt+E shows and hides it."
+            --notes "Esther $version for Windows. Install once with Esther-Setup-$version.exe (no admin needed); after that Esther updates itself. Esther-$version-portable.exe runs without installing but does not update itself. Ctrl+Alt+E shows and hides it."

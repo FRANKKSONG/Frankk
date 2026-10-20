@@ -44,6 +44,8 @@ app.whenReady().then(async () => {
   await js(`(() => { const i = document.querySelector('input[aria-label="Add a task"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'Typed on the desktop'); i.dispatchEvent(new Event('input', { bubbles: true })); i.form.requestSubmit(); })()`);
   await wait(300);
   check('You can type a task in and it is saved', await js(`JSON.parse(localStorage.getItem('esther.todo.v1')).tasks.some((t) => t.title === 'Typed on the desktop')`));
+  const up = await js(`window.estherDesktop.updates.status()`);
+  check('The updater reports its state (off when not installed)', up.state === 'dev' && up.version === app.getVersion(), JSON.stringify(up));
   console.log(`\n${results.filter(Boolean).length}/${results.length} desktop checks passed`);
   app.exit(results.every(Boolean) ? 0 : 1);
 });

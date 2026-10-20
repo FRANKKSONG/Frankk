@@ -2,6 +2,7 @@
 // It has no taskbar button. A global shortcut (Ctrl+Alt+E by default) shows and hides it; the tray icon has the rest.
 const { app, BrowserWindow, globalShortcut, ipcMain, Menu, Tray, nativeImage, screen } = require('electron');
 const { desktopLayer } = require('./desktop-layer.cjs');
+const { setupUpdates } = require('./updates.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -18,6 +19,7 @@ const savePrefs = () => { try { fs.mkdirSync(path.dirname(file()), { recursive: 
 
 let win = null;
 let layer = null;
+let updates = null;
 let tray = null;
 let shortcutOk = false;
 const dev = process.env.ESTHER_DEV_URL;
@@ -83,6 +85,7 @@ function refreshTray() {
     { label: 'Always on top', type: 'radio', checked: prefs.layer === 'top', click: () => setPrefs({ layer: 'top' }) },
     { type: 'separator' },
     { label: 'Start with Windows', type: 'checkbox', checked: startsWithWindows(), click: (i) => setPrefs({ startWithWindows: i.checked }) },
+    ...(updates?.status().state === 'ready' ? [{ label: `Restart to update to ${updates.status().next}`, click: () => updates.install() }] : [{ label: 'Check for updates', enabled: !!updates && !['dev', 'portable'].includes(updates.status().state), click: () => updates.check() }]),
     { label: 'Put it back in the middle', click: () => { prefs.bounds = null; win.setBounds(startBounds()); show(); } },
     { type: 'separator' },
     { label: 'Quit Esther', click: () => app.quit() },
@@ -115,7 +118,11 @@ else {
     tray.on('click', () => (win.isVisible() ? hide() : show()));
     refreshTray();
 
+    updates = setupUpdates({ app, send: (st) => { win?.webContents.send('esther:update', st); refreshTray(); }, log: (m) => console.warn(m) });
     ipcMain.handle('esther:state', () => state());
+    ipcMain.handle('esther:update-status', () => updates.status());
+    ipcMain.on('esther:update-check', () => updates.check());
+    ipcMain.on('esther:update-install', () => updates.install());
     ipcMain.handle('esther:set', (_e, p) => setPrefs(p ?? {}));
     ipcMain.on('esther:hide', () => hide());
     // Esc / done: on the desktop layer, step back behind your windows instead of vanishing.

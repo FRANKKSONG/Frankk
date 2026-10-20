@@ -362,3 +362,12 @@ input.tab-edit { width: 150px; color: var(--text); }
 [data-desktop] :is(.popover, .toast) { box-shadow: 0 6px 18px rgba(0,0,0,.25); }
 [data-desktop][data-style='medieval'] :is(.card, .top) { background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent); outline-color: color-mix(in srgb, var(--line) var(--panel-alpha), transparent); }
 [data-desktop] .tab-add { background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent); }
+
+/* updates */
+.update-pill { display: inline-flex; align-items: center; padding: 5px 12px; border-radius: var(--pill-radius); font-size: 13px; white-space: nowrap; margin-right: 6px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+button.update-pill:hover { background: color-mix(in srgb, var(--accent) 34%, transparent); }
+span.update-pill { background: none; border-color: transparent; }
+.update-row { flex-wrap: wrap; }
+.update-row > span:first-child { font-weight: 600; }
+[data-style='medieval'] .update-pill { border-radius: 0; }

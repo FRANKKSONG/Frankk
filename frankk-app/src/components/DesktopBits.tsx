@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icons';
-import { accelerator, desktop, prettyKeys, type DesktopState, type Layer } from '../lib/desktop';
+import { accelerator, desktop, prettyKeys, type DesktopState, type Layer, type UpdateStatus } from '../lib/desktop';
 
 const LAYERS: { id: Layer; label: string; hint: string }[] = [
   { id: 'desktop', label: 'On the desktop', hint: 'Under all your windows, like a Rainmeter skin. The shortcut brings it to the front until you click elsewhere.' },
@@ -62,7 +62,52 @@ export function DesktopSettings() {
         <button className="btn small" onClick={() => desktop!.hide()}><Icon name="close" size={12} /> Hide now</button>
         <button className="btn small ghost" onClick={() => desktop!.quit()}>Quit Esther</button>
       </div>
+      <UpdateRow />
       <p className="quiet">Esther has no taskbar button. Its icon in the tray (by the clock) has these too.</p>
     </>
+  );
+}
+
+/** The update status, live. */
+export function useUpdates(): UpdateStatus | null {
+  const [st, setSt] = useState<UpdateStatus | null>(null);
+  useEffect(() => {
+    if (!desktop?.updates) return;
+    desktop.updates.status().then(setSt);
+    return desktop.updates.on(setSt);
+  }, []);
+  return st;
+}
+
+/** Top bar: appears only when a new version has downloaded (or is downloading). */
+export function UpdatePill() {
+  const st = useUpdates();
+  if (!st || (st.state !== 'ready' && st.state !== 'downloading')) return null;
+  if (st.state === 'downloading') return <span className="update-pill quiet" title={`Downloading Esther ${st.next ?? ''}`}>Updating… {st.percent ?? 0}%</span>;
+  return <button className="update-pill" onClick={() => desktop!.updates.install()} title="Esther closes, installs the new version and opens again (a few seconds)">Restart to update to {st.next}</button>;
+}
+
+/** Gear menu: the version, and what the updater is doing. */
+export function UpdateRow() {
+  const st = useUpdates();
+  if (!st) return null;
+  const text = {
+    idle: 'Checks for updates a minute after starting, then every 4 hours.',
+    checking: 'Checking for updates…',
+    current: 'You have the latest version.',
+    downloading: `Downloading ${st.next ?? 'the new version'}… ${st.percent ?? 0}%`,
+    ready: `Version ${st.next} is ready.`,
+    error: `Couldn’t check for updates (${st.error ?? 'no connection'}). It will try again later.`,
+    dev: 'Updates are off while developing.',
+    portable: 'The portable version doesn’t update itself. Install Esther with the Setup file to get updates automatically.',
+  }[st.state];
+  return (
+    <div className="desk-row update-row">
+      <span>Esther {st.version}</span>
+      <span className="quiet">{text}</span>
+      {st.state === 'ready'
+        ? <button className="btn small" onClick={() => desktop!.updates.install()}>Restart to update</button>
+        : ['idle', 'current', 'error'].includes(st.state) && <button className="btn small ghost" onClick={() => desktop!.updates.check()}>Check now</button>}
+    </div>
   );
 }

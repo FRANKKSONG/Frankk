@@ -2,7 +2,10 @@
 /** Where the window sits: on the desktop under other windows, like a normal window, or always on top. */
 export type Layer = 'desktop' | 'normal' | 'top';
 export interface DesktopState { shortcut: string; shortcutOk: boolean; layer: Layer; pinsToDesktop: boolean; startWithWindows: boolean; version: string }
+/** The self-updater: 'dev' and 'portable' builds don't update themselves. */
+export interface UpdateStatus { state: 'idle' | 'checking' | 'current' | 'downloading' | 'ready' | 'error' | 'dev' | 'portable'; version: string; next?: string; percent?: number; error?: string }
 export interface Desktop {
+  updates: { status: () => Promise<UpdateStatus>; check: () => void; install: () => void; on: (cb: (s: UpdateStatus) => void) => () => void };
   state: () => Promise<DesktopState>;
   set: (p: Partial<Pick<DesktopState, 'shortcut' | 'layer' | 'startWithWindows'>>) => Promise<DesktopState>;
   hide: () => void;

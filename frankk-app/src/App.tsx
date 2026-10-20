@@ -4,7 +4,7 @@ import { ListTabs } from './components/ListTabs';
 import { TaskTable } from './components/TaskTable';
 import { MonthCalendar, ThisWeek } from './components/Side';
 import { SettingsMenu } from './components/SettingsMenu';
-import { ResizeGrip } from './components/DesktopBits';
+import { ResizeGrip, UpdatePill } from './components/DesktopBits';
 import { Icon } from './components/Icons';
 import { desktop, prettyKeys } from './lib/desktop';
 import { applyTheme, DEFAULT_THEME, type ThemePrefs } from './lib/theme';
@@ -54,6 +54,7 @@ export default function App() {
           <p><span className="greet-date">{longToday(today)}</span><span className="greet-line">{lineFor(today)}</span></p>
         </div>
         <div className="top-actions">
+          <UpdatePill />
           <SettingsMenu theme={theme} setTheme={setTheme} />
           {desktop && <button className="icon-btn" aria-label="Hide Esther" title={`Hide (Esc). ${shortcut ? prettyKeys(shortcut) + ' brings it back.' : ''}`} onClick={() => desktop!.hide()}><Icon name="close" size={16} /></button>}
         </div>
