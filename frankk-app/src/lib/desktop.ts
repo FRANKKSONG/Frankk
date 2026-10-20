@@ -9,6 +9,10 @@ export interface Desktop {
   state: () => Promise<DesktopState>;
   set: (p: Partial<Pick<DesktopState, 'shortcut' | 'layer' | 'startWithWindows' | 'glass'>>) => Promise<DesktopState>;
   hide: () => void;
+  card: string;
+  openSettings: () => void;
+  closeSettings: () => void;
+  resetLayout: () => void;
   quit: () => void;
   size: (width: number, height: number) => void;
 }
@@ -27,3 +31,7 @@ export function accelerator(e: { key: string; code: string; ctrlKey: boolean; al
   if (!key) return null;
   return [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Super', key].filter(Boolean).join('+');
 }
+
+/** The card this window shows in the desktop app ('' on the website, where everything is one page). */
+export type Card = 'header' | 'tasks' | 'calendar' | 'week' | 'settings';
+export const card = (desktop?.card || '') as Card | '';

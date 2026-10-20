@@ -1,4 +1,4 @@
-# Esther 1.4
+# Esther 1.5
 
 A simple to-do list for the PC that lives on your desktop, in the Esther looks (Gilded, Illuminated, Nocturne, Modern).
 React + TypeScript + Vite. Everything is saved in this browser (`localStorage`, key `esther.todo.v1`); nothing is sent anywhere.
@@ -13,23 +13,22 @@ Everything is on one page.
 - Ctrl+Z undoes the last 50 changes.
 
 ## On the desktop (Windows)
-Esther also runs as a desktop widget, like a Rainmeter skin: no window frame, no taskbar button, see-through around its panels, and you can type in it.
-- **Ctrl+Alt+E** shows and hides it from anywhere (change the keys in the gear menu). **Esc** or the ✕ hides it too.
-- Drag it by the top bar; resize from the bottom-right corner. It remembers where you put it.
-- **Sits on the desktop** by default: under all your other windows, like a Rainmeter skin, even when you click it. The shortcut brings it to the front until you click elsewhere; *Show desktop* (Win+D) keeps it visible. Gear menu → *Sits*: on the desktop / like a window / always on top.
-- **Frosted glass** (Windows 11 22H2+, on by default): Windows blurs the wallpaper behind Esther so text stays readable. Gear menu → *On the desktop* turns it off (Esther restarts to switch).
-- Text is always a solid colour on the desktop; secondary text is mixed from the text and panel colours, never see-through.
-- Gear menu → *Panels*: any panel colour and an opacity slider, so it suits any wallpaper; text turns light or dark by itself. No drop shadows on the desktop.
-- Finished tasks stay crossed out and clear themselves after a week (gear menu: a day, a week, a month or never). The table's *All · To do · Done* switch filters them.
-- It always comes back: the shortcut or the tray icon shows Esther from any state (hidden, minimised by Win+D, behind other windows, or off-screen after a monitor change), and it always appears when it starts.
-- Gear menu → *On the desktop*: the shortcut, *Start with Windows*, *Quit*. The tray icon by the clock has the same, plus *Put it back in the middle*.
-- Your tasks in the desktop app are separate from the website's. To move them: website → gear → *Save a copy*, then desktop → gear → *Load a copy*.
+Esther lives on the desktop like a set of Rainmeter skins: **every card is its own window** you can drag anywhere, so the desktop works like an operation room. The cards are the header (logo, greeting, gear, hide), Tasks (list tabs and the table), Calendar and This week; Settings opens as its own card from the gear.
+- Drag a card by its title area; resize it from its bottom-right corner. Each card remembers where you put it. **Double-click the Esther logo** to put every card back where it started.
+- The cards keep each other up to date: a task added in Tasks shows in This week at once, picking a day on the Calendar filters Tasks, clicking a task in This week opens it in Tasks.
+- **Sits on the desktop** by default: above the wallpaper and icons, under your apps, like a Rainmeter skin set to *On desktop*. It only steps in when a card has actually fallen under the desktop, so it doesn't flicker when you minimise windows or show the desktop. Gear → *Sits*: on the desktop / like a window / always on top.
+- **Ctrl+Alt+E** shows and hides all the cards (or brings them in front of your apps until you click elsewhere). **Esc** or the ✕ hides them. The tray icon has the rest, including *Put the cards back where they started*.
+- **Frosted glass** (Windows 11 22H2+): Windows blurs only what's behind each card, never the gaps between them. Gear → *On the desktop* turns it off (restarts to switch).
+- Text is always a solid colour; panel colour and opacity in gear → *Panels*. The Esther logo is always set in Instrument Serif.
+- Cards can't be maximised, snapped, minimised or made full screen, and come back on screen after a monitor change.
+- Finished tasks stay crossed out and clear themselves after a week (gear: a day, a week, a month or never).
+- Gear → *On the desktop*: the shortcut, *Start with Windows*, *Quit*.
 
 **Updates itself.** Installed with the Setup file, Esther checks the release a minute after starting and every 4 hours, downloads new versions quietly, and shows *Restart to update* in the top bar (also in the gear menu and tray). If you ignore it, it installs the next time Esther quits. The portable .exe doesn't update itself.
 
 Get it from the **Esther desktop** release on GitHub (built by `.github/workflows/esther-desktop.yml` on every push): `Esther-Setup-<version>.exe` installs it for you (no admin), `Esther-<version>-portable.exe` runs without installing. The app isn't code-signed, so Windows SmartScreen will ask the first time: *More info → Run anyway*.
 
-Desktop development: `npm run desktop` (opens it), `npm run test:desktop` (20 checks inside Electron; on Linux run it with `xvfb-run`), `npm run build:desktop` (Windows installer, on Windows).
+Desktop development: `npm run desktop` (opens it), `npm run test:desktop` (31 checks, plus window-stack checks on Windows inside Electron; on Linux run it with `xvfb-run`), `npm run build:desktop` (Windows installer, on Windows).
 
 The first time 1.0 opens, tasks from the earlier Esther (key `esther.proto.data.v4`) are brought over: General, Seround, House and B-YOU become lists, steps become subtasks, the plan or due day becomes the date. The old data is left untouched.
 

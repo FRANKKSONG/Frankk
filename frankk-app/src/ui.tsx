@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ISODate } from './lib/dates';
 
 /** 'all' shows every list in one table. */
@@ -24,7 +24,7 @@ const Ctx = createContext<Ui | null>(null);
 export function UiProvider({ children }: { children: ReactNode }) {
   const [tab, setTab] = useState<Tab>('all');
   const [openTaskId, setOpenTask] = useState<string | null>(null);
-  const [day, setDay] = useState<ISODate | null>(null);
+  const [day, setDayHere] = useState<ISODate | null>(null);
   const [toast, setToast] = useState<Ui['toast']>(null);
   const timer = useRef<number | undefined>(undefined);
   const say = useCallback((msg: string, undo = false) => {
@@ -32,13 +32,27 @@ export function UiProvider({ children }: { children: ReactNode }) {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setToast(null), undo ? 6000 : 3000);
   }, []);
-  const reveal = useCallback((taskId: string, listId: string) => {
+  const revealHere = useCallback((taskId: string, listId: string) => {
     setTab((t) => (t === 'all' ? t : listId));
-    setDay(null);
+    setDayHere(null);
     setOpenTask(taskId);
     requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector(`[data-task="${taskId}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })));
   }, []);
-  const value = useMemo(() => ({ tab, setTab, openTaskId, setOpenTask, day, setDay, reveal, toast, say }), [tab, openTaskId, day, reveal, toast, say]);
+  // The desktop app's cards are separate windows: picking a day on the calendar or a task in This week reaches
+  // the Tasks card through a broadcast channel.
+  const channel = useMemo(() => (typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('esther-ui') : null), []);
+  useEffect(() => {
+    if (!channel) return;
+    channel.onmessage = (e) => {
+      const m = e.data as { type: string; day?: ISODate | null; taskId?: string; listId?: string };
+      if (m.type === 'day') setDayHere(m.day ?? null);
+      if (m.type === 'reveal' && m.taskId && m.listId) revealHere(m.taskId, m.listId);
+    };
+    return () => { channel.onmessage = null; };
+  }, [channel, revealHere]);
+  const setDay = useCallback((d: ISODate | null) => { setDayHere(d); channel?.postMessage({ type: 'day', day: d }); }, [channel]);
+  const reveal = useCallback((taskId: string, listId: string) => { revealHere(taskId, listId); channel?.postMessage({ type: 'reveal', taskId, listId }); }, [channel, revealHere]);
+  const value = useMemo(() => ({ tab, setTab, openTaskId, setOpenTask, day, setDay, reveal, toast, say }), [tab, openTaskId, day, setDay, reveal, toast, say]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

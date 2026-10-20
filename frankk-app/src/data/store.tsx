@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, type Dispatch, type ReactNode } from 'react';
 import { reducer, type Action } from './reducer';
-import { load, save, starter } from './storage';
+import { KEY, load, save, starter } from './storage';
 import type { Data } from './model';
 import { todayISO } from '../lib/dates';
 
@@ -18,10 +18,12 @@ const Ctx = createContext<Store | null>(null);
 const HISTORY = 50;
 
 interface Hist { data: Data; past: Data[] }
-type HAction = Action | { type: 'undo' };
+/** 'sync': another Esther window changed the data; take it as it is (not an undo step). */
+type HAction = Action | { type: 'undo' } | { type: 'sync'; data: Data };
 
 function historyReducer(h: Hist, a: HAction): Hist {
   if (a.type === 'undo') return h.past.length ? { data: h.past[h.past.length - 1], past: h.past.slice(0, -1) } : h;
+  if (a.type === 'sync') return { data: a.data, past: [] };
   const next = reducer(h.data, a);
   return next === h.data ? h : { data: next, past: [...h.past.slice(-(HISTORY - 1)), h.data] };
 }
@@ -31,6 +33,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [h, dispatchH] = useReducer(historyReducer, undefined, () => ({ data: load(today), past: [] }));
   // Saved on every change, and on first load too, so tasks brought over from the earlier Esther are kept under the new key.
   useEffect(() => { save(h.data); }, [h.data]);
+  // The desktop app is several card windows; a change in one shows up in the others straight away.
+  useEffect(() => {
+    const on = (e: StorageEvent) => { if (e.key === KEY && e.newValue) { try { dispatchH({ type: 'sync', data: JSON.parse(e.newValue) as Data }); } catch { /* ignore */ } } };
+    window.addEventListener('storage', on);
+    return () => window.removeEventListener('storage', on);
+  }, []);
 
   const dispatch = useCallback((a: Action) => dispatchH(a), []);
   const undo = useCallback(() => dispatchH({ type: 'undo' }), []);

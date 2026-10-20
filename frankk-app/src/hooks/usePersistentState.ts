@@ -17,8 +17,11 @@ export function usePersistentState<T>(key: string, initial: T): [T, (v: T | ((p:
   // Every place that uses the same key sees a change straight away.
   useEffect(() => {
     const on = (e: Event) => { const d = (e as CustomEvent<{ key: string; value: T }>).detail; if (d.key === key) setValue(d.value); };
+    // ...and in Esther's other card windows (the browser tells them through 'storage').
+    const other = (e: StorageEvent) => { if (e.key === PREFIX + key && e.newValue) { try { setValue(JSON.parse(e.newValue)); } catch { /* ignore */ } } };
     window.addEventListener('esther-pref', on);
-    return () => window.removeEventListener('esther-pref', on);
+    window.addEventListener('storage', other);
+    return () => { window.removeEventListener('esther-pref', on); window.removeEventListener('storage', other); };
   }, [key]);
   const set = useCallback((v: T | ((p: T) => T)) => {
     setValue((prev) => {

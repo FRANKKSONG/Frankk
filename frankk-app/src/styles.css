@@ -387,3 +387,41 @@ span.update-pill { background: none; border-color: transparent; }
 /* Frosted glass (Windows 11): Windows blurs the wallpaper behind the whole window; panels sit on it as tinted glass. */
 [data-glass] body, [data-glass] .app { background: transparent !important; }
 [data-glass] .app { padding: 10px; }
+
+/* ---------- 1.5: the desktop as an operation room: every card is its own window ---------- */
+/* The Esther logo is always Instrument Serif, in every look. */
+.wordmark, [data-style] .wordmark, [data-look='modern'] .wordmark { font-family: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif !important; font-weight: 400 !important; letter-spacing: 0; }
+
+/* A card fills its window. */
+[data-card] body, [data-card] .app { background: transparent !important; }
+[data-card] .app { height: 100%; padding: 0 !important; overflow: hidden; display: block; }
+[data-card] .app > .card, [data-card] .app > .top { height: 100%; margin: 0; border-radius: var(--radius); }
+[data-card] .app > .card { display: flex; flex-direction: column; overflow: hidden; }
+[data-card][data-glass] .app > :is(.card, .top) { border-radius: 8px; } /* the same corners Windows 11 draws */
+[data-card][data-style='medieval'] .app > :is(.card, .top) { border-radius: 0; }
+[data-card] .week { overflow: auto; }
+
+/* Drag a card by its title area (anything that isn't a button, field or tab). */
+[data-card] :is(.top, .card-head, .table-tools, .tabs-wrap, .tabs) { -webkit-app-region: drag; user-select: none; }
+[data-card] :is(button, input, select, textarea, a, label, [role=tab], .tab-item, .seg, .filter-chip, .drag-grip, .list-pill) { -webkit-app-region: no-drag; }
+[data-card] .card-head h2 { cursor: grab; }
+
+/* Tasks card: list tabs and the table in one card. */
+.tasks-card { padding: 12px 14px 10px; gap: 10px; }
+.tasks-card .table-card { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; outline: 0 !important; }
+.tasks-card .table-card .table { flex: 1; min-height: 0; overflow: auto; align-content: start; }
+.tasks-card .tab-item, .tasks-card .tab-add { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.tasks-card .tab-item.on { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* Header card: just the bar. */
+[data-card='header'] .top { padding: 12px 20px; margin: 0; background-image: none; }
+[data-card='header'] .greet h1 { font-size: 26px; }
+
+/* Settings card. */
+.settings-card { padding: 14px 18px; }
+.settings-card .settings { overflow: auto; flex: 1; min-height: 0; padding-right: 4px; }
+.settings-card .card-head { margin-bottom: 6px; }
+
+/* Calendar and week fill their cards. */
+[data-card='calendar'] .cal { justify-content: flex-start; }
+[data-card='calendar'] .cal-grid { flex: 1; align-content: space-evenly; }

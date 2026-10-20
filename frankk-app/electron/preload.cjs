@@ -5,6 +5,11 @@ contextBridge.exposeInMainWorld('estherDesktop', {
   state: () => ipcRenderer.invoke('esther:state'),
   set: (p) => ipcRenderer.invoke('esther:set', p),
   hide: () => ipcRenderer.send('esther:hide'),
+  /** Which card this window is (header, tasks, calendar, week or settings). */
+  card: new URLSearchParams(location.search).get('card') || '',
+  openSettings: () => ipcRenderer.send('esther:settings'),
+  closeSettings: () => ipcRenderer.send('esther:settings-close'),
+  resetLayout: () => ipcRenderer.send('esther:reset-layout'),
   quit: () => ipcRenderer.send('esther:quit'),
   size: (width, height) => ipcRenderer.send('esther:size', { width, height }),
   updates: {

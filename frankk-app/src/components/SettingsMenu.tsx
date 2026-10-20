@@ -7,12 +7,26 @@ import { Popover } from './Popover';
 import { AppearancePanel } from './Appearance';
 import { DesktopSettings } from './DesktopBits';
 import { useRef } from 'react';
+import { desktop } from '../lib/desktop';
 import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import type { ThemePrefs } from '../lib/theme';
 
-/** Settings in one menu: the look, and your saved tasks. */
+/** The gear: on the website a menu; in the desktop app it opens the Settings card. */
 export function SettingsMenu({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
+  const gear = (p: { onClick: () => void; open?: boolean; ref?: React.Ref<HTMLButtonElement> }) => (
+    <button ref={p.ref} className="icon-btn" aria-label="Settings" title="Settings" aria-haspopup="dialog" aria-expanded={!!p.open} onClick={p.onClick}><Icon name="settings" size={18} /></button>
+  );
+  if (desktop) return gear({ onClick: () => desktop!.openSettings() });
+  return (
+    <Popover align="right" className="wide-pop settings-pop" trigger={({ toggle, ref, open }) => gear({ onClick: toggle, open, ref })}>
+      {() => <SettingsPanel theme={theme} setTheme={setTheme} />}
+    </Popover>
+  );
+}
+
+/** Settings: the look, the desktop, and your saved tasks. */
+export function SettingsPanel({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
   const { data, dispatch, startFresh } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const { say } = useUi();
@@ -32,10 +46,6 @@ export function SettingsMenu({ theme, setTheme }: { theme: ThemePrefs; setTheme:
     } catch { say('That file isn’t a copy saved from Esther.'); }
   };
   return (
-    <Popover align="right" className="wide-pop settings-pop" trigger={({ toggle, ref, open }) => (
-      <button ref={ref} className="icon-btn" aria-label="Settings" title="Settings" aria-haspopup="dialog" aria-expanded={open} onClick={toggle}><Icon name="settings" size={18} /></button>
-    )}>
-      {() => (
         <div className="settings">
           <DesktopSettings />
           <AppearancePanel prefs={theme} setPrefs={setTheme} />
@@ -55,7 +65,5 @@ export function SettingsMenu({ theme, setTheme }: { theme: ThemePrefs; setTheme:
               : <><button className="btn small danger" onClick={() => { startFresh(); setSure(false); say('Started fresh.', true); }}>Yes, delete everything</button><button className="btn small ghost" onClick={() => setSure(false)}>Cancel</button></>}
           </div>
         </div>
-      )}
-    </Popover>
   );
 }
