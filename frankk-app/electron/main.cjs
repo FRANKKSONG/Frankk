@@ -180,6 +180,6 @@ else {
     });
   });
   app.on('will-quit', () => globalShortcut.unregisterAll());
-  if (process.env.ESTHER_TEST) global.__esther = { show, hide, toggle, layer: () => layer };
+  if (process.env.ESTHER_TEST) global.__esther = { show, hide, toggle, layer: () => layer, win: () => win };
   app.on('window-all-closed', () => app.quit());
 }

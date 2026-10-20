@@ -21,7 +21,8 @@ app.whenReady().then(async () => {
   console.log('desktop checks starting on', process.platform);
   // Wait (up to 15 s) for the window to appear and its page to finish loading.
   let win;
-  for (let i = 0; i < 150 && !(win && win.isVisible() && !win.webContents.isLoading()); i++) { await wait(100); win = BrowserWindow.getAllWindows()[0]; }
+  // Esther's own window (not the tiny desktop helper the desktop layer makes on Windows).
+  for (let i = 0; i < 150 && !(win && win.isVisible() && !win.webContents.isLoading()); i++) { await wait(100); win = global.__esther?.win(); }
   check('A window opens', !!win && win.isVisible());
   check('It has no frame and no taskbar button, and is see-through', win && !win.isMenuBarVisible() && win.getBackgroundColor().toLowerCase().endsWith('00'), win?.getBackgroundColor());
   // Each request to the page gets 10 s; a stall names the step instead of hanging the whole run.
