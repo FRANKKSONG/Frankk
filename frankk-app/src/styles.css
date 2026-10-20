@@ -301,3 +301,23 @@ input.tab-edit { width: 150px; color: var(--text); }
 .color-row { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .form-actions { display: flex; gap: 8px; }
 
+
+/* ---------- desktop widget (Electron): see-through window, drag by the top bar ---------- */
+.top-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.top-actions .icon-btn { width: 36px; height: 36px; }
+[data-desktop] body, [data-desktop] .app { background: transparent !important; }
+[data-desktop] body::before { display: none; }
+[data-desktop] .app { padding: 8px; overflow: auto; }
+[data-desktop] .top { -webkit-app-region: drag; user-select: none; border-radius: var(--radius); margin-bottom: 10px;
+  background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent); border: 1px solid var(--edge); box-shadow: var(--shadow); }
+[data-desktop][data-style='medieval'] .top { background-color: var(--bg-2); border-radius: 0; border-color: var(--line); }
+[data-desktop] .top :is(button, input, a, select) { -webkit-app-region: no-drag; }
+[data-desktop] .layout { padding: 0 0 8px; max-width: none; }
+[data-desktop] :is(.card, .tab, .popover) { backdrop-filter: none; }
+.resize-grip { position: fixed; right: 2px; bottom: 2px; width: 18px; height: 18px; cursor: nwse-resize; z-index: 700; border-radius: 0 0 6px 0;
+  background: linear-gradient(135deg, transparent 50%, color-mix(in srgb, var(--text) 30%, transparent) 50%, color-mix(in srgb, var(--text) 30%, transparent) 60%, transparent 60%, transparent 72%, color-mix(in srgb, var(--text) 30%, transparent) 72%, color-mix(in srgb, var(--text) 30%, transparent) 82%, transparent 82%); }
+.desk-row { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
+.desk-row input[type=checkbox] { accent-color: var(--accent); }
+.btn.keys { min-width: 130px; justify-content: center; font-variant-numeric: tabular-nums; }
+.btn.keys.recording { border-color: var(--accent); color: var(--accent); }
+.warn-text { color: var(--danger); font-size: 12.5px; }

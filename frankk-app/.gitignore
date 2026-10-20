@@ -3,3 +3,4 @@ dist
 *.tsbuildinfo
 docs/screens/after-reset.png
 docs/screens/wide-after.png
+release
