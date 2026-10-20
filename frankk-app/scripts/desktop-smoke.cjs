@@ -40,9 +40,10 @@ app.whenReady().then(async () => {
   check('Always on top can be switched on', win.isAlwaysOnTop());
   await js(`window.estherDesktop.set({ layer: 'desktop' })`);
   check('Back on the desktop it is not on top', !win.isAlwaysOnTop());
-  await js(`window.estherDesktop.size(700, 500)`); await wait(300);
+  const b0 = win.getBounds();
+  await js(`window.estherDesktop.size(700, 500)`); await wait(400);
   const b = win.getBounds();
-  check('The corner grip resizes the window', b.width === 700 && b.height === 500, JSON.stringify(b));
+  check('The corner grip resizes the window and keeps its position', b.width === 700 && b.height === 500 && b.x === b0.x && b.y === b0.y, JSON.stringify({ before: b0, after: b }));
   await js(`window.estherDesktop.hide()`); await wait(300);
   check('Hide tucks it away', !win.isVisible());
   await wait(600);

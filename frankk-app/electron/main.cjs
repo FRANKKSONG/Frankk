@@ -70,7 +70,7 @@ function createWindow() {
   win.webContents.once('did-finish-load', firstShow);
   // Remember where you put it.
   let t;
-  const remember = () => { clearTimeout(t); t = setTimeout(() => { if (win && !win.isMinimized()) { prefs.bounds = win.getBounds(); savePrefs(); } }, 400); };
+  const remember = () => { clearTimeout(t); t = setTimeout(() => { if (win && !win.isMinimized() && onScreen(win.getBounds())) { prefs.bounds = win.getBounds(); savePrefs(); } }, 400); };
   win.on('move', remember);
   win.on('resize', remember);
   layer = desktopLayer(win, prefs.layer, (m) => console.warn(m));
@@ -173,10 +173,10 @@ else {
     ipcMain.on('esther:lower', () => layer?.lower());
     ipcMain.on('esther:quit', () => app.quit());
     // Transparent windows can't be resized from their edges on Windows, so Esther has its own corner grip.
+    // Only the size changes; the top-left corner stays where it is (setting both at once misplaced it on Windows).
     ipcMain.on('esther:size', (_e, s) => {
-      if (!win || !s) return;
-      const b = win.getBounds();
-      win.setBounds({ x: b.x, y: b.y, width: Math.max(520, Math.round(s.width)), height: Math.max(360, Math.round(s.height)) });
+      if (!win || !s || win.isMinimized()) return;
+      win.setSize(Math.max(520, Math.round(s.width)), Math.max(360, Math.round(s.height)));
     });
   });
   app.on('will-quit', () => globalShortcut.unregisterAll());
