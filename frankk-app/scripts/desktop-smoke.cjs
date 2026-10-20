@@ -92,7 +92,8 @@ app.whenReady().then(async () => {
   // Snapping: a card let go near another lines up with it, with an even gap; a resize matches its neighbour.
   await js('tasks', `window.estherDesktop.set({ snap: true })`);
   const cal = C('calendar').getBounds(), wk = C('week').getBounds();
-  C('week').setPosition(cal.x + 9, cal.y + cal.height + 16 + 7); await wait(900);
+  // On Windows, snapping happens when a drag ends ('moved'), which a programmatic move doesn't send, so send it.
+  C('week').setPosition(cal.x + 9, cal.y + cal.height + 16 + 7); if (process.platform === 'win32') C('week').emit('moved'); await wait(900);
   const wk2 = C('week').getBounds();
   check('Snapping: a card dropped near another lines up with it, with an even gap', wk2.x === cal.x && wk2.y === cal.y + cal.height + 16, JSON.stringify({ cal, wk2 }));
   await js('week', `window.estherDesktop.size(${cal.width - 8}, ${wk.height})`); await wait(400);
