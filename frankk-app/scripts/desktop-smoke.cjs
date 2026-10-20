@@ -24,7 +24,9 @@ app.whenReady().then(async () => {
   for (let i = 0; i < 150 && !(win && win.isVisible() && !win.webContents.isLoading()); i++) { await wait(100); win = BrowserWindow.getAllWindows()[0]; }
   check('A window opens', !!win && win.isVisible());
   check('It has no frame and no taskbar button, and is see-through', win && !win.isMenuBarVisible() && win.getBackgroundColor().toLowerCase().endsWith('00'), win?.getBackgroundColor());
-  const js = (code) => win.webContents.executeJavaScript(code);
+  // Each request to the page gets 10 s; a stall names the step instead of hanging the whole run.
+  const js = (code) => Promise.race([win.webContents.executeJavaScript(code), wait(10_000).then(() => { throw new Error(`page did not answer: ${code.slice(0, 80)}`); })]);
+  console.log('page state:', JSON.stringify({ url: win.webContents.getURL().slice(-40), loading: win.webContents.isLoading(), crashed: win.webContents.isCrashed(), visible: win.isVisible(), bounds: win.getBounds() }));
   check('The page loads with the desktop bridge', await js(`!!window.estherDesktop && document.documentElement.dataset.desktop === '1'`));
   check('The page shows the task table and tabs', await js(`!!document.querySelector('.table') && document.querySelectorAll('[role=tab]').length >= 2`));
   check('The page background is transparent', await js(`getComputedStyle(document.querySelector('.app')).backgroundColor`) === 'rgba(0, 0, 0, 0)');

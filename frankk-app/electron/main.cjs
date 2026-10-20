@@ -10,6 +10,13 @@ const path = require('node:path');
 const LAYERS = ['desktop', 'normal', 'top'];
 // Frosted glass (Windows 11's acrylic material) needs Windows 11 22H2 or later.
 const glassSupported = process.platform === 'win32' && Number(os.release().split('.')[2] ?? 0) >= 22621;
+// A desktop widget is meant to be seen while other windows sit around it: never pause it for looking "covered"
+// (Chromium's occlusion tracking on Windows would otherwise freeze the page when it's on the desktop layer).
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+
 const DEFAULTS = { shortcut: 'Control+Alt+E', layer: 'desktop', bounds: null, glass: true };
 const file = () => path.join(app.getPath('userData'), 'desktop.json');
 let prefs = { ...DEFAULTS };
@@ -53,7 +60,7 @@ function createWindow() {
     ...(glassOn() ? { transparent: false, backgroundMaterial: 'acrylic', roundedCorners: true } : { transparent: true }),
     skipTaskbar: true, show: false, title: 'Esther',
     icon: path.join(__dirname, 'icon.png'),
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false },
   });
   if (dev) win.loadURL(dev); else win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   // Show once the page is ready. 'ready-to-show' doesn't always fire for see-through windows, so the page load counts too.
