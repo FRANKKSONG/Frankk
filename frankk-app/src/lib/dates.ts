@@ -85,3 +85,13 @@ export function greeting(now = new Date()): string {
   const h = now.getHours();
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
+
+/** Monday of the week that holds this day. */
+export function weekStart(s: ISODate): ISODate {
+  return addDays(s, -((parseISO(s).getDay() + 6) % 7));
+}
+
+/** "Tue 20". */
+export function dayShort(s: ISODate): string {
+  return `${DAYS[parseISO(s).getDay()]} ${parseISO(s).getDate()}`;
+}

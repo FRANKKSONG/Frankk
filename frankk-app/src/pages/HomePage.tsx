@@ -1,163 +1,110 @@
-import { useRef, useState } from 'react';
-import ReactGridLayout, { useContainerWidth, verticalCompactor, type LayoutItem } from 'react-grid-layout';
+import { useMemo, useState } from 'react';
 import { Icon } from '../components/Icons';
-import { ColorSelect } from '../components/ColorSelect';
-import { Popover } from '../components/Popover';
-import { Editable } from '../components/Editable';
-import { METRICS, WIDGET_CATALOG, WidgetBody } from '../components/Widgets';
+import { Initial } from '../components/Ornaments';
+import { TaskLine } from '../components/TaskLine';
+import { AddTask } from '../components/AddTask';
 import { useStore } from '../data/store';
-import { useUi } from '../ui';
-import { artCss, artPresets, downscaleImage } from '../lib/art';
-import { newId } from '../data/fixtures';
-import { PIGMENTS } from '../data/types';
-import { AppearanceButton } from '../components/Appearance';
-import { Matins } from '../components/Matins';
-import { CommandBar } from '../components/CommandBar';
-import type { ThemePrefs } from '../lib/theme';
-import type { WidgetDef } from '../data/schema';
+import { addDays, addMonths, dayShort, daysInMonth, greeting, longToday, monthKey, monthTitle, parseISO, shortDate, weekStart, type ISODate } from '../lib/dates';
+import { lineFor } from '../lib/greeting';
 
-/** Home: an at-a-glance dashboard you build yourself out of widgets. */
-export function HomePage({ theme, setTheme }: { theme: ThemePrefs; setTheme: (t: ThemePrefs) => void }) {
-  const { data, dispatch } = useStore();
-  const { setPalette } = useUi();
-  const dash = data.dashboards[0];
-  const [editing, setEditing] = useState(false);
-  const { width, containerRef, mounted } = useContainerWidth();
-  const own = !!dash.background && dash.background !== 'inherit';
-  const art = own ? artCss(dash.background) : { image: 'none', tile: false };
-
-  const onLayout = (l: readonly LayoutItem[]) => {
-    if (!editing) return;
-    const next = l.map(({ i, x, y, w, h }) => ({ i, x, y, w, h }));
-    if (JSON.stringify(next) !== JSON.stringify(dash.layout)) dispatch({ type: 'dash/update', id: dash.id, patch: { layout: next } });
-  };
-
+/** Home: a greeting, the month, and this week. */
+export function HomePage() {
+  const { today } = useStore();
+  const [day, setDay] = useState<ISODate>(today);
+  const hello = greeting();
   return (
-    <div className={`homepage${own ? ' own-art' : ''}`} style={{ '--art': art.image, '--art-size': art.tile ? 'auto' : 'cover', '--dim': String(dash.dim) } as React.CSSProperties}>
-      <div className="home-art" aria-hidden="true" />
-      <Matins actions={<>
-        <button className="btn" onClick={() => setPalette(true)} aria-label="Search (Ctrl+K)"><Icon name="search" size={14} /> Search</button>
-        <AppearanceButton prefs={theme} setPrefs={setTheme} />
-        {editing && <AddWidget />}
-        {editing && <BackgroundPicker />}
-        <button className={`btn${editing ? ' primary' : ''}`} aria-pressed={editing} onClick={() => setEditing((e) => !e)}><Icon name="layout" size={14} /> {editing ? 'Done' : 'Customize'}</button>
-      </>} />
-      <div className="hp-cmd"><CommandBar /></div>
-      {editing && <p className="hp-hint">Drag widgets by their grip, resize from any edge, use ⋯ to change what a widget shows. Your layout is saved as you go.</p>}
-      <div className="hp-grid" ref={containerRef}>
-        {mounted && (
-          <ReactGridLayout width={width} layout={dash.layout.filter((l) => dash.widgets.some((w) => w.id === l.i))}
-            gridConfig={{ cols: 24, rowHeight: 30, margin: [12, 12], containerPadding: [0, 0] }}
-            dragConfig={{ enabled: editing, handle: '.w-grip', cancel: 'input,select,textarea,button,a,.no-drag' }}
-            resizeConfig={{ enabled: editing, handles: ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'] }}
-            compactor={verticalCompactor} onLayoutChange={onLayout}>
-            {dash.widgets.map((w) => (
-              <div key={w.id} className={`wcard kind-${w.kind}${editing ? ' editing' : ''}`} style={{ '--wc': w.color ?? 'var(--accent)' } as React.CSSProperties} data-widget={w.id}>
-                <WidgetFrame w={w} editing={editing} />
-              </div>
-            ))}
-          </ReactGridLayout>
-        )}
+    <div className="page home">
+      <header className="greet">
+        <h1><Initial letter={hello[0]} /><span className="greet-rest">{hello}</span></h1>
+        <p className="greet-date">{longToday(today)}</p>
+        <p className="greet-line">{lineFor(today)}</p>
+      </header>
+      <div className="home-grid">
+        <MonthCalendar day={day} onDay={setDay} />
+        <ThisWeek />
       </div>
     </div>
   );
 }
 
-function WidgetFrame({ w, editing }: { w: WidgetDef; editing: boolean }) {
-  const { data, dispatch } = useStore();
-  const dashId = data.dashboards[0].id;
-  const update = (patch: Partial<WidgetDef>) => dispatch({ type: 'dash/widget', dashId, widget: { ...w, ...patch, config: { ...w.config, ...patch.config } } });
-  const fileRef = useRef<HTMLInputElement>(null);
+function MonthCalendar({ day, onDay }: { day: ISODate; onDay: (d: ISODate) => void }) {
+  const { data, today } = useStore();
+  const [month, setMonth] = useState(monthKey(today));
+  const lead = (parseISO(`${month}-01`).getDay() + 6) % 7; // Monday first
+  const start = addDays(`${month}-01`, -lead);
+  const cells = Array.from({ length: Math.ceil((lead + daysInMonth(month)) / 7) * 7 }, (_, i) => addDays(start, i));
+  // Each day's open tasks, as dots in their list's colour.
+  const marks = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const t of data.tasks) if (t.date && !t.done) m.set(t.date, [...(m.get(t.date) ?? []), data.lists.find((l) => l.id === t.listId)?.color ?? 'var(--accent)']);
+    return m;
+  }, [data]);
+  const onDayTasks = data.tasks.filter((t) => t.date === day);
   return (
-    <section className="w-frame" aria-label={w.title}>
-      <header className="w-head">
-        {editing && <span className="w-grip" title="Drag to move"><Icon name="grip" size={13} /></span>}
-        <span className="w-mark" />
-        {editing ? <Editable className="w-title" label="Widget title" value={w.title} onSave={(v) => update({ title: v.trim() })} /> : <h3 className="w-title">{w.title}</h3>}
-        <Popover align="right" trigger={({ toggle, ref }) => (
-          <button ref={ref} className="icon-btn tiny w-menu" aria-label={`Settings for ${w.title}`} onClick={toggle}><Icon name="more" size={14} /></button>
-        )}>
-          {(close) => (
-            <div className="pop-form w-settings">
-              <strong>{w.title}</strong>
-              {w.kind === 'stat' && (
-                <label>Shows<select value={w.config.metric} onChange={(e) => update({ config: { metric: e.target.value as WidgetDef['config']['metric'] } })}>
-                  {METRICS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
-              )}
-              {w.kind === 'stat' && w.config.metric === 'records-count' && (
-                <label>Type<select value={w.config.typeId ?? ''} onChange={(e) => update({ config: { typeId: e.target.value } })}>
-                  {data.types.map((t) => <option key={t.id} value={t.id}>{t.plural}</option>)}</select></label>
-              )}
-              {w.kind === 'view' && (
-                <label>Saved view<select value={w.config.viewId} onChange={(e) => update({ config: { viewId: e.target.value } })}>
-                  {data.views.map((v) => <option key={v.id} value={v.id}>{data.types.find((t) => t.id === v.typeId)?.plural} · {v.name}</option>)}</select></label>
-              )}
-              {w.kind === 'note' && (
-                <label>Note<select value={w.config.noteId} onChange={(e) => update({ config: { noteId: e.target.value } })}>
-                  {data.notes.map((n) => <option key={n.id} value={n.id}>{n.title}</option>)}</select></label>
-              )}
-              {w.kind === 'image' && (
-                <>
-                  <label>Picture<select value={w.config.image?.startsWith('data:') ? 'upload' : w.config.image} onChange={(e) => (e.target.value === 'upload' ? fileRef.current?.click() : update({ config: { image: e.target.value } }))}>
-                    {artPresets().filter((a) => a.id !== 'none').map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}<option value="upload">Upload my own…</option></select></label>
-                  <input ref={fileRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) update({ config: { image: await downscaleImage(f, 1000) } }); }} />
-                  <label>Caption<input defaultValue={w.config.caption ?? ''} onBlur={(e) => update({ config: { caption: e.target.value } })} /></label>
-                </>
-              )}
-              <div className="field">Accent<ColorSelect label="Widget accent" value={w.color ?? PIGMENTS[0].color} onChange={(color) => update({ color })} /></div>
-              <button onClick={() => { dispatch({ type: 'dash/remove-widget', dashId, widgetId: w.id }); close(); }}><Icon name="trash" size={13} /> Remove widget</button>
-            </div>
-          )}
-        </Popover>
+    <section className="card cal" aria-label="Calendar">
+      <header className="card-head">
+        <h2>{monthTitle(month)}</h2>
+        <span className="cal-nav">
+          <button className="icon-btn" aria-label="Previous month" onClick={() => setMonth(addMonths(month, -1))}><Icon name="chevronR" size={15} style={{ transform: 'rotate(180deg)' }} /></button>
+          <button className="btn small" onClick={() => { setMonth(monthKey(today)); onDay(today); }}>Today</button>
+          <button className="icon-btn" aria-label="Next month" onClick={() => setMonth(addMonths(month, 1))}><Icon name="chevronR" size={15} /></button>
+        </span>
       </header>
-      <div className="w-body"><WidgetBody w={w} /></div>
+      <div className="cal-grid" role="grid">
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <span key={d} className="dow" role="columnheader">{d}</span>)}
+        {cells.map((c) => {
+          const dots = marks.get(c) ?? [];
+          return (
+            <button key={c} role="gridcell" aria-pressed={c === day} aria-label={`${longToday(c)}${dots.length ? `, ${dots.length} task${dots.length === 1 ? '' : 's'}` : ''}`}
+              className={`day${c === today ? ' today' : ''}${c === day ? ' picked' : ''}${monthKey(c) !== month ? ' other' : ''}${c < today ? ' past' : ''}`}
+              onClick={() => { onDay(c); if (monthKey(c) !== month) setMonth(monthKey(c)); }}>
+              <span className="num">{Number(c.slice(8))}</span>
+              <span className="marks">{dots.slice(0, 4).map((col, i) => <i key={i} style={{ background: col }} />)}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="cal-day">
+        <h3>{day === today ? 'Today' : longToday(day)}</h3>
+        {onDayTasks.length ? <ul className="tlines">{onDayTasks.map((t) => <TaskLine key={t.id} task={t} />)}</ul> : <p className="quiet">Nothing on this day.</p>}
+        <AddTask key={day} date={day} pickList placeholder={`Add a task for ${day === today ? 'today' : shortDate(day, today)}, Enter`} />
+      </div>
     </section>
   );
 }
 
-function AddWidget() {
-  const { data, dispatch } = useStore();
+function ThisWeek() {
+  const { data, today } = useStore();
+  const mon = weekStart(today);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(mon, i));
+  const late = data.tasks.filter((t) => !t.done && t.date && t.date < today && t.date < mon);
+  const [adding, setAdding] = useState<ISODate | null>(null);
   return (
-    <Popover align="right" className="wide-pop" trigger={({ toggle, ref }) => <button ref={ref} className="btn" onClick={toggle}><Icon name="plus" size={14} /> Add widget</button>}>
-      {(close) => (
-        <div className="catalog">
-          {WIDGET_CATALOG.map((c) => (
-            <button key={c.kind + (c.config?.metric ?? '')} className="catalog-item" onClick={() => {
-              const id = newId('w');
-              dispatch({ type: 'dash/widget', dashId: data.dashboards[0].id, widget: { id, kind: c.kind, title: c.name, config: { ...c.config } }, at: { x: 0, y: 999, ...c.size } });
-              close();
-              requestAnimationFrame(() => document.querySelector(`[data-widget="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
-            }}>
-              <Icon name={c.icon} size={16} /><span><b>{c.name}</b><small>{c.blurb}</small></span>
-            </button>
-          ))}
+    <section className="card week" aria-label="This week">
+      <header className="card-head">
+        <h2>This week</h2>
+        <span className="quiet">{shortDate(mon, today)} – {shortDate(days[6], today)}</span>
+      </header>
+      {late.length > 0 && (
+        <div className="wday late">
+          <h3>Still open from before</h3>
+          <ul className="tlines">{late.map((t) => <TaskLine key={t.id} task={t} showDate />)}</ul>
         </div>
       )}
-    </Popover>
-  );
-}
-
-function BackgroundPicker() {
-  const { data, dispatch } = useStore();
-  const dash = data.dashboards[0];
-  const fileRef = useRef<HTMLInputElement>(null);
-  const set = (patch: Partial<typeof dash>) => dispatch({ type: 'dash/update', id: dash.id, patch });
-  return (
-    <Popover align="right" className="wide-pop" trigger={({ toggle, ref }) => <button ref={ref} className="btn" onClick={toggle}><Icon name="image" size={14} /> Background</button>}>
-      {() => (
-        <div className="bg-picker">
-          <div className="bg-tiles">
-            <button className={`bg-tile${!dash.background || dash.background === 'inherit' ? ' on' : ''}`} onClick={() => set({ background: 'inherit' })}><span>Same as window</span></button>
-            {artPresets().map((a) => (
-              <button key={a.id} className={`bg-tile${(dash.background ?? 'millefleur') === a.id ? ' on' : ''}`} style={{ backgroundImage: a.css, backgroundSize: a.tile ? '120px' : 'cover' }} onClick={() => set({ background: a.id })}><span>{a.name}</span></button>
-            ))}
-            <button className={`bg-tile upload${dash.background?.startsWith('data:') ? ' on' : ''}`} style={dash.background?.startsWith('data:') ? { backgroundImage: `url("${dash.background}")`, backgroundSize: 'cover' } : undefined} onClick={() => fileRef.current?.click()}><span><Icon name="plus" size={12} /> My image</span></button>
+      {days.map((d) => {
+        const list = data.tasks.filter((t) => t.date === d);
+        return (
+          <div key={d} className={`wday${d === today ? ' today' : ''}${d < today ? ' past' : ''}`}>
+            <h3>
+              <span>{d === today ? 'Today' : dayShort(d)}</span>
+              {d === today && <small>{dayShort(d)}</small>}
+              <button className="icon-btn tiny wday-add" aria-label={`Add a task on ${dayShort(d)}`} onClick={() => setAdding(adding === d ? null : d)}><Icon name="plus" size={12} /></button>
+            </h3>
+            {list.length > 0 && <ul className="tlines">{list.map((t) => <TaskLine key={t.id} task={t} />)}</ul>}
+            {adding === d && <AddTask date={d} pickList autoFocus placeholder={`Add for ${dayShort(d)}, Enter`} />}
           </div>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) set({ background: await downscaleImage(f) }); }} />
-          <label className="dim-row">Dim the art<input type="range" min={0.3} max={0.95} step={0.05} value={dash.dim} onChange={(e) => set({ dim: Number(e.target.value) })} /><span>{Math.round(dash.dim * 100)}%</span></label>
-          <p className="hint">“Same as window” follows Appearance → Window background. Uploaded images are saved in Esther/Assets in the desktop app.</p>
-        </div>
-      )}
-    </Popover>
+        );
+      })}
+    </section>
   );
 }

@@ -17,7 +17,7 @@ export function AppearancePanel({ prefs, setPrefs }: { prefs: ThemePrefs; setPre
           <button key={id} role="radio" aria-checked={themeOf(prefs) === id} className={`theme-card look-${id}`}
             onClick={() => setPrefs({ ...prefs, theme: id, colors: {} })}>
             <span className="swatches">
-              {(['bg-2', 'general', 'music', 'seround', 'house'] as const).map((k) => <i key={k} style={{ background: THEMES[id].vars[k] }} />)}
+              {(['bg-2', 'bg-3', 'accent', 'gold', 'text'] as const).map((k) => <i key={k} style={{ background: THEMES[id].vars[k] }} />)}
             </span>
             <b>{THEMES[id].label}</b>
             <small>{THEMES[id].blurb}</small>
@@ -45,7 +45,7 @@ export function AppearancePanel({ prefs, setPrefs }: { prefs: ThemePrefs; setPre
         <label className="slider">Darken art<input type="range" min={0} max={0.95} step={0.01} value={win.dim} onChange={(e) => setWin({ dim: Number(e.target.value) })} /><span>{Math.round(win.dim * 100)}%</span></label>
       </div>
 
-      <h4 className="ap-h">Colours</h4>
+      <h4 className="ap-h">Highlight colour</h4>
       <div className="color-rows">
         {COLOR_KEYS.map(({ key, label }) => (
           <div key={key} className="color-row">{label}

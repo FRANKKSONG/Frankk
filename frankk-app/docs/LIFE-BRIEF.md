@@ -87,3 +87,9 @@ He forgets that a task exists, sometimes forgets the deadline, and procrastinate
 
 ## Still unknown
 - Which life areas exist beyond General, B-YOU, Seround, Music and House. Ask slowly, one at a time.
+
+
+## 20 Oct 2026: Esther scaled down to 1.0
+Frankk asked for a simple to-do list for the PC: Home = greeting (date + one line), calendar, this week; Tasks = his own lists with subtasks; the four themes kept.
+Removed: music stages, notes/journal, the knight, Library, house bills, phone bot + Jev, Seround brands/reposts, the smart bar, tags, search.
+The Supabase function and Telegram bot from 0.3.0 still exist in his accounts but Esther no longer reads them.

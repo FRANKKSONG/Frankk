@@ -1,43 +1,44 @@
-import { Icon, type IconName } from './Icons';
-import { useUi, type Page } from '../ui';
-import { ArchEmblem, Drollery } from './Ornaments';
-import type { Area } from '../data/types';
-
-const NAV: { id: string; label: string; icon: IconName; page: Page; area?: Area; sub?: boolean }[] = [
-  { id: 'home', label: 'Home', icon: 'home', page: 'home' },
-  { id: 'tasks', label: 'Tasks', icon: 'tasks', page: 'tasks' },
-  { id: 'general', label: 'General', icon: 'check', page: 'tasks', area: 'general', sub: true },
-  { id: 'music', label: 'Music', icon: 'music', page: 'tasks', area: 'music', sub: true },
-  { id: 'seround', label: 'Seround', icon: 'seround', page: 'tasks', area: 'seround', sub: true },
-  { id: 'house', label: 'House', icon: 'house', page: 'tasks', area: 'house', sub: true },
-  { id: 'notes', label: 'Notes', icon: 'note', page: 'notes' },
-  { id: 'library', label: 'Library', icon: 'library2', page: 'library' },
-  { id: 'calendar', label: 'Calendar', icon: 'calendar', page: 'calendar' },
-];
+import { Icon } from './Icons';
+import { ArchEmblem } from './Ornaments';
+import { useUi } from '../ui';
+import { useStore } from '../data/store';
+import { newId, nextColor } from '../data/model';
+import { SortableList } from './SortableList';
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { focusArea, setFocusArea, page, go } = useUi();
-  const active = (n: (typeof NAV)[number]) => (n.area ? page === 'tasks' && focusArea === n.area : n.id === 'tasks' ? page === 'tasks' && !focusArea : page === n.page);
+  const { page, go, listId } = useUi();
+  const { data, dispatch } = useStore();
+  const current = listId ?? data.lists[0]?.id;
+  const addList = () => {
+    const id = newId('l');
+    dispatch({ type: 'list/add', list: { id, name: 'New list', color: nextColor(data.lists) } });
+    go('tasks', { listId: id });
+  };
   return (
     <nav className="sidebar" aria-label="Main">
       <div className="brand"><ArchEmblem /><div className="wordmark" aria-label="Esther">Esther</div></div>
-      <ul>
-        {NAV.map((n) => (
-          <li key={n.id} className={n.sub ? 'sub' : ''}>
-            <button className={active(n) ? 'active' : ''} aria-current={active(n) ? 'page' : undefined} title={n.label}
-              onClick={() => { go(n.page); setFocusArea(n.area ?? null); }}>
-              <Icon name={n.icon} size={n.sub ? 15 : 18} /><span>{n.label}</span>
-            </button>
-          </li>
-        ))}
+      <ul className="nav">
+        <li><button className={page === 'home' ? 'active' : ''} aria-current={page === 'home' ? 'page' : undefined} onClick={() => go('home')} title="Home"><Icon name="home" size={18} /><span>Home</span></button></li>
       </ul>
+      <div className="nav-label"><span>Lists</span><button className="icon-btn tiny" aria-label="New list" title="New list" onClick={addList}><Icon name="plus" size={13} /></button></div>
+      <div className="nav-lists">
+        <SortableList items={data.lists} label={(l) => l.name} onMove={(_a, _b, order) => dispatch({ type: 'list/order', ids: order })}>
+          {(l, grip) => {
+            const open = data.tasks.filter((t) => t.listId === l.id && !t.done).length;
+            const on = page === 'tasks' && current === l.id;
+            return (
+              <div className={`nav-list${on ? ' active' : ''}`}>
+                {!collapsed && grip}
+                <button className="nav-item" aria-current={on ? 'page' : undefined} title={l.name} onClick={() => go('tasks', { listId: l.id })}>
+                  <i className="dot" style={{ background: l.color }} /><span>{l.name}</span>{open > 0 && <small>{open}</small>}
+                </button>
+              </div>
+            );
+          }}
+        </SortableList>
+      </div>
       <div className="sidebar-foot">
-        <Drollery className="side-drollery" />
-        <div className="vault-box">
-          <div className="vault-name"><Icon name="folder" size={16} /><span><small>Obsidian vault</small><b>Sample data</b></span></div>
-          <button className="btn small" onClick={() => go('settings')} title="See Vault & storage in Settings">Not connected</button>
-        </div>
-        <span className="build-tag" title="Esther build number">Esther build {__ESTHER_BUILD__}</span>
+        <span className="build-tag" title="Esther build number">Esther {__ESTHER_BUILD__}</span>
         <button className={page === 'settings' ? 'active' : ''} onClick={() => go('settings')} title="Settings"><Icon name="settings" size={18} /><span>Settings</span></button>
         <button className="nav-toggle" onClick={onToggle} aria-expanded={!collapsed} aria-label={collapsed ? 'Expand menu' : 'Collapse menu'} title={`${collapsed ? 'Expand' : 'Collapse'} menu (Ctrl+\\)`}>
           <Icon name="chevronR" size={16} style={{ transform: collapsed ? undefined : 'rotate(180deg)' }} /><span>Collapse</span>

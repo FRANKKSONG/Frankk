@@ -1,65 +1,38 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Area, TaskArea } from './data/types';
 
-export type Page = 'home' | 'tasks' | 'notes' | 'library' | 'calendar' | 'settings';
+export type Page = 'home' | 'tasks' | 'settings';
 
 interface Ui {
-  drawerTaskId: string | null;
-  openTask: (id: string | null) => void;
-  noteDialog: string | null;
-  openNote: (path: string | null) => void;
+  page: Page;
+  /** The list shown on the Tasks page. */
+  listId: string | null;
+  /** A task to show opened (its subtasks visible), e.g. after clicking it on Home. */
+  openTaskId: string | null;
+  go: (p: Page, opts?: { listId?: string; taskId?: string }) => void;
+  setOpenTask: (id: string | null) => void;
   toast: { msg: string; undo: boolean } | null;
   say: (msg: string, undo?: boolean) => void;
-  paletteOpen: boolean;
-  setPalette: (v: boolean) => void;
-  focusArea: Area | null;
-  setFocusArea: (a: Area | null) => void;
-  /** Ask a panel to expand a specific row (used by search). */
-  reveal: { kind: 'task' | 'project'; id: string; n: number } | null;
-  revealRow: (kind: 'task' | 'project', id: string) => void;
-  /** true, or the kind of music project to start with. */
-  projectDialog: boolean | 'own-release' | 'artist-job';
-  setProjectDialog: (v: boolean | 'own-release' | 'artist-job') => void;
-  /** Board-wide tag filter. */
-  tagFilter: string | null;
-  setTagFilter: (t: string | null) => void;
-  page: Page;
-  go: (p: Page, opts?: { noteId?: string }) => void;
-  noteId: string | null;
-  setNoteId: (id: string | null) => void;
-  newTask: { area: TaskArea; brand?: string } | null;
-  setNewTask: (v: { area: TaskArea; brand?: string } | null) => void;
 }
 
 const Ctx = createContext<Ui | null>(null);
 
 export function UiProvider({ children }: { children: ReactNode }) {
-  const [drawerTaskId, openTask] = useState<string | null>(null);
-  const [noteDialog, openNote] = useState<string | null>(null);
-  const [toast, setToast] = useState<Ui['toast']>(null);
-  const [paletteOpen, setPalette] = useState(false);
-  const [focusArea, setFocusArea] = useState<Area | null>(null);
-  const [reveal, setReveal] = useState<Ui['reveal']>(null);
-  const [projectDialog, setProjectDialog] = useState<Ui['projectDialog']>(false);
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [newTask, setNewTask] = useState<Ui['newTask']>(null);
   const [page, setPage] = useState<Page>('home');
-  const [noteId, setNoteId] = useState<string | null>(null);
-  const go = useCallback((p: Page, opts?: { noteId?: string }) => { setPage(p); if (opts?.noteId) setNoteId(opts.noteId); if (p !== 'tasks') setFocusArea(null); }, []);
+  const [listId, setListId] = useState<string | null>(null);
+  const [openTaskId, setOpenTask] = useState<string | null>(null);
+  const [toast, setToast] = useState<Ui['toast']>(null);
   const timer = useRef<number | undefined>(undefined);
-  const n = useRef(0);
-
   const say = useCallback((msg: string, undo = false) => {
     setToast({ msg, undo });
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setToast(null), undo ? 6500 : 4200);
+    timer.current = window.setTimeout(() => setToast(null), undo ? 6000 : 3000);
   }, []);
-  const revealRow = useCallback((kind: 'task' | 'project', id: string) => setReveal({ kind, id, n: ++n.current }), []);
-
-  const value = useMemo<Ui>(() => ({
-    drawerTaskId, openTask, noteDialog, openNote, toast, say, paletteOpen, setPalette, focusArea, setFocusArea,
-    reveal, revealRow, projectDialog, setProjectDialog, tagFilter, setTagFilter, newTask, setNewTask, page, go, noteId, setNoteId,
-  }), [drawerTaskId, noteDialog, toast, say, paletteOpen, focusArea, reveal, revealRow, projectDialog, tagFilter, newTask, page, go, noteId]);
+  const go = useCallback((p: Page, opts?: { listId?: string; taskId?: string }) => {
+    setPage(p);
+    if (opts?.listId) setListId(opts.listId);
+    setOpenTask(opts?.taskId ?? null);
+  }, []);
+  const value = useMemo(() => ({ page, listId, openTaskId, go, setOpenTask, toast, say }), [page, listId, openTaskId, go, toast, say]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

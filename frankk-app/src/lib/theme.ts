@@ -121,10 +121,7 @@ export const THEMES: Record<ThemeId, Theme> = {
   },
 };
 
-export const COLOR_KEYS: { key: ColorKey; label: string }[] = [
-  { key: 'accent', label: 'Highlight' }, { key: 'general', label: 'General' }, { key: 'music', label: 'Music' },
-  { key: 'seround', label: 'Seround' }, { key: 'house', label: 'House' },
-];
+export const COLOR_KEYS: { key: ColorKey; label: string }[] = [{ key: 'accent', label: 'Highlight' }];
 
 export const DEFAULT_THEME: ThemePrefs = { theme: 'gilded', colors: {} };
 

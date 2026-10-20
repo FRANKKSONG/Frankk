@@ -1,6 +1,6 @@
 import { Icon } from './Icons';
 import { Popover } from './Popover';
-import { PIGMENTS } from '../data/types';
+import { PIGMENTS } from '../data/model';
 
 const nameOf = (c: string) => PIGMENTS.find((p) => p.color.toLowerCase() === c.toLowerCase())?.name ?? c.toUpperCase();
 
