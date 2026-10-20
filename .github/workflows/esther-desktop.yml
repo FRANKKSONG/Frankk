@@ -30,6 +30,11 @@ jobs:
           cache-dependency-path: frankk-app/package-lock.json
       - run: npm ci
       - run: npm test
+      # The desktop checks, run on a real Windows desktop: shortcut, hide/show, and that Esther stays above the
+      # desktop (not under it) when another app is clicked. The installer is only built if these pass.
+      - name: Desktop checks on Windows
+        timeout-minutes: 5
+        run: npm run test:desktop
       - name: Build the installer and the portable app
         run: npm run build:desktop
         env:

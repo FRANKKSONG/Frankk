@@ -4,6 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { app, BrowserWindow, globalShortcut } = require('electron');
+process.env.ESTHER_TEST = '1';
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'esther-desk-'));
 app.setPath('userData', userData);
 require(path.join(__dirname, '..', 'electron', 'main.cjs'));
@@ -54,6 +55,30 @@ app.whenReady().then(async () => {
   e.hide(); await wait(200); e.toggle(); await wait(300);
   check('Hidden, the shortcut shows it', win.isVisible());
   check('Text colours are solid on the desktop (no see-through grey)', await js(`(() => { const c = getComputedStyle(document.querySelector('.greet-date')).color; return !c.includes('/') && !c.startsWith('rgba'); })()`), await js(`getComputedStyle(document.querySelector('.greet-date')).color`));
+  if (process.platform === 'win32') check('Windows: it cannot be maximised, minimised or made full screen like an app window', !win.isMaximizable() && !win.isMinimizable() && !win.isFullScreenable());
+  win.maximize(); await wait(300);
+  check('Asking it to maximise does nothing', !win.isMaximized());
+
+  // Windows only: the desktop layer, checked against the real window stack.
+  if (process.platform === 'win32') {
+    const L = e.layer();
+    await js(`window.estherDesktop.set({ layer: 'desktop' })`);
+    const other = new BrowserWindow({ width: 900, height: 700, x: 50, y: 50, title: 'Another app' });
+    await other.loadURL('data:text/html,<h1>another app</h1>');
+    other.show(); other.focus(); await wait(1200);
+    const d = L.debug();
+    console.log('window stack:', JSON.stringify({ ...d, below: undefined }));
+    check('Windows: the desktop helper is attached to the desktop window', d && d.helperHwnd && d.helperOwner === d.desk, JSON.stringify(d));
+    check('Windows: after clicking another app, Esther is still above the desktop (not hidden under it)', d && d.aboveDesktop);
+    check('Windows: ...and under the other app', d && d.below(Number(other.getNativeWindowHandle().readBigUInt64LE(0))));
+    check('Windows: ...and still showing', win.isVisible() && !win.isMinimized());
+    e.toggle(); await wait(800);
+    check('Windows: the shortcut brings it in front of the other app', !L.debug().below(Number(other.getNativeWindowHandle().readBigUInt64LE(0))));
+    other.focus(); await wait(1000);
+    check('Windows: clicking the other app again puts Esther back on the desktop, still visible', L.debug().aboveDesktop && win.isVisible());
+    other.destroy();
+  } else console.log('(Windows window-stack checks run on Windows only)');
+
   const up = await js(`window.estherDesktop.updates.status()`);
   check('The updater reports its state (off when not installed)', up.state === 'dev' && up.version === app.getVersion(), JSON.stringify(up));
   console.log(`\n${results.filter(Boolean).length}/${results.length} desktop checks passed`);

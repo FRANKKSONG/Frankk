@@ -46,6 +46,9 @@ function createWindow() {
     ...startBounds(),
     minWidth: 520, minHeight: 360,
     frame: false, hasShadow: false, backgroundColor: '#00000000',
+    // A widget, not an app window: it can't be maximised (double-click, dragging to the top edge), snapped,
+    // minimised or made full screen. Resize it from its corner grip.
+    maximizable: false, minimizable: false, fullscreenable: false, thickFrame: false,
     // Frosted glass: Windows blurs whatever is behind the window. Otherwise the window is simply see-through.
     ...(glassOn() ? { transparent: false, backgroundMaterial: 'acrylic', roundedCorners: true } : { transparent: true }),
     skipTaskbar: true, show: false, title: 'Esther',
@@ -64,6 +67,7 @@ function createWindow() {
   win.on('move', remember);
   win.on('resize', remember);
   layer = desktopLayer(win, prefs.layer, (m) => console.warn(m));
+  win.on('maximize', () => win.unmaximize());
   // "Show desktop" (Win+D, or the corner of the taskbar) can minimise it. Esther has no taskbar button to come back
   // from, so on the desktop layer it un-minimises straight away and stays on the desktop.
   win.on('minimize', () => { if (prefs.layer === 'desktop') setTimeout(() => { if (win.isMinimized()) { win.restore(); layer?.lower(); } }, 50); });
@@ -169,6 +173,6 @@ else {
     });
   });
   app.on('will-quit', () => globalShortcut.unregisterAll());
-  if (process.env.ESTHER_TEST) global.__esther = { show, hide, toggle };
+  if (process.env.ESTHER_TEST) global.__esther = { show, hide, toggle, layer: () => layer };
   app.on('window-all-closed', () => app.quit());
 }
