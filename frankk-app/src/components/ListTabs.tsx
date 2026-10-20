@@ -41,7 +41,7 @@ export function ListTabs() {
               onBlur={(e) => { if (e.target.value.trim()) dispatch({ type: 'list/update', id: l.id, patch: { name: e.target.value.trim() } }); setRenaming(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.currentTarget.value = l.name; e.currentTarget.blur(); } }} />
           ) : (
-            <span className="tab-item">
+            <span className={`tab-item${tab === l.id ? ' on' : ''}`}>
               {grip}
               <button role="tab" aria-selected={tab === l.id} className="tab" title="Double-click to rename · right-click for more"
                 onClick={() => pick(l.id)} onDoubleClick={() => setRenaming(l.id)}

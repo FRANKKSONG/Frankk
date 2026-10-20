@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { reducer } from './data/reducer';
-import { fromOld, starter } from './data/storage';
+import { fromOld, starter, withDoneTimes } from './data/storage';
+import { brightness } from './lib/theme';
 import { weekStart } from './lib/dates';
 import { lineFor } from './lib/greeting';
 import type { Data } from './data/model';
@@ -79,4 +80,36 @@ describe('dates and greeting', () => {
     expect(weekStart('2026-10-19')).toBe('2026-10-19');
   });
   it('the greeting line is the same all day', () => { expect(lineFor('2026-10-20')).toBe(lineFor('2026-10-20')); });
+});
+
+describe('finished tasks', () => {
+  it('ticking a task keeps it, crossed out, with the time it was finished; unticking clears that', () => {
+    let d = reducer(base(), { type: 'task/toggle', id: 't-2', at: '2026-10-20T10:00:00.000Z' });
+    expect(d.tasks.find((t) => t.id === 't-2')).toMatchObject({ done: true, doneAt: '2026-10-20T10:00:00.000Z' });
+    d = reducer(d, { type: 'task/toggle', id: 't-2' });
+    expect(d.tasks.find((t) => t.id === 't-2')?.doneAt).toBeUndefined();
+  });
+  it('the clear-out removes only tasks finished before the cut-off', () => {
+    let d = reducer(base(), { type: 'task/toggle', id: 't-2', at: '2026-10-10T10:00:00.000Z' });
+    d = reducer(d, { type: 'task/toggle', id: 't-3', at: '2026-10-19T10:00:00.000Z' });
+    d = reducer(d, { type: 'task/clear-done', before: '2026-10-13T10:00:00.000Z' });
+    expect(d.tasks.map((t) => t.id)).toEqual(['t-1', 't-3']);
+  });
+  it('nothing to clear leaves the data as it is (no undo step)', () => {
+    const d = base();
+    expect(reducer(d, { type: 'task/clear-done', before: '2026-10-13T10:00:00.000Z' })).toBe(d);
+  });
+  it('tasks finished before this version get a finish time of now, so they get the full week', () => {
+    const d = withDoneTimes({ ...base(), tasks: base().tasks.map((t) => (t.id === 't-2' ? { ...t, done: true } : t)) }, '2026-10-20T00:00:00.000Z');
+    expect(d.tasks.find((t) => t.id === 't-2')?.doneAt).toBe('2026-10-20T00:00:00.000Z');
+  });
+});
+
+describe('panel colour', () => {
+  it('tells light colours from dark ones, so text can flip', () => {
+    expect(brightness('#ffffff')).toBeCloseTo(1);
+    expect(brightness('#000000')).toBe(0);
+    expect(brightness('#f2e9d2') > 0.42).toBe(true);
+    expect(brightness('#2a2520') > 0.42).toBe(false);
+  });
 });

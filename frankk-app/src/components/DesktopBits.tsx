@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icons';
-import { accelerator, desktop, prettyKeys, type DesktopState } from '../lib/desktop';
+import { accelerator, desktop, prettyKeys, type DesktopState, type Layer } from '../lib/desktop';
+
+const LAYERS: { id: Layer; label: string; hint: string }[] = [
+  { id: 'desktop', label: 'On the desktop', hint: 'Under all your windows, like a Rainmeter skin. The shortcut brings it to the front until you click elsewhere.' },
+  { id: 'normal', label: 'Like a window', hint: 'Comes to the front when you click it, like any app.' },
+  { id: 'top', label: 'Always on top', hint: 'Stays above every other window.' },
+];
 
 /** Bottom-right grip: drag to resize the desktop window (transparent windows can't be resized from their edges). */
 export function ResizeGrip() {
@@ -14,7 +20,7 @@ export function ResizeGrip() {
   );
 }
 
-/** Desktop-only settings: the show/hide shortcut, always on top, start with Windows, quit. */
+/** Desktop-only settings: the show/hide shortcut, where the window sits, start with Windows, quit. */
 export function DesktopSettings() {
   const [st, setSt] = useState<DesktopState | null>(null);
   const [recording, setRecording] = useState(false);
@@ -44,7 +50,13 @@ export function DesktopSettings() {
         {!st.shortcutOk && !recording && <span className="warn-text">Another app already uses this. Pick other keys.</span>}
       </div>
       {note && <p className="quiet">{note}</p>}
-      <label className="desk-row"><input type="checkbox" checked={st.alwaysOnTop} onChange={async (e) => setSt(await desktop!.set({ alwaysOnTop: e.target.checked }))} /> Always on top of other windows</label>
+      <div className="desk-row">
+        <span>Sits</span>
+        <span className="seg" role="radiogroup" aria-label="Where Esther sits">
+          {LAYERS.map((l) => <button key={l.id} role="radio" aria-checked={st.layer === l.id} title={l.hint} onClick={async () => setSt(await desktop!.set({ layer: l.id }))}>{l.label}</button>)}
+        </span>
+      </div>
+      <p className="quiet">{LAYERS.find((l) => l.id === st.layer)!.hint}{st.layer === 'desktop' && !st.pinsToDesktop ? ' (Pinning under other windows works on Windows only.)' : ''}</p>
       <label className="desk-row"><input type="checkbox" checked={st.startWithWindows} onChange={async (e) => setSt(await desktop!.set({ startWithWindows: e.target.checked }))} /> Start with Windows (hidden until you press the keys)</label>
       <div className="row">
         <button className="btn small" onClick={() => desktop!.hide()}><Icon name="close" size={12} /> Hide now</button>

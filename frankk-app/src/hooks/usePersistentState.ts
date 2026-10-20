@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const PREFIX = 'esther.proto.v1.';
 
@@ -14,10 +14,17 @@ export function usePersistentState<T>(key: string, initial: T): [T, (v: T | ((p:
     } catch { /* ignore */ }
     return initial;
   });
+  // Every place that uses the same key sees a change straight away.
+  useEffect(() => {
+    const on = (e: Event) => { const d = (e as CustomEvent<{ key: string; value: T }>).detail; if (d.key === key) setValue(d.value); };
+    window.addEventListener('esther-pref', on);
+    return () => window.removeEventListener('esther-pref', on);
+  }, [key]);
   const set = useCallback((v: T | ((p: T) => T)) => {
     setValue((prev) => {
       const next = typeof v === 'function' ? (v as (p: T) => T)(prev) : v;
       try { localStorage.setItem(PREFIX + key, JSON.stringify(next)); } catch { /* ignore */ }
+      queueMicrotask(() => window.dispatchEvent(new CustomEvent('esther-pref', { detail: { key, value: next } })));
       return next;
     });
   }, [key]);

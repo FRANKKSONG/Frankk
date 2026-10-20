@@ -30,6 +30,16 @@ export default function App() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [canUndo, undo, say]);
+  // Finished tasks clear themselves after the time you chose (a week unless you change it).
+  const [clearAfter] = usePersistentState<number>('clearAfter', 7);
+  const { dispatch } = useStore();
+  useEffect(() => {
+    if (!clearAfter) return;
+    const run = () => dispatch({ type: 'task/clear-done', before: new Date(Date.now() - clearAfter * 86_400_000).toISOString() });
+    run();
+    const id = window.setInterval(run, 3_600_000);
+    return () => window.clearInterval(id);
+  }, [clearAfter, dispatch]);
   const hello = greeting();
   const [shortcut, setShortcut] = useState('');
   useEffect(() => { if (!desktop) return; document.documentElement.dataset.desktop = '1'; desktop.state().then((s) => setShortcut(s.shortcut)); }, []);
@@ -37,6 +47,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
+        {desktop && <span className="move-grip" title="Drag the bar to move Esther" aria-hidden="true"><Icon name="grip" size={14} /></span>}
         <div className="brand"><ArchEmblem /><span className="wordmark" aria-label="Esther">Esther</span></div>
         <div className="greet">
           <h1><Initial letter={hello[0]} size={38} /><span>{hello}</span></h1>

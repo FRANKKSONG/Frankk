@@ -9,7 +9,9 @@ export type Action =
   | { type: 'list/order'; ids: string[] }
   | { type: 'task/add'; task: Omit<Task, 'subtasks' | 'done'> & Partial<Pick<Task, 'subtasks' | 'done'>> }
   | { type: 'task/update'; id: string; patch: Partial<Pick<Task, 'title' | 'date' | 'listId'>> }
-  | { type: 'task/toggle'; id: string }
+  | { type: 'task/toggle'; id: string; at?: string }
+  /** Removes finished tasks ticked before this time (the automatic clear-out). */
+  | { type: 'task/clear-done'; before: string }
   | { type: 'task/remove'; id: string }
   /** The list's tasks in their new order (ids of that list only). */
   | { type: 'task/order'; ids: string[] }
@@ -44,7 +46,11 @@ export function reducer(d: Data, a: Action): Data {
     // New tasks go to the top of their list.
     case 'task/add': return { ...d, tasks: [{ done: false, subtasks: [], ...a.task, title: a.task.title.trim() }, ...d.tasks] };
     case 'task/update': return mapTask(d, a.id, (t) => ({ ...t, ...a.patch, ...(a.patch.title !== undefined ? { title: a.patch.title.trim() || t.title } : {}) }));
-    case 'task/toggle': return mapTask(d, a.id, (t) => ({ ...t, done: !t.done }));
+    case 'task/toggle': return mapTask(d, a.id, (t) => (t.done ? { ...t, done: false, doneAt: undefined } : { ...t, done: true, doneAt: a.at ?? new Date().toISOString() }));
+    case 'task/clear-done': {
+      const keep = d.tasks.filter((t) => !(t.done && (t.doneAt ?? '') < a.before));
+      return keep.length === d.tasks.length ? d : { ...d, tasks: keep };
+    }
     case 'task/remove': return { ...d, tasks: d.tasks.filter((t) => t.id !== a.id) };
     case 'task/order': return { ...d, tasks: reorder(d.tasks, a.ids) };
     case 'sub/add': return a.text.trim() ? mapSubs(d, a.taskId, (s) => [...s, { id: newId('s'), text: a.text.trim(), done: false }]) : d;

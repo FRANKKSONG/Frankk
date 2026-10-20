@@ -86,10 +86,15 @@ await page.getByRole('button', { name: 'Undo' }).click();
 check('Undo brings it back', !!(await task('Buy dog food')));
 await page.locator('.task', { hasText: 'Plan the week' }).getByRole('checkbox', { name: 'Complete Plan the week' }).click();
 await page.waitForTimeout(150);
-check('Ticking a task hides it from Open; the Done toggle shows it', !(await page.locator('.task .task-title', { hasText: 'Plan the week' }).count()) && (await page.getByRole('radio', { name: /Done/ }).textContent()).includes('1'));
+check('Ticking a task keeps it in the list, crossed out, and says when it clears', (await page.locator('.task.done .task-title').allTextContents()).includes('Plan the week') && (await page.locator('.task.done .clears').textContent()) === 'clears in 7 days' && !!(await task('Plan the week')).doneAt);
+await page.getByRole('radio', { name: /To do/ }).click();
+check('"To do" hides finished tasks', !(await page.locator('.task .task-title', { hasText: 'Plan the week' }).count()));
 await page.getByRole('radio', { name: /Done/ }).click();
-check('Done shows finished tasks', (await page.locator('.task .task-title').allTextContents()).join('|') === 'Plan the week');
-await page.getByRole('radio', { name: /Open/ }).click();
+check('"Done" shows only finished tasks', (await page.locator('.task .task-title').allTextContents()).join('|') === 'Plan the week');
+await page.getByRole('radio', { name: /^All/ }).click();
+await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('esther.todo.v1')); d.tasks.find((t) => t.title === 'Plan the week').doneAt = '2026-01-01T00:00:00.000Z'; localStorage.setItem('esther.todo.v1', JSON.stringify(d)); });
+await page.reload(); await page.waitForSelector('.table');
+check('Finished tasks older than a week clear themselves', !(await task('Plan the week')));
 await page.locator('.wday', { hasText: 'Wed 21' }).locator('.tline-title', { hasText: 'Buy dog food' }).click();
 check('Clicking a task in This week opens it in the table', (await page.locator('.task.open .task-title').textContent()) === 'Buy dog food');
 
@@ -119,6 +124,17 @@ await page.keyboard.press('Escape');
 /* ---------- keeps after reload ---------- */
 await page.reload(); await page.waitForSelector('.table');
 check('Everything is still there after a reload', !!(await task('Pick up the suit (tailor)')) && !!(await task('Renew car insurance')));
+await page.getByRole('button', { name: 'Settings' }).click();
+await page.getByLabel('Panel colour').click();
+await page.getByRole('option', { name: /Vellum|Ochre/ }).first().click();
+await page.waitForTimeout(200);
+{
+  const text = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--text').trim());
+  check('Settings: pick a panel colour; text switches to stay readable', text === '#1c1915' || text === '#f4efe6', text);
+}
+await page.getByLabel('Panel opacity').fill('0.5');
+check('Settings: panel opacity', (await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--panel-alpha').trim())) === '50%');
+await page.keyboard.press('Escape');
 check('One page: no sidebar or other pages', (await page.locator('.sidebar, .knight, .note-doc').count()) === 0);
 
 check('No errors in the browser console', problems.length === 0, problems.join(' | '));

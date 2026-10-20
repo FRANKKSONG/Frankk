@@ -46,13 +46,21 @@ export function starter(today: ISODate): Data {
   };
 }
 
+/** Tasks finished before finish times were kept get "now", so they're cleared a full week from today, not straight away. */
+export function withDoneTimes(d: Data, now = new Date().toISOString()): Data {
+  return d.tasks.some((t) => t.done && !t.doneAt) ? { ...d, tasks: d.tasks.map((t) => (t.done && !t.doneAt ? { ...t, doneAt: now } : t)) } : d;
+}
+
+/** How long finished tasks stay (days); 0 = keep them. */
+export const CLEAR_CHOICES = [{ days: 1, label: 'After a day' }, { days: 7, label: 'After a week' }, { days: 30, label: 'After a month' }, { days: 0, label: 'Never' }];
+
 export function load(today: ISODate): Data {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) { const d = JSON.parse(raw) as Data; if (d?.lists?.length) return d; }
+    if (raw) { const d = JSON.parse(raw) as Data; if (d?.lists?.length) return withDoneTimes(d); }
     const old = localStorage.getItem(OLD_KEY);
     const moved = old ? fromOld(JSON.parse(old)) : null;
-    if (moved) return moved;
+    if (moved) return withDoneTimes(moved);
   } catch { /* unreadable: start fresh */ }
   return starter(today);
 }

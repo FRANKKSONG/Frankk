@@ -12,14 +12,15 @@ import { newId, type Task } from '../data/model';
 import { longToday, shortDate, type ISODate } from '../lib/dates';
 
 type SortKey = 'manual' | 'title' | 'list' | 'subs' | 'date';
-type Show = 'open' | 'done' | 'all';
+type Show = 'all' | 'open' | 'done';
 
 /** Every task in one table: pick a list tab, sort by any column, filter open/done, open a row for its subtasks. */
 export function TaskTable() {
   const { data, dispatch, today } = useStore();
   const { tab, day, setDay, openTaskId, setOpenTask } = useUi();
   const [sort, setSort] = usePersistentState<{ key: SortKey; dir: 1 | -1 }>('table.sort', { key: 'manual', dir: 1 });
-  const [show, setShow] = usePersistentState<Show>('table.show', 'open');
+  // Finished tasks stay in the list, crossed out, until they clear (see App); "All" is the normal view.
+  const [show, setShow] = usePersistentState<Show>('table.view', 'all');
   const listName = (id: string) => data.lists.find((l) => l.id === id)?.name ?? '';
   const listIndex = (id: string) => data.lists.findIndex((l) => l.id === id);
   const allTab = tab === 'all' || !data.lists.some((l) => l.id === tab);
@@ -46,9 +47,9 @@ export function TaskTable() {
     <section className={`card table-card${allTab ? ' all' : ''}`} aria-label="Tasks">
       <div className="table-tools">
         <div className="seg" role="radiogroup" aria-label="Show">
-          {(['open', 'done', 'all'] as Show[]).map((s) => (
+          {(['all', 'open', 'done'] as Show[]).map((s) => (
             <button key={s} role="radio" aria-checked={show === s} onClick={() => setShow(s)}>
-              {s === 'open' ? 'Open' : s === 'done' ? 'Done' : 'All'}{s !== 'all' && <small>{counts[s]}</small>}
+              {s === 'open' ? 'To do' : s === 'done' ? 'Done' : 'All'}<small>{s === 'all' ? counts.open + counts.done : counts[s]}</small>
             </button>
           ))}
         </div>
@@ -104,8 +105,15 @@ function AddRow({ listId, day }: { listId: string | null; day: ISODate | null })
   );
 }
 
+/** "clears in 6 days" / "clears today". */
+function clearsIn(doneAt: string, days: number): string {
+  const left = Math.ceil((new Date(doneAt).getTime() + days * 86_400_000 - Date.now()) / 86_400_000);
+  return left <= 0 ? 'clears soon' : left === 1 ? 'clears tomorrow' : `clears in ${left} days`;
+}
+
 function Row({ task, grip, showList, open, onOpen, listName }: { task: Task; grip: React.ReactNode; showList: boolean; open: boolean; onOpen: (o: boolean) => void; listName: string }) {
   const { data, dispatch, today } = useStore();
+  const [clearAfter] = usePersistentState<number>('clearAfter', 7);
   const { say } = useUi();
   const menu = useContextMenu();
   const list = data.lists.find((l) => l.id === task.listId);
@@ -126,6 +134,7 @@ function Row({ task, grip, showList, open, onOpen, listName }: { task: Task; gri
             <Icon name="chevronR" size={12} style={{ transform: open ? 'rotate(90deg)' : undefined }} />
           </button>
           <Editable className="task-title" label="Task name" value={task.title} onSave={(v) => dispatch({ type: 'task/update', id: task.id, patch: { title: v } })} />
+          {task.done && clearAfter > 0 && task.doneAt && <span className="clears">{clearsIn(task.doneAt, clearAfter)}</span>}
         </span>
         {showList && (
           <span className="td" role="cell">

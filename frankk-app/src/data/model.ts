@@ -11,6 +11,8 @@ export interface Task {
   /** The day it's for (shown on the calendar and in This week). */
   date?: ISODate;
   subtasks: Subtask[];
+  /** When it was ticked done (ISO time). Finished tasks stay, crossed out, until they're cleared after a while. */
+  doneAt?: string;
 }
 export interface Data { version: 1; lists: List[]; tasks: Task[] }
 

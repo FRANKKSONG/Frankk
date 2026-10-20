@@ -1,16 +1,23 @@
 // Esther on the Windows desktop: a frameless, see-through window that sits on the desktop like a Rainmeter skin.
 // It has no taskbar button. A global shortcut (Ctrl+Alt+E by default) shows and hides it; the tray icon has the rest.
 const { app, BrowserWindow, globalShortcut, ipcMain, Menu, Tray, nativeImage, screen } = require('electron');
+const { desktopLayer } = require('./desktop-layer.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DEFAULTS = { shortcut: 'Control+Alt+E', alwaysOnTop: false, bounds: null, hidden: false };
+const LAYERS = ['desktop', 'normal', 'top'];
+const DEFAULTS = { shortcut: 'Control+Alt+E', layer: 'desktop', bounds: null, hidden: false };
 const file = () => path.join(app.getPath('userData'), 'desktop.json');
 let prefs = { ...DEFAULTS };
 try { prefs = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(file(), 'utf8')) }; } catch { /* first run */ }
+// 1.1 had an "always on top" switch; it becomes the 'top' layer.
+if (prefs.alwaysOnTop === true) prefs.layer = 'top';
+delete prefs.alwaysOnTop;
+if (!LAYERS.includes(prefs.layer)) prefs.layer = 'desktop';
 const savePrefs = () => { try { fs.mkdirSync(path.dirname(file()), { recursive: true }); fs.writeFileSync(file(), JSON.stringify(prefs, null, 2)); } catch { /* read-only profile */ } };
 
 let win = null;
+let layer = null;
 let tray = null;
 let shortcutOk = false;
 const dev = process.env.ESTHER_DEV_URL;
@@ -29,7 +36,7 @@ function createWindow() {
     ...startBounds(),
     minWidth: 520, minHeight: 360,
     frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false,
-    skipTaskbar: true, show: false, alwaysOnTop: prefs.alwaysOnTop, title: 'Esther',
+    skipTaskbar: true, show: false, title: 'Esther',
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true },
   });
@@ -44,13 +51,16 @@ function createWindow() {
   const remember = () => { clearTimeout(t); t = setTimeout(() => { if (win && !win.isMinimized()) { prefs.bounds = win.getBounds(); savePrefs(); } }, 400); };
   win.on('move', remember);
   win.on('resize', remember);
+  layer = desktopLayer(win, prefs.layer, (m) => console.warn(m));
   // Links never open inside Esther.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
 
-function show() { if (!win) return; win.show(); win.focus(); prefs.hidden = false; savePrefs(); refreshTray(); }
+/** Show it and bring it to the front (on the desktop layer, until you click elsewhere). */
+function show() { if (!win) return; win.show(); layer?.raise(); win.focus(); prefs.hidden = false; savePrefs(); refreshTray(); }
 function hide() { if (!win) return; win.hide(); prefs.hidden = true; savePrefs(); refreshTray(); }
+/** The shortcut: hidden → show it in front; showing but behind other windows → bring it forward; in front → hide. */
 function toggle() { if (!win) return; if (win.isVisible() && win.isFocused()) hide(); else show(); }
 
 function registerShortcut(accel) {
@@ -68,7 +78,10 @@ function refreshTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: win && win.isVisible() ? `Hide  (${pretty(prefs.shortcut)})` : `Show  (${pretty(prefs.shortcut)})`, click: () => (win.isVisible() ? hide() : show()) },
     { type: 'separator' },
-    { label: 'Always on top', type: 'checkbox', checked: prefs.alwaysOnTop, click: (i) => setPrefs({ alwaysOnTop: i.checked }) },
+    { label: 'On the desktop (under other windows)', type: 'radio', checked: prefs.layer === 'desktop', click: () => setPrefs({ layer: 'desktop' }) },
+    { label: 'Like a normal window', type: 'radio', checked: prefs.layer === 'normal', click: () => setPrefs({ layer: 'normal' }) },
+    { label: 'Always on top', type: 'radio', checked: prefs.layer === 'top', click: () => setPrefs({ layer: 'top' }) },
+    { type: 'separator' },
     { label: 'Start with Windows', type: 'checkbox', checked: startsWithWindows(), click: (i) => setPrefs({ startWithWindows: i.checked }) },
     { label: 'Put it back in the middle', click: () => { prefs.bounds = null; win.setBounds(startBounds()); show(); } },
     { type: 'separator' },
@@ -76,14 +89,14 @@ function refreshTray() {
   ]));
 }
 
-function state() { return { shortcut: prefs.shortcut, shortcutOk, alwaysOnTop: prefs.alwaysOnTop, startWithWindows: startsWithWindows(), version: app.getVersion() }; }
+function state() { return { shortcut: prefs.shortcut, shortcutOk, layer: prefs.layer, pinsToDesktop: !!layer?.native, startWithWindows: startsWithWindows(), version: app.getVersion() }; }
 
 function setPrefs(p) {
   if (typeof p.shortcut === 'string' && p.shortcut !== prefs.shortcut) {
     const old = prefs.shortcut;
     if (registerShortcut(p.shortcut)) prefs.shortcut = p.shortcut; else registerShortcut(old);
   }
-  if (typeof p.alwaysOnTop === 'boolean') { prefs.alwaysOnTop = p.alwaysOnTop; win?.setAlwaysOnTop(p.alwaysOnTop); }
+  if (LAYERS.includes(p.layer)) { prefs.layer = p.layer; layer?.setMode(p.layer); }
   if (typeof p.startWithWindows === 'boolean') app.setLoginItemSettings({ openAtLogin: p.startWithWindows, args: ['--hidden-start'] });
   savePrefs();
   refreshTray();
@@ -105,6 +118,8 @@ else {
     ipcMain.handle('esther:state', () => state());
     ipcMain.handle('esther:set', (_e, p) => setPrefs(p ?? {}));
     ipcMain.on('esther:hide', () => hide());
+    // Esc / done: on the desktop layer, step back behind your windows instead of vanishing.
+    ipcMain.on('esther:lower', () => layer?.lower());
     ipcMain.on('esther:quit', () => app.quit());
     // Transparent windows can't be resized from their edges on Windows, so Esther has its own corner grip.
     ipcMain.on('esther:size', (_e, s) => {

@@ -25,9 +25,12 @@ app.whenReady().then(async () => {
   check('Ctrl+Alt+E is registered as the show/hide shortcut', globalShortcut.isRegistered('Control+Alt+E'));
   const st = await js(`window.estherDesktop.state()`);
   check('The bridge reports its settings', st.shortcut === 'Control+Alt+E' && st.shortcutOk === true, JSON.stringify(st));
-  await js(`window.estherDesktop.set({ shortcut: 'Control+Alt+T', alwaysOnTop: true })`);
+  check('It starts on the desktop layer', st.layer === 'desktop', JSON.stringify(st));
+  await js(`window.estherDesktop.set({ shortcut: 'Control+Alt+T', layer: 'top' })`);
   check('Changing the shortcut moves it', globalShortcut.isRegistered('Control+Alt+T') && !globalShortcut.isRegistered('Control+Alt+E'));
   check('Always on top can be switched on', win.isAlwaysOnTop());
+  await js(`window.estherDesktop.set({ layer: 'desktop' })`);
+  check('Back on the desktop it is not on top', !win.isAlwaysOnTop());
   await js(`window.estherDesktop.size(700, 500)`); await wait(300);
   const b = win.getBounds();
   check('The corner grip resizes the window', b.width === 700 && b.height === 500, JSON.stringify(b));
@@ -35,7 +38,7 @@ app.whenReady().then(async () => {
   check('Hide tucks it away', !win.isVisible());
   await wait(600);
   const saved = JSON.parse(fs.readFileSync(path.join(userData, 'desktop.json'), 'utf8'));
-  check('Settings and size are remembered', saved.shortcut === 'Control+Alt+T' && saved.alwaysOnTop === true && saved.hidden === true, JSON.stringify(saved));
+  check('Settings and size are remembered', saved.shortcut === 'Control+Alt+T' && saved.layer === 'desktop' && saved.hidden === true && saved.bounds?.width === 700, JSON.stringify(saved));
   // Typing and saving work: add a task through the page and read it back.
   win.show(); await wait(300);
   await js(`(() => { const i = document.querySelector('input[aria-label="Add a task"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'Typed on the desktop'); i.dispatchEvent(new Event('input', { bubbles: true })); i.form.requestSubmit(); })()`);

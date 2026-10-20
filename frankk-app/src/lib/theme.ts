@@ -21,6 +21,16 @@ export interface WindowPrefs {
   blur: number;
   /** How much the background art is darkened. */
   dim: number;
+  /** Your own colour for the panels (any colour; text turns light or dark to stay readable). Unset = the look's own. */
+  panelColor?: string;
+}
+
+/** Perceived brightness of a #rrggbb colour, 0 (black) to 1 (white). */
+export function brightness(hex: string): number {
+  const m = hex.replace('#', '').match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+  if (!m) return 0;
+  const [r, g, b] = m.slice(1).map((x) => parseInt(x, 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 export interface ThemePrefs {
@@ -155,7 +165,21 @@ export function applyTheme(prefs: ThemePrefs) {
   root.style.setProperty('--win-dim', String(w.dim));
   root.style.setProperty('--panel-alpha', `${Math.round(w.opacity * 100)}%`);
   root.style.setProperty('--blur', `${w.blur}px`);
+  // Your panel colour: panels, menus and their hover shades follow it, and text flips light/dark for contrast.
+  if (w.panelColor) {
+    const light = brightness(w.panelColor) > 0.42;
+    const ink = light ? '#000' : '#fff';
+    root.style.setProperty('--bg-2', w.panelColor);
+    root.style.setProperty('--bg-3', `color-mix(in srgb, ${w.panelColor} 90%, ${ink})`);
+    root.style.setProperty('--bg-hover', `color-mix(in srgb, ${w.panelColor} 84%, ${ink})`);
+    root.style.setProperty('--pop-bg', `color-mix(in srgb, ${w.panelColor} 94%, ${ink})`);
+    root.style.setProperty('--text', light ? '#1c1915' : '#f4efe6');
+    root.style.setProperty('--muted', light ? '#4d463c' : '#c2b8a6');
+    root.style.setProperty('--faint', light ? '#776f63' : '#8f8676');
+    root.style.setProperty('--edge', light ? 'rgba(0,0,0,.12)' : 'rgba(255,255,255,.09)');
+    root.style.setProperty('--line-soft', light ? 'rgba(0,0,0,.14)' : 'rgba(255,255,255,.1)');
+  }
   root.dataset.look = id;
   root.dataset.style = t.medieval ? 'medieval' : t.gilded ? 'gilded' : 'modern';
-  root.style.colorScheme = t.dark ? 'dark' : 'light';
+  root.style.colorScheme = (w.panelColor ? brightness(w.panelColor) <= 0.42 : t.dark) ? 'dark' : 'light';
 }

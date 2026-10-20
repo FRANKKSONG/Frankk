@@ -1,8 +1,10 @@
 /** Present only inside the Esther desktop app (see electron/preload.cjs). */
-export interface DesktopState { shortcut: string; shortcutOk: boolean; alwaysOnTop: boolean; startWithWindows: boolean; version: string }
+/** Where the window sits: on the desktop under other windows, like a normal window, or always on top. */
+export type Layer = 'desktop' | 'normal' | 'top';
+export interface DesktopState { shortcut: string; shortcutOk: boolean; layer: Layer; pinsToDesktop: boolean; startWithWindows: boolean; version: string }
 export interface Desktop {
   state: () => Promise<DesktopState>;
-  set: (p: Partial<Pick<DesktopState, 'shortcut' | 'alwaysOnTop' | 'startWithWindows'>>) => Promise<DesktopState>;
+  set: (p: Partial<Pick<DesktopState, 'shortcut' | 'layer' | 'startWithWindows'>>) => Promise<DesktopState>;
   hide: () => void;
   quit: () => void;
   size: (width: number, height: number) => void;

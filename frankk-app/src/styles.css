@@ -321,3 +321,44 @@ input.tab-edit { width: 150px; color: var(--text); }
 .btn.keys { min-width: 130px; justify-content: center; font-variant-numeric: tabular-nums; }
 .btn.keys.recording { border-color: var(--accent); color: var(--accent); }
 .warn-text { color: var(--danger); font-size: 12.5px; }
+
+/* ---------- 1.2: fill the window, visible grips, no leftover web shadows on the desktop ---------- */
+/* Panels stretch to the bottom of the window; the table and This week scroll inside themselves. */
+@media (min-width: 1151px) {
+  .app { overflow: hidden; }
+  .layout { min-height: 0; align-items: stretch; }
+  .main-col, .side-col { display: flex; flex-direction: column; min-height: 0; }
+  .table-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .table-card .table { flex: 1; min-height: 0; overflow: auto; align-content: start; }
+  .week { flex: 1; min-height: 0; overflow: auto; align-content: start; }
+}
+
+/* Grips are always visible (a little faint) and sit inside the thing they move. */
+.drag-grip { opacity: .5; color: var(--muted); }
+.drag-grip:hover, .drag-grip:focus-visible { opacity: 1; color: var(--text); }
+.task > .tr .drag-grip.off { opacity: .15; }
+.tab-item { border-radius: var(--pill-radius); background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent); border: 1px solid var(--edge); padding-left: 6px; }
+.tab-item .drag-grip { width: 14px; margin: 0 -6px 0 0; opacity: .45; }
+.tab-item .tab { background: none; border: 0; backdrop-filter: none; padding-left: 8px; }
+.tab-item:hover { background: color-mix(in srgb, var(--text) 9%, var(--bg-2)); }
+.tab-item.on { background: color-mix(in srgb, var(--accent) 20%, var(--bg-2)); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.tab-item.on .tab { color: var(--text); }
+[data-style='medieval'] .tab-item { border-radius: 0; background: var(--bg-2); border-color: var(--line-soft); }
+[data-style='medieval'] .tab-item.on { background: var(--bg-3); border-color: var(--line); }
+.move-grip { display: inline-grid; place-items: center; width: 18px; height: 36px; margin: 0 -12px 0 -14px; color: var(--muted); opacity: .6; cursor: grab; }
+.top:hover .move-grip { opacity: 1; }
+.resize-grip { opacity: .8; }
+.resize-grip:hover { opacity: 1; }
+
+/* Finished tasks stay crossed out until they clear. */
+.clears { flex: none; font-size: 11.5px; color: var(--faint); font-style: italic; margin-left: 8px; }
+.task.done .task-title { opacity: .75; }
+
+/* On the desktop: no drop shadows (a see-through window draws them as square smudges), a hairline edge instead.
+   Every look's panels follow the opacity slider. */
+[data-desktop] { --shadow: none; }
+[data-desktop] :is(.card, .top, .tab-item, .tab-add, .tab) { box-shadow: none !important; }
+[data-desktop] .card, [data-desktop] .top { border: 1px solid var(--edge); }
+[data-desktop] :is(.popover, .toast) { box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+[data-desktop][data-style='medieval'] :is(.card, .top) { background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent); outline-color: color-mix(in srgb, var(--line) var(--panel-alpha), transparent); }
+[data-desktop] .tab-add { background: color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent); }

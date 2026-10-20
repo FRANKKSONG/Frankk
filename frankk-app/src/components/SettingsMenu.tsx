@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { Data } from '../data/model';
+import { CLEAR_CHOICES } from '../data/storage';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { Icon } from './Icons';
 import { Popover } from './Popover';
 import { AppearancePanel } from './Appearance';
@@ -15,6 +17,7 @@ export function SettingsMenu({ theme, setTheme }: { theme: ThemePrefs; setTheme:
   const fileRef = useRef<HTMLInputElement>(null);
   const { say } = useUi();
   const [sure, setSure] = useState(false);
+  const [clearAfter, setClearAfter] = usePersistentState<number>('clearAfter', 7);
   const exportCopy = () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
     Object.assign(document.createElement('a'), { href: url, download: `esther-tasks-${new Date().toISOString().slice(0, 10)}.json` }).click();
@@ -37,6 +40,11 @@ export function SettingsMenu({ theme, setTheme }: { theme: ThemePrefs; setTheme:
           <DesktopSettings />
           <AppearancePanel prefs={theme} setPrefs={setTheme} />
           <h4 className="ap-h">Your tasks</h4>
+          <label className="desk-row">Finished tasks stay crossed out, then clear
+            <select value={clearAfter} aria-label="When finished tasks clear" onChange={(e) => setClearAfter(Number(e.target.value))}>
+              {CLEAR_CHOICES.map((c) => <option key={c.days} value={c.days}>{c.label.toLowerCase()}</option>)}
+            </select>
+          </label>
           <p className="quiet">{data.lists.length} list{data.lists.length === 1 ? '' : 's'}, {data.tasks.length} task{data.tasks.length === 1 ? '' : 's'}, saved on this PC. “Load a copy” replaces them with a saved copy (Ctrl+Z undoes). Esther {__ESTHER_BUILD__}.</p>
           <div className="row">
             <button className="btn small" onClick={exportCopy}>Save a copy (.json)</button>
