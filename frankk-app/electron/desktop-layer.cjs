@@ -18,7 +18,8 @@ function desktopLayer(win, initialMode, log = () => {}) {
   let raised = false;
   let overDesktop = false;
   const apply = () => win.setAlwaysOnTop(mode === 'top');
-  if (process.platform !== 'win32') { apply(); return { setMode(m) { mode = m; apply(); }, raise() {}, lower() {}, native: false }; }
+  const plain = { setMode(m) { mode = m; apply(); }, raise() { raised = true; }, lower() { raised = false; }, isRaised: () => raised, native: false };
+  if (process.platform !== 'win32') { apply(); return plain; }
 
   let api;
   try {
@@ -32,7 +33,7 @@ function desktopLayer(win, initialMode, log = () => {}) {
       // Writes bytes to an address Windows hands us (the WINDOWPOS of WM_WINDOWPOSCHANGING).
       Poke: kernel32.func('void __stdcall RtlMoveMemory(uintptr_t Destination, const uint8_t *Source, size_t Length)'),
     };
-  } catch (e) { log(`desktop layer unavailable: ${e.message}`); apply(); return { setMode(m) { mode = m; apply(); }, raise() {}, lower() {}, native: false }; }
+  } catch (e) { log(`desktop layer unavailable: ${e.message}`); apply(); return plain; }
 
   const hwnd = Number(win.getNativeWindowHandle().readBigUInt64LE(0));
   const bottom = Buffer.alloc(8); bottom.writeBigUInt64LE(BigInt(HWND_BOTTOM));
@@ -70,6 +71,7 @@ function desktopLayer(win, initialMode, log = () => {}) {
     /** Bring it to the front until you click elsewhere. */
     raise() { raised = true; toTop(); },
     lower() { raised = false; toBottom(); },
+    isRaised: () => raised || overDesktop,
   };
 }
 

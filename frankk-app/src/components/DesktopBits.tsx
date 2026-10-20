@@ -57,7 +57,10 @@ export function DesktopSettings() {
         </span>
       </div>
       <p className="quiet">{LAYERS.find((l) => l.id === st.layer)!.hint}{st.layer === 'desktop' && !st.pinsToDesktop ? ' (Pinning under other windows works on Windows only.)' : ''}</p>
-      <label className="desk-row"><input type="checkbox" checked={st.startWithWindows} onChange={async (e) => setSt(await desktop!.set({ startWithWindows: e.target.checked }))} /> Start with Windows (hidden until you press the keys)</label>
+      {st.glassSupported && (
+        <label className="desk-row"><input type="checkbox" checked={st.glass} onChange={(e) => { void desktop!.set({ glass: e.target.checked }); }} /> Frosted glass behind the panels (Esther restarts to switch)</label>
+      )}
+      <label className="desk-row"><input type="checkbox" checked={st.startWithWindows} onChange={async (e) => setSt(await desktop!.set({ startWithWindows: e.target.checked }))} /> Start with Windows</label>
       <div className="row">
         <button className="btn small" onClick={() => desktop!.hide()}><Icon name="close" size={12} /> Hide now</button>
         <button className="btn small ghost" onClick={() => desktop!.quit()}>Quit Esther</button>

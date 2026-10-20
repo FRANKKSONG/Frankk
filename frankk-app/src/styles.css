@@ -371,3 +371,19 @@ span.update-pill { background: none; border-color: transparent; }
 .update-row { flex-wrap: wrap; }
 .update-row > span:first-child { font-weight: 600; }
 [data-style='medieval'] .update-pill { border-radius: 0; }
+
+/* ---------- 1.4: frosted glass, solid text, clean selected tab ---------- */
+/* The selected tab is one pill: the tab button inside it never draws its own border, fill or focus ring. */
+.tab-item .tab, .tab-item .tab:hover, .tab-item .tab[aria-selected='true'] { background: none !important; border: 0 !important; outline: none !important; box-shadow: none !important; }
+.tab-item:has(.tab:focus-visible) { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; }
+.tab-item.on .tab small { color: var(--text); }
+
+/* Text is never faded with opacity on the desktop: dimmed things use solid, darker colours instead. */
+[data-desktop] :is(.wday.past, .day.other, .task.done .task-title, .resize-grip) { opacity: 1; }
+[data-desktop] .day.other { color: var(--faint); }
+[data-desktop] .wday.past h3 { color: var(--faint); }
+[data-desktop] :is(.card, .top, .tab-item, .tab-add) { -webkit-font-smoothing: antialiased; }
+
+/* Frosted glass (Windows 11): Windows blurs the wallpaper behind the whole window; panels sit on it as tinted glass. */
+[data-glass] body, [data-glass] .app { background: transparent !important; }
+[data-glass] .app { padding: 10px; }

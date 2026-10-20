@@ -179,6 +179,12 @@ export function applyTheme(prefs: ThemePrefs) {
     root.style.setProperty('--edge', light ? 'rgba(0,0,0,.12)' : 'rgba(255,255,255,.09)');
     root.style.setProperty('--line-soft', light ? 'rgba(0,0,0,.14)' : 'rgba(255,255,255,.1)');
   }
+  // On the desktop, over a wallpaper, every piece of text is a solid colour: secondary text is mixed from the text
+  // colour and the panel colour (never see-through), so it stays readable on any wallpaper.
+  if ((window as unknown as { estherDesktop?: unknown }).estherDesktop) {
+    root.style.setProperty('--muted', 'color-mix(in srgb, var(--text) 84%, var(--bg-2))');
+    root.style.setProperty('--faint', 'color-mix(in srgb, var(--text) 68%, var(--bg-2))');
+  }
   root.dataset.look = id;
   root.dataset.style = t.medieval ? 'medieval' : t.gilded ? 'gilded' : 'modern';
   root.style.colorScheme = (w.panelColor ? brightness(w.panelColor) <= 0.42 : t.dark) ? 'dark' : 'light';

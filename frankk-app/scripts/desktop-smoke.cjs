@@ -38,12 +38,22 @@ app.whenReady().then(async () => {
   check('Hide tucks it away', !win.isVisible());
   await wait(600);
   const saved = JSON.parse(fs.readFileSync(path.join(userData, 'desktop.json'), 'utf8'));
-  check('Settings and size are remembered', saved.shortcut === 'Control+Alt+T' && saved.layer === 'desktop' && saved.hidden === true && saved.bounds?.width === 700, JSON.stringify(saved));
+  check('Settings and size are remembered', saved.shortcut === 'Control+Alt+T' && saved.layer === 'desktop' && saved.bounds?.width === 700, JSON.stringify(saved));
   // Typing and saving work: add a task through the page and read it back.
   win.show(); await wait(300);
   await js(`(() => { const i = document.querySelector('input[aria-label="Add a task"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'Typed on the desktop'); i.dispatchEvent(new Event('input', { bubbles: true })); i.form.requestSubmit(); })()`);
   await wait(300);
   check('You can type a task in and it is saved', await js(`JSON.parse(localStorage.getItem('esther.todo.v1')).tasks.some((t) => t.title === 'Typed on the desktop')`));
+  // Coming back from every way it can disappear.
+  const e = global.__esther;
+  win.minimize(); await wait(300); e.show(); await wait(300);
+  check('After being minimised (Win+D), the shortcut brings it back', win.isVisible() && !win.isMinimized());
+  win.setBounds({ x: -5000, y: -5000, width: 700, height: 500 }); await wait(200); e.show(); await wait(300);
+  const nb = win.getBounds();
+  check('Off-screen (a monitor went away), the shortcut puts it back on screen', nb.x > -1000 && nb.y > -1000, JSON.stringify(nb));
+  e.hide(); await wait(200); e.toggle(); await wait(300);
+  check('Hidden, the shortcut shows it', win.isVisible());
+  check('Text colours are solid on the desktop (no see-through grey)', await js(`(() => { const c = getComputedStyle(document.querySelector('.greet-date')).color; return !c.includes('/') && !c.startsWith('rgba'); })()`), await js(`getComputedStyle(document.querySelector('.greet-date')).color`));
   const up = await js(`window.estherDesktop.updates.status()`);
   check('The updater reports its state (off when not installed)', up.state === 'dev' && up.version === app.getVersion(), JSON.stringify(up));
   console.log(`\n${results.filter(Boolean).length}/${results.length} desktop checks passed`);

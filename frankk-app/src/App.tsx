@@ -42,7 +42,7 @@ export default function App() {
   }, [clearAfter, dispatch]);
   const hello = greeting();
   const [shortcut, setShortcut] = useState('');
-  useEffect(() => { if (!desktop) return; document.documentElement.dataset.desktop = '1'; desktop.state().then((s) => setShortcut(s.shortcut)); }, []);
+  useEffect(() => { if (!desktop) return; document.documentElement.dataset.desktop = '1'; desktop.state().then((s) => { setShortcut(s.shortcut); if (s.glass) document.documentElement.dataset.glass = '1'; }); }, []);
 
   return (
     <div className="app">
