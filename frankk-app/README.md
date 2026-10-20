@@ -4,11 +4,13 @@ A simple to-do list for the PC, in the Esther looks (Gilded, Illuminated, Noctur
 React + TypeScript + Vite. Everything is saved in this browser (`localStorage`, key `esther.todo.v1`); nothing is sent anywhere.
 
 ## What it does
-- **Home:** a greeting with the date and one line for the day, the month calendar (dots for days with tasks; pick a day to see and add its tasks), and **This week**, Monday to Sunday, with anything still open from before.
-- **Lists:** make, rename, recolour, reorder and delete your own lists in the sidebar. Deleting a list asks whether to move its tasks or delete them.
-- **Tasks:** add with Enter, a date chip, tick, rename by clicking, drag to reorder, **subtasks** under each task. Right-click to move to another list or delete. Finished tasks fold into “Done”.
-- **Settings:** the four looks, window background, highlight colour; save a copy of your tasks as `.json`; start fresh.
-- Ctrl+Z undoes the last 50 changes. Ctrl+\ collapses the sidebar.
+Everything is on one page.
+- **Top:** a greeting with the date and one line for the day, and the settings menu (gear).
+- **Lists as tabs:** All, then each of your lists with its open count. `+` makes a list (name it straight away); double-click a tab to rename it; drag to reorder; right-click for colour and delete (it asks whether to move the tasks or delete them).
+- **Task table:** columns Task, List (on All), Subtasks (progress), Date. Click a column to sort, click again to reverse, “Back to my order” to return to your own order (drag ⠿). Open / Done / All toggle. The first row adds a task with Enter. Click a name to rename, the List pill to move, the date chip to set a day, ▸ for subtasks. Right-click a row to move or delete.
+- **Beside the table:** the month (dots for days with open tasks; click a day to show only that day in the table) and **This week**, Monday to Sunday, with anything still open from before. Click a task there to open it in the table.
+- **Settings menu:** the four looks, window background, highlight colour; save a copy of your tasks as `.json`; start fresh.
+- Ctrl+Z undoes the last 50 changes.
 
 The first time 1.0 opens, tasks from the earlier Esther (key `esther.proto.data.v4`) are brought over: General, Seround, House and B-YOU become lists, steps become subtasks, the plan or due day becomes the date. The old data is left untouched.
 

@@ -1,15 +1,20 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { ISODate } from './lib/dates';
 
-export type Page = 'home' | 'tasks' | 'settings';
+/** 'all' shows every list in one table. */
+export type Tab = 'all' | string;
 
 interface Ui {
-  page: Page;
-  /** The list shown on the Tasks page. */
-  listId: string | null;
-  /** A task to show opened (its subtasks visible), e.g. after clicking it on Home. */
+  tab: Tab;
+  setTab: (t: Tab) => void;
+  /** The task whose subtasks are showing. */
   openTaskId: string | null;
-  go: (p: Page, opts?: { listId?: string; taskId?: string }) => void;
   setOpenTask: (id: string | null) => void;
+  /** A day picked on the calendar: the table shows only that day. */
+  day: ISODate | null;
+  setDay: (d: ISODate | null) => void;
+  /** Show a task in the table: switch to its list, open it and scroll to it. */
+  reveal: (taskId: string, listId: string) => void;
   toast: { msg: string; undo: boolean } | null;
   say: (msg: string, undo?: boolean) => void;
 }
@@ -17,9 +22,9 @@ interface Ui {
 const Ctx = createContext<Ui | null>(null);
 
 export function UiProvider({ children }: { children: ReactNode }) {
-  const [page, setPage] = useState<Page>('home');
-  const [listId, setListId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('all');
   const [openTaskId, setOpenTask] = useState<string | null>(null);
+  const [day, setDay] = useState<ISODate | null>(null);
   const [toast, setToast] = useState<Ui['toast']>(null);
   const timer = useRef<number | undefined>(undefined);
   const say = useCallback((msg: string, undo = false) => {
@@ -27,12 +32,13 @@ export function UiProvider({ children }: { children: ReactNode }) {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setToast(null), undo ? 6000 : 3000);
   }, []);
-  const go = useCallback((p: Page, opts?: { listId?: string; taskId?: string }) => {
-    setPage(p);
-    if (opts?.listId) setListId(opts.listId);
-    setOpenTask(opts?.taskId ?? null);
+  const reveal = useCallback((taskId: string, listId: string) => {
+    setTab((t) => (t === 'all' ? t : listId));
+    setDay(null);
+    setOpenTask(taskId);
+    requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector(`[data-task="${taskId}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })));
   }, []);
-  const value = useMemo(() => ({ page, listId, openTaskId, go, setOpenTask, toast, say }), [page, listId, openTaskId, go, toast, say]);
+  const value = useMemo(() => ({ tab, setTab, openTaskId, setOpenTask, day, setDay, reveal, toast, say }), [tab, openTaskId, day, reveal, toast, say]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
