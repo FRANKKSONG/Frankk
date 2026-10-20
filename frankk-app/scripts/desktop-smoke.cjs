@@ -10,10 +10,15 @@ app.setPath('userData', userData);
 require(path.join(__dirname, '..', 'electron', 'main.cjs'));
 
 const results = [];
-const check = (n, ok, x = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${ok ? '' : '  → ' + x}`); };
+const check = (n, ok, x = '') => { results.push(!!ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${ok ? '' : '  → ' + x}`); };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Never hang: a stuck check reports what passed so far and fails.
+setTimeout(() => { console.log(`TIMEOUT after 90 s; ${results.filter(Boolean).length}/${results.length} checks had passed`); app.exit(1); }, 90_000);
+process.on('unhandledRejection', (e) => { console.log('ERROR', e?.stack ?? e); app.exit(1); });
+
 app.whenReady().then(async () => {
+  console.log('desktop checks starting on', process.platform);
   // Wait (up to 15 s) for the window to appear and its page to finish loading.
   let win;
   for (let i = 0; i < 150 && !(win && win.isVisible() && !win.webContents.isLoading()); i++) { await wait(100); win = BrowserWindow.getAllWindows()[0]; }
