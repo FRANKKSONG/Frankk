@@ -36,6 +36,8 @@ export interface Desktop {
   track: (kind: 'move' | 'resize', phase: 'start' | 'end', edge?: Edge) => void;
   trackMods: (shift: boolean, alt: boolean) => void;
   saveLog: () => Promise<boolean>;
+  saveData: (text: string) => void;
+  onData: (cb: (d: import('../data/model').Data) => void) => () => void;
   quit: () => void;
   size: (width: number, height: number) => void;
 }

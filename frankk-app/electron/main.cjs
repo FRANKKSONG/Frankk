@@ -87,6 +87,42 @@ const defaultPlace = (id) => {
 const placeOf = (id) => (onScreen(prefs.cards[id]) ? prefs.cards[id] : defaultPlace(id));
 
 const pageOptions = (query) => ({ query });
+// ---- Your tasks, shared in a file (%APPDATA%\Esther\tasks.json) with the native Tasks card (esther-native). ----
+// Esther saves the file whenever the tasks change, and takes the file's version when something else changed it.
+const dataFile = () => path.join(app.getPath('userData'), 'tasks.json');
+let dataText = null;
+function saveData(text) {
+  if (typeof text !== 'string' || text === dataText) return;
+  try {
+    const f = dataFile(), tmp = `${f}.tmp`;
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(tmp, text);
+    fs.renameSync(tmp, f);
+    dataText = text;
+    prefs.dataSavedAt = fs.statSync(f).mtimeMs; savePrefs();
+  } catch (e) { diag(`tasks file: couldn't save (${e.message})`); }
+}
+/** Did something else (the native card) change the file? Then every window takes its version. */
+function readData(force = false) {
+  let text;
+  try { text = fs.readFileSync(dataFile(), 'utf8'); } catch { return; }
+  if (!force && text === dataText) return;
+  let data;
+  try { data = JSON.parse(text); } catch { return; } // half-written: the next check gets it
+  if (!Array.isArray(data?.lists) || !data.lists.length || !Array.isArray(data.tasks)) return;
+  dataText = text;
+  diag('tasks file: changed outside Esther, loaded');
+  broadcast('esther:data', data);
+}
+function watchData() {
+  let t = null;
+  const soon = () => { clearTimeout(t); t = setTimeout(() => readData(), 200); };
+  try { fs.watch(path.dirname(dataFile()), { persistent: false }, (_ev, name) => { if (!name || name === 'tasks.json') soon(); }); } catch { /* the check below still works */ }
+  setInterval(() => readData(), 3000);
+  // Changed while Esther was closed (by the native card)? Take that version once the windows are up.
+  try { if (fs.statSync(dataFile()).mtimeMs > (prefs.dataSavedAt ?? 0) + 1000) setTimeout(() => readData(true), 1500); } catch { /* no file yet */ }
+}
+
 // ---- One page process for every window. The first card ("the host") opens all the others with window.open, so
 // they share its page process instead of each starting its own (about 40 MB apiece). ----
 let host = null;
@@ -611,6 +647,7 @@ else {
     ipcMain.handle('esther:set', (_e, p) => setPrefs(p ?? {}));
     ipcMain.on('esther:hide', () => hide());
     ipcMain.on('esther:show', () => show());
+    ipcMain.on('esther:data-save', (_e, text) => saveData(text));
     ipcMain.on('esther:bubble', () => bubbleClick());
     ipcMain.on('esther:bubble-wheel', (_e, d) => { if (!collapsed) return; setBubbleSize(prefs.bubbleSize * (d < 0 ? 1.06 : 1 / 1.06)); savePrefs(); broadcast('esther:changed', null); });
     ipcMain.on('esther:track', (e, t) => {
@@ -647,6 +684,7 @@ else {
     for (const id of Object.keys(CARDS)) await createCard(id); // the first (the header) hosts the others' page process
     await createBubble();
     setTimeout(makeGuides, 1500); // ready before the first drag
+    watchData();
     watchWallpaper(() => { diag('wallpaper changed'); for (const w of [...liveCards(), settingsWin]) if (w) sendBackdrop(w); });
     app.on('before-quit', () => { quitting = true; });
   });

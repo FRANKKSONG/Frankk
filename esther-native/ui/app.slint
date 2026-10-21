@@ -1,0 +1,436 @@
+// Esther's Tasks card, drawn natively with Slint: list tabs, To do / Done, the task table, right-click menus.
+// The look follows Esther's "Gilded" theme: warm dark panels over the glass, gold highlights, Instrument Serif.
+import { ListView } from "std-widgets.slint";
+import "fonts/InstrumentSerif-Regular.ttf";
+import "fonts/InstrumentSerif-Italic.ttf";
+
+export struct ListTab { id: string, name: string, color: color, open: int }
+export struct TaskRow {
+    id: string,
+    title: string,
+    done: bool,
+    list-id: string,
+    list-name: string,
+    list-color: color,
+    date: string,
+    // 0 no date, 1 today, 2 late, 3 later
+    date-kind: int,
+    subs: string,
+    clears: string,
+}
+
+export global Look {
+    out property <color> text: #f2ede3;
+    out property <color> muted: #b9af9d;
+    out property <color> faint: #82796a;
+    out property <color> accent: #d9a63a;
+    out property <color> accent-ink: #15110c;
+    out property <color> danger: #e5604a;
+    out property <color> panel: #191613;
+    out property <color> edge: #ffffff14;
+    in-out property <float> panel-alpha: 0.72;
+}
+
+component Dot inherits VerticalLayout {
+    in property <color> color;
+    in property <length> size: 7px;
+    alignment: center;
+    Rectangle { width: root.size; height: root.size; border-radius: root.size / 2; background: root.color; }
+}
+
+// A pill: list tabs, the To do / Done switch, chips.
+component Pill inherits Rectangle {
+    in property <string> text;
+    in property <string> count;
+    in property <color> dot;
+    in property <bool> show-dot;
+    in property <bool> on;
+    in property <length> pad: 12px;
+    callback clicked;
+    height: 30px;
+    border-radius: self.height / 2;
+    background: root.on ? Look.accent.with-alpha(0.22) : ta.has-hover ? #ffffff17 : #ffffff0b;
+    border-width: 1px;
+    border-color: root.on ? Look.accent.with-alpha(0.5) : Look.edge;
+    animate background { duration: 120ms; }
+    ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+    HorizontalLayout {
+        padding-left: root.pad;
+        padding-right: root.pad;
+        spacing: 7px;
+        if root.show-dot: Dot { color: root.dot; }
+        Text { text: root.text; color: root.on ? Look.text : Look.muted; vertical-alignment: center; font-size: 13.5px; }
+        if root.count != "": Text { text: root.count; color: root.on ? Look.text : Look.faint; vertical-alignment: center; font-size: 11.5px; }
+    }
+}
+
+component Check inherits Rectangle {
+    in property <bool> checked;
+    callback toggled;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    border-width: 1.5px;
+    border-color: root.checked ? Look.accent : ta.has-hover ? Look.text : Look.faint;
+    background: root.checked ? Look.accent : transparent;
+    animate background, border-color { duration: 120ms; }
+    ta := TouchArea { mouse-cursor: pointer; clicked => { root.toggled(); } }
+    if root.checked: Text { text: "✓"; color: Look.accent-ink; font-size: 12px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+}
+
+// Typing never looks like a text box: just the text, a caret, and a faint line under it while focused.
+component Field inherits Rectangle {
+    in property <string> placeholder;
+    in-out property <string> text <=> input.text;
+    in property <length> font-size: 14px;
+    callback accepted(string);
+    callback cancelled;
+    public function grab-focus() { input.focus(); }
+    public function select-all() { input.select-all(); }
+    height: 30px;
+    if input.text == "": Text { x: 0; text: root.placeholder; color: Look.faint; font-size: root.font-size; vertical-alignment: center; height: parent.height; }
+    input := TextInput {
+        x: 0;
+        width: parent.width;
+        height: parent.height;
+        color: Look.text;
+        font-size: root.font-size;
+        vertical-alignment: center;
+        selection-background-color: Look.accent.with-alpha(0.35);
+        single-line: true;
+        accepted => { root.accepted(self.text); }
+        key-pressed(e) => { if e.text == Key.Escape { root.cancelled(); return accept; } reject }
+    }
+    Rectangle { y: parent.height - 1px; height: 1px; background: input.has-focus ? Look.accent.with-alpha(0.6) : transparent; }
+}
+
+// One task: tick, name (double-click to rename), list, subtasks, date. Right-click for the rest.
+component Row inherits Rectangle {
+    in property <TaskRow> task;
+    in property <bool> show-list;
+    in property <bool> compact;
+    in property <[ListTab]> lists;
+    callback toggle(string);
+    callback rename(string, string);
+    callback set-date(string, string);
+    callback move-to(string, string);
+    callback delete(string);
+    property <bool> editing;
+    height: 42px;
+    background: hover.has-hover ? #ffffff0a : transparent;
+    hover := TouchArea { }
+    ContextMenuArea {
+        Menu {
+            MenuItem { title: "Today"; activated => { root.set-date(root.task.id, "today"); } }
+            MenuItem { title: "Tomorrow"; activated => { root.set-date(root.task.id, "tomorrow"); } }
+            MenuItem { title: "Next week"; activated => { root.set-date(root.task.id, "next-week"); } }
+            MenuItem { title: "No date"; activated => { root.set-date(root.task.id, "none"); } }
+            MenuSeparator { }
+            Menu {
+                title: "Move to";
+                for l in root.lists: MenuItem { title: l.name; activated => { root.move-to(root.task.id, l.id); } }
+            }
+            MenuSeparator { }
+            MenuItem { title: "Delete task"; activated => { root.delete(root.task.id); } }
+        }
+        HorizontalLayout {
+            padding-left: 8px;
+            padding-right: 8px;
+            spacing: 10px;
+            VerticalLayout { alignment: center; Check { checked: root.task.done; toggled => { root.toggle(root.task.id); } } }
+            // The name
+            Rectangle {
+                horizontal-stretch: 1;
+                if !root.editing: title-area := TouchArea {
+                    double-clicked => { root.editing = true; }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        if root.compact && root.show-list: Dot { color: root.task.list-color; }
+                        Rectangle {
+                            horizontal-stretch: 1;
+                            title := Text {
+                                x: 0;
+                                width: parent.width;
+                                text: root.task.title;
+                                color: root.task.done ? Look.faint : Look.text;
+                                font-size: 14px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                            // Crossed out when it's done.
+                            if root.task.done: Rectangle {
+                                x: 0;
+                                y: parent.height / 2;
+                                height: 1px;
+                                width: min(title.preferred-width, parent.width);
+                                background: Look.faint;
+                            }
+                        }
+                        if root.task.clears != "": Text { text: root.task.clears; color: Look.faint; font-size: 11.5px; font-italic: true; vertical-alignment: center; }
+                    }
+                }
+                if root.editing: Field {
+                    y: (parent.height - self.height) / 2;
+                    text: root.task.title;
+                    init => { self.grab-focus(); self.select-all(); }
+                    accepted(t) => { root.rename(root.task.id, t); root.editing = false; }
+                    cancelled => { root.editing = false; }
+                }
+            }
+            if root.show-list && !root.compact: Rectangle {
+                width: 130px;
+                HorizontalLayout {
+                    alignment: start;
+                    Rectangle {
+                        height: 24px;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 12px;
+                        background: root.task.list-color.with-alpha(0.16);
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 10px;
+                            spacing: 6px;
+                            Dot { color: root.task.list-color; }
+                            Text { text: root.task.list-name; color: Look.text; font-size: 12.5px; vertical-alignment: center; overflow: elide; }
+                        }
+                    }
+                }
+            }
+            if root.task.subs != "" || !root.compact: Text {
+                width: root.compact ? self.preferred-width : 70px;
+                text: root.task.subs != "" ? root.task.subs : "—";
+                color: root.task.subs != "" ? Look.muted : Look.faint;
+                font-size: 12.5px;
+                vertical-alignment: center;
+            }
+            // The date chip
+            VerticalLayout {
+                alignment: center;
+                width: root.compact ? self.preferred-width : 96px;
+                if root.task.date-kind != 0: Rectangle {
+                    height: 24px;
+                    border-radius: 12px;
+                    background: root.task.date-kind == 1 ? Look.accent.with-alpha(0.16) : root.task.date-kind == 2 ? Look.danger.with-alpha(0.15) : #ffffff10;
+                    HorizontalLayout {
+                        padding-left: 9px;
+                        padding-right: 9px;
+                        Text {
+                            text: root.task.date;
+                            font-size: 12.5px;
+                            vertical-alignment: center;
+                            color: root.task.date-kind == 1 ? Look.accent : root.task.date-kind == 2 ? Look.danger : Look.muted;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Rectangle { y: parent.height - 1px; height: 1px; background: Look.edge; }
+}
+
+export component TasksCard inherits Window {
+    title: "Esther · Tasks";
+    no-frame: true;
+    background: Look.panel;
+    default-font-family: "Segoe UI Variable Text";
+    default-font-size: 13px;
+    preferred-width: 560px;
+    preferred-height: 560px;
+    min-width: 300px;
+    min-height: 260px;
+
+    // Glass: a blurred copy of the wallpaper, slid into line with the real one, under the panel tint.
+    in property <bool> has-glass;
+    in property <image> glass;
+    in property <length> glass-x;
+    in property <length> glass-y;
+    in property <length> glass-w;
+    in property <length> glass-h;
+
+    in property <[ListTab]> tabs;
+    in property <string> tab: "all";
+    in property <int> show: 0;
+    in property <int> count-all;
+    in property <int> count-open;
+    in property <int> count-done;
+    in property <int> count-tab-all;
+    in property <[TaskRow]> rows;
+    in property <string> empty-text: "Nothing to do here. Add a task above.";
+    in property <string> add-list-name;
+    in property <color> add-list-color;
+    // False until the shared tasks file exists (written by the Esther app), so nothing here can overwrite your tasks.
+    in property <bool> can-add: true;
+    // Narrow (set from Rust as the card is resized): no column headings, the list as a dot.
+    in property <bool> compact;
+
+    callback pick-tab(string);
+    callback pick-show(int);
+    callback add-task(string);
+    callback next-add-list();
+    callback toggle(string);
+    callback rename(string, string);
+    callback set-date(string, string);
+    callback move-to(string, string);
+    callback delete(string);
+    callback drag-by(length, length);
+    callback drag-end();
+    callback resize-by(string, length, length);
+    callback resize-end();
+
+    // The glass and the tint.
+    Rectangle {
+        clip: true;
+        if root.has-glass: Image {
+            source: root.glass;
+            x: root.glass-x;
+            y: root.glass-y;
+            width: root.glass-w;
+            height: root.glass-h;
+            image-fit: fill;
+        }
+        Rectangle { background: Look.panel.with-alpha(root.has-glass ? Look.panel-alpha : 1); }
+        Rectangle { border-width: 1px; border-color: Look.edge; }
+    }
+
+    VerticalLayout {
+        padding: 14px;
+        padding-bottom: 8px;
+        spacing: 10px;
+
+        // List tabs. The space around them moves the card.
+        Rectangle {
+            height: 32px;
+            TouchArea {
+                moved => { if self.pressed { root.drag-by(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
+                pointer-event(e) => { if e.kind == PointerEventKind.up { root.drag-end(); } }
+            }
+            Flickable {
+                content-width: max(tabs-row.preferred-width, self.width);
+                interactive: true;
+              tabs-row := HorizontalLayout {
+                alignment: start;
+                spacing: 6px;
+                Pill { text: "All"; count: root.count-tab-all; on: root.tab == "all"; clicked => { root.pick-tab("all"); } }
+                for l in root.tabs: Pill {
+                    text: l.name;
+                    count: l.open;
+                    show-dot: true;
+                    dot: l.color;
+                    on: root.tab == l.id;
+                    clicked => { root.pick-tab(l.id); }
+                }
+              }
+            }
+        }
+
+        // All / To do / Done, and the drag area beside it.
+        Rectangle {
+            height: 30px;
+            TouchArea {
+                moved => { if self.pressed { root.drag-by(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
+                pointer-event(e) => { if e.kind == PointerEventKind.up { root.drag-end(); } }
+            }
+            HorizontalLayout {
+                alignment: start;
+                Rectangle {
+                    border-radius: 8px;
+                    background: #ffffff0b;
+                    HorizontalLayout {
+                        padding: 2px;
+                        spacing: 2px;
+                        for s[i] in ["All", "To do", "Done"]: Rectangle {
+                            border-radius: 6px;
+                            background: root.show == i ? Look.accent.with-alpha(0.2) : seg.has-hover ? #ffffff0d : transparent;
+                            seg := TouchArea { mouse-cursor: pointer; clicked => { root.pick-show(i); } }
+                            HorizontalLayout {
+                                padding-left: 11px;
+                                padding-right: 11px;
+                                spacing: 6px;
+                                Text { text: s; color: root.show == i ? Look.text : Look.muted; font-size: 13px; vertical-alignment: center; }
+                                Text { text: i == 0 ? root.count-all : i == 1 ? root.count-open : root.count-done; color: Look.faint; font-size: 11.5px; vertical-alignment: center; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Column headings (not when narrow).
+        if !root.compact: HorizontalLayout {
+            padding-left: 46px;
+            padding-right: 8px;
+            spacing: 10px;
+            height: 24px;
+            Text { horizontal-stretch: 1; text: "TASK"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
+            if root.tab == "all": Text { width: 130px; text: "LIST"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
+            Text { width: 70px; text: "SUBTASKS"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
+            Text { width: 96px; text: "DATE"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
+        }
+
+        // Add a task.
+        HorizontalLayout {
+            height: 40px;
+            padding-left: 8px;
+            padding-right: 8px;
+            spacing: 10px;
+            Text { width: 20px; text: "+"; color: Look.faint; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
+            add := Field {
+                y: 5px;
+                horizontal-stretch: 1;
+                placeholder: root.can-add ? "Add a task, Enter" : "Open Esther once to share your tasks here";
+                accepted(t) => { if t != "" && root.can-add { root.add-task(t); self.text = ""; } }
+            }
+            if root.tab == "all": Pill {
+                y: 5px;
+                horizontal-stretch: 0;
+                text: root.add-list-name;
+                show-dot: true;
+                dot: root.add-list-color;
+                pad: 10px;
+                clicked => { root.next-add-list(); }
+            }
+        }
+
+        // The tasks.
+        if root.rows.length > 0: ListView {
+            vertical-stretch: 1;
+            for t in root.rows: Row {
+                task: t;
+                show-list: root.tab == "all";
+                compact: root.compact;
+                lists: root.tabs;
+                toggle(id) => { root.toggle(id); }
+                rename(id, s) => { root.rename(id, s); }
+                set-date(id, d) => { root.set-date(id, d); }
+                move-to(id, l) => { root.move-to(id, l); }
+                delete(id) => { root.delete(id); }
+            }
+        }
+        if root.rows.length == 0: Rectangle {
+            vertical-stretch: 1;
+            Text { y: 18px; text: root.empty-text; color: Look.faint; font-italic: true; font-size: 13px; horizontal-alignment: center; }
+        }
+
+        if !root.compact: Text { text: "Double-click a task to rename it · right-click for its date, list or delete"; color: Look.faint; font-size: 11.5px; }
+    }
+
+    // Resize from any edge or corner (Esther lands it on the 8 px grid).
+    for e in [
+        { id: "n", x: 12px, y: 0px, w: root.width - 24px, h: 6px, c: MouseCursor.ns-resize },
+        { id: "s", x: 12px, y: root.height - 6px, w: root.width - 24px, h: 6px, c: MouseCursor.ns-resize },
+        { id: "w", x: 0px, y: 12px, w: 6px, h: root.height - 24px, c: MouseCursor.ew-resize },
+        { id: "e", x: root.width - 6px, y: 12px, w: 6px, h: root.height - 24px, c: MouseCursor.ew-resize },
+        { id: "nw", x: 0px, y: 0px, w: 12px, h: 12px, c: MouseCursor.nwse-resize },
+        { id: "se", x: root.width - 12px, y: root.height - 12px, w: 12px, h: 12px, c: MouseCursor.nwse-resize },
+        { id: "ne", x: root.width - 12px, y: 0px, w: 12px, h: 12px, c: MouseCursor.nesw-resize },
+        { id: "sw", x: 0px, y: root.height - 12px, w: 12px, h: 12px, c: MouseCursor.nesw-resize },
+    ]: TouchArea {
+        x: e.x;
+        y: e.y;
+        width: e.w;
+        height: e.h;
+        mouse-cursor: e.c;
+        moved => { if self.pressed { root.resize-by(e.id, self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
+        pointer-event(ev) => { if ev.kind == PointerEventKind.up { root.resize-end(); } }
+    }
+}

@@ -1,0 +1,60 @@
+# Builds the native Tasks card prototype (Rust + Slint) for Windows, tries it on the test machine, and puts the
+# program, a picture of it and its memory use on the "Esther native" pre-release.
+name: Esther native card (Windows)
+
+on:
+  push:
+    branches: [claude/new-session-ynjv6z]
+    paths: ['esther-native/**', '.github/workflows/esther-native.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: esther-native
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: esther-native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            esther-native/target
+          key: esther-native-${{ runner.os }}-${{ hashFiles('esther-native/Cargo.toml', 'esther-native/Cargo.lock') }}
+      - name: Build
+        run: cargo build --release
+      - name: Try it (smoke test)
+        run: |
+          mkdir -p smoke && cp tests/fixture/tasks.json smoke/
+          export ESTHER_TODAY=2026-10-21 ESTHER_WALLPAPER="$(cygpath -w "$PWD/tests/fixture/wall.png")"
+          timeout 60 ./target/release/esther-tasks.exe --smoke "$(cygpath -w "$PWD/smoke")"
+          echo "exe size: $(stat -c %s target/release/esther-tasks.exe) bytes"
+          cat smoke/memory.json; echo
+          node -e "
+            const m = require('./smoke/memory.json');
+            const fail = [];
+            if (!m.screenshot) fail.push('no screenshot');
+            if (!m.saved_to_file) fail.push('the new task was not saved to the shared file');
+            if (m.rows !== 5) fail.push('expected 5 rows, got ' + m.rows);
+            if (m.private_mb > 40) fail.push('private memory ' + m.private_mb + ' MB is over 40 MB');
+            console.log(fail.length ? 'FAIL: ' + fail.join('; ') : 'PASS: ' + m.private_mb + ' MB private, ' + m.working_set_mb + ' MB working set');
+            process.exit(fail.length ? 1 : 0);"
+      - name: Publish to the "Esther native" pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete esther-native --yes --cleanup-tag || true
+          gh release create esther-native target/release/esther-tasks.exe smoke/tasks-card.png smoke/memory.json \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Esther native Tasks card (prototype)" \
+            --notes "A prototype of Esther's Tasks card as a native Windows program (Rust + Slint), to compare memory with the Electron app. It shares tasks with Esther through %APPDATA%\\Esther\\tasks.json (Esther 2.2 or later writes that file). Just run esther-tasks.exe; nothing is installed."

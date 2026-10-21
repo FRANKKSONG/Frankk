@@ -3,6 +3,7 @@ import { reducer, type Action } from './reducer';
 import { KEY, load, save, starter } from './storage';
 import type { Data } from './model';
 import { todayISO } from '../lib/dates';
+import { desktop } from '../lib/desktop';
 
 interface Store {
   data: Data;
@@ -32,7 +33,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const today = useMemo(() => todayISO(), []);
   const [h, dispatchH] = useReducer(historyReducer, undefined, () => ({ data: load(today), past: [] }));
   // Saved on every change, and on first load too, so tasks brought over from the earlier Esther are kept under the new key.
-  useEffect(() => { save(h.data); }, [h.data]);
+  useEffect(() => { save(h.data); desktop?.saveData(JSON.stringify(h.data, null, 2)); }, [h.data]);
+  // The native Tasks card changed the shared file: take its version.
+  useEffect(() => desktop?.onData((d) => dispatchH({ type: 'sync', data: { version: 1, lists: d.lists, tasks: d.tasks.map((t) => ({ ...t, subtasks: t.subtasks ?? [] })) } })), []);
   // The desktop app is several card windows; a change in one shows up in the others straight away.
   useEffect(() => {
     const on = (e: StorageEvent) => { if (e.key === KEY && e.newValue) { try { dispatchH({ type: 'sync', data: JSON.parse(e.newValue) as Data }); } catch { /* ignore */ } } };

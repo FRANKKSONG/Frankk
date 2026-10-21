@@ -366,6 +366,16 @@ app.whenReady().then(async () => {
     other.destroy();
   } else console.log('(Windows window-stack checks run on Windows only)');
 
+  // Tasks are shared with the native Tasks card through a file: Esther writes it, and takes changes made to it.
+  {
+    const f = path.join(userData, 'tasks.json');
+    const shared = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
+    check('Esther shares its tasks in tasks.json', !!shared && shared.tasks.some((t) => t.title === 'Synced across cards'), shared ? `${shared.tasks.length} tasks` : 'no file');
+    shared.tasks.unshift({ id: 't-native', listId: shared.lists[0].id, title: 'Added by the native card', done: false, subtasks: [] });
+    fs.writeFileSync(f, JSON.stringify(shared, null, 2)); await wait(1500);
+    check('A task added to tasks.json by the native card shows up in Esther', await js('tasks', `[...document.querySelectorAll('.task-title')].some((e) => e.textContent === 'Added by the native card')`));
+  }
+
   // Light on memory: one page process for all of Esther's windows; graphics and networking in the main process.
   {
     const m = app.getAppMetrics();

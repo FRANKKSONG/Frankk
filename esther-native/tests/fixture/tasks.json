@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "lists": [
+    {
+      "id": "general",
+      "name": "General",
+      "color": "#c8553a"
+    },
+    {
+      "id": "seround",
+      "name": "Seround",
+      "color": "#4c6fb8"
+    },
+    {
+      "id": "music",
+      "name": "Music",
+      "color": "#d4a03c"
+    },
+    {
+      "id": "home",
+      "name": "Home",
+      "color": "#3f9a80"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "listId": "music",
+      "title": "Track 3 Jzero Fix",
+      "done": false,
+      "date": "2026-10-21",
+      "subtasks": [
+        {
+          "id": "s1",
+          "text": "mix",
+          "done": true
+        },
+        {
+          "id": "s2",
+          "text": "master",
+          "done": false
+        }
+      ]
+    },
+    {
+      "id": "t2",
+      "listId": "general",
+      "title": "Plan the week",
+      "done": false,
+      "date": "2026-10-23",
+      "subtasks": []
+    },
+    {
+      "id": "t3",
+      "listId": "home",
+      "title": "Buy dog food",
+      "done": false,
+      "date": "2026-10-19",
+      "subtasks": []
+    },
+    {
+      "id": "t4",
+      "listId": "seround",
+      "title": "Go and help sun at khem khorng booth",
+      "done": true,
+      "date": "2026-10-20",
+      "subtasks": [],
+      "doneAt": "2026-10-21T02:00:00Z"
+    }
+  ]
+}

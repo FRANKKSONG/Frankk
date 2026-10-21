@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld('estherDesktop', {
   /** Shift and Alt while resizing (where Esther can't read the keyboard itself). */
   trackMods: (shift, alt) => ipcRenderer.send('esther:track', { phase: 'mods', shift, alt }),
   saveLog: () => ipcRenderer.invoke('esther:save-log'),
+  /** Your tasks, shared in a file with the native Tasks card: save them there, and hear when it changed them. */
+  saveData: (text) => ipcRenderer.send('esther:data-save', text),
+  onData: (cb) => { const h = (_e, d) => cb(d); ipcRenderer.on('esther:data', h); return () => ipcRenderer.removeListener('esther:data', h); },
   quit: () => ipcRenderer.send('esther:quit'),
   size: (width, height) => ipcRenderer.send('esther:size', { width, height }),
   updates: {
