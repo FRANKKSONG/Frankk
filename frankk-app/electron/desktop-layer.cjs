@@ -13,7 +13,7 @@
 // Anywhere but Windows (or if koffi can't load) the cards are normal windows.
 const { BrowserWindow } = require('electron');
 
-const HWND_TOP = 0;
+const HWND_TOP = 0, HWND_BOTTOM = 1;
 const SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_NOOWNERZORDER = 0x200;
 const KEEP = SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOOWNERZORDER;
 const GWLP_HWNDPARENT = -8;
@@ -94,7 +94,7 @@ function desktopLayer(initialMode, log = () => {}) {
     for (const w of live()) {
       if (!w.isVisible()) continue;
       const h = handleOf(w);
-      if (!below(desk, h)) { api.SetWindowPos(h, helperHwnd, 0, 0, 0, 0, KEEP); log(`layer: ${w.getTitle()} had slipped under the desktop, put back`); }
+      if (!below(desk, h)) { api.SetWindowPos(h, HWND_BOTTOM, 0, 0, 0, 0, KEEP); log(`layer: ${w.getTitle()} had slipped under the desktop, put back`); }
     }
   }
   const DWMWA_CLOAKED = 14;
@@ -106,9 +106,9 @@ function desktopLayer(initialMode, log = () => {}) {
     // Walk down the window stack from the card until the desktop: any app window on the way is under the card.
     for (let w = api.GetWindow(h, GW_HWNDNEXT), i = 0; w && i < 5000; w = api.GetWindow(w, GW_HWNDNEXT), i++) {
       if (w === desk) return false; // (Esther's own windows, the helper included, are skipped below)
-      if (!ours.has(w) && api.IsWindowVisible(w) && !api.IsIconic(w) && !cloaked(w)) return true;
+      if (!ours.has(w) && api.IsWindowVisible(w) && !api.IsIconic(w) && !cloaked(w)) return w;
     }
-    return false;
+    return 0;
   }
   /** After you click away: the cards that are above your apps go back down to the desktop (once, not in a loop).
    *  Cards already in place aren't touched at all, so nothing redraws or flickers. */
@@ -120,7 +120,8 @@ function desktopLayer(initialMode, log = () => {}) {
     for (const w of live()) {
       if (!w.isVisible()) continue;
       const h = handleOf(w);
-      if (aboveAnApp(h)) { api.SetWindowPos(h, helperHwnd, 0, 0, 0, 0, KEEP); moved.push(w.getTitle()); }
+      // To the bottom: the desktop owns the card, so Windows keeps it just above the desktop.
+      if (aboveAnApp(h)) { api.SetWindowPos(h, HWND_BOTTOM, 0, 0, 0, 0, KEEP); moved.push(w.getTitle()); }
     }
     log(`layer: lowered ${moved.length ? moved.join(', ') : 'nothing (all in place)'}`);
   }

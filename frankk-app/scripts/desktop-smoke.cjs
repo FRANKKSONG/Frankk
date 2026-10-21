@@ -253,7 +253,7 @@ app.whenReady().then(async () => {
       const ShowWindow = u.func('bool __stdcall ShowWindow(uintptr_t h, int n)');
       for (const c of ['CASCADIA_HOSTING_WINDOW_CLASS', 'ConsoleWindowClass']) for (let h = FindWindowW(c, null), i = 0; h && i < 10; h = FindWindowW(c, null), i++) ShowWindow(h, 6);
       E.layer().lower(); await wait(500);
-      check('Windows: clicking away puts the cards back down (none stays above an app)', IDS.every((id) => !E.layer().aboveAnApp(C(id))));
+      check('Windows: clicking away puts the cards back down (none stays above an app)', IDS.every((id) => !E.layer().aboveAnApp(C(id))), IDS.map((id) => { const a = E.layer().aboveAnApp(C(id)); return a ? `${id} above ${cls(a)}` : ''; }).join(' '));
       const tb = C('tasks').getBounds(), cb = C('calendar').getBounds(), wa2 = scr.getPrimaryDisplay().workArea;
       const blank = scr.dipToScreenPoint({ x: Math.round((tb.x + tb.width + cb.x) / 2), y: wa2.y + wa2.height - 30 });
       const r1 = await watchCover(1000, async () => { SetCursorPos(blank.x, blank.y); await wait(50); mouse_event(0x2, 0, 0, 0, 0); await wait(40); mouse_event(0x4, 0, 0, 0, 0); });
