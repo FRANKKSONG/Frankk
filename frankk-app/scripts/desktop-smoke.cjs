@@ -209,6 +209,8 @@ app.whenReady().then(async () => {
       const WindowFromPoint = u.func('uintptr_t __stdcall WindowFromPoint(int64_t pt)');
       const SendMessageW = u.func('intptr_t __stdcall SendMessageW(uintptr_t h, uint32_t m, uintptr_t w, intptr_t l)');
       const GetAncestor = u.func('uintptr_t __stdcall GetAncestor(uintptr_t h, uint32_t f)');
+      const GetClassNameW = u.func('int __stdcall GetClassNameW(uintptr_t h, _Out_ uint16_t *buf, int n)');
+      const cls = (h) => { const b = new Uint16Array(128); const n = GetClassNameW(h, b, 128); return String.fromCharCode(...b.slice(0, n)); };
       E.show(); await wait(800);
       const r = await js('header', `(() => { const b = document.querySelector('button[aria-label=Settings]').getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
       const hb = C('header').getBounds(), z = C('header').webContents.getZoomFactor();
@@ -228,10 +230,20 @@ app.whenReady().then(async () => {
       const hw = (w) => Number(w.getNativeWindowHandle().readBigUInt64LE(0));
       const watchCover = async (ms, during) => {
         const spots = IDS.map((id) => { const b = C(id).getBounds(); return { id, h: hw(C(id)), p: scr.dipToScreenPoint({ x: b.x + Math.round(b.width / 2), y: b.y + 14 }) }; });
-        const miss = {}; let samples = 0;
-        const t = setInterval(() => { samples++; for (const q of spots) if (Number(GetAncestor(Number(WindowFromPoint(pt(q.p))), 2)) !== q.h) miss[q.id] = (miss[q.id] || 0) + 1; }, 4);
+        const miss = {}, seen = []; let samples = 0; const t0 = Date.now();
+        const t = setInterval(() => {
+          samples++;
+          for (const q of spots) {
+            const r = Number(GetAncestor(Number(WindowFromPoint(pt(q.p))), 2));
+            if (r === q.h) continue;
+            miss[q.id] = (miss[q.id] || 0) + 1;
+            const what = `${q.id}@${Date.now() - t0}ms:${cls(r)}`;
+            if (seen.length < 8 && !seen.some((x) => x.split(':')[1] === cls(r) && x.startsWith(q.id))) seen.push(what);
+          }
+        }, 4);
+        await wait(150); const before = { ...miss };
         await during(); await wait(ms); clearInterval(t);
-        return { miss, samples };
+        return { miss, before, samples, seen, spots: spots.map((q) => `${q.id}:${q.p.x},${q.p.y}`) };
       };
       E.layer().lower(); await wait(500);
       const tb = C('tasks').getBounds(), cb = C('calendar').getBounds(), wa2 = scr.getPrimaryDisplay().workArea;
