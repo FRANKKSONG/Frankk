@@ -1,7 +1,7 @@
 {
   "name": "esther",
   "private": true,
-  "version": "2.2.0",
+  "version": "2.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -68,7 +68,9 @@
       "perMachine": false,
       "artifactName": "Esther-Setup-${version}.${ext}",
       "shortcutName": "Esther",
-      "createDesktopShortcut": false
+      "createDesktopShortcut": false,
+      "include": "build/installer.nsh",
+      "deleteAppDataOnUninstall": false
     },
     "portable": {
       "artifactName": "Esther-${version}-portable.${ext}"
@@ -77,6 +79,15 @@
       {
         "provider": "generic",
         "url": "https://github.com/FRANKKSONG/Frankk/releases/download/esther-desktop"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "native",
+        "to": "native",
+        "filter": [
+          "*.exe"
+        ]
       }
     ]
   },

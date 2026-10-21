@@ -16,8 +16,8 @@ const LAYERS = ['desktop', 'normal', 'top'];
 // (Chromium's occlusion tracking on Windows would otherwise freeze the page when it's on the desktop layer).
 // Light on memory: no spare page process kept ready (Esther never opens web pages).
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,SpareRendererForSitePerProcess');
-// Light on memory: graphics and networking run inside Esther's main process instead of two more processes.
-app.commandLine.appendSwitch('in-process-gpu');
+// Light on memory: networking runs inside Esther's main process instead of a process of its own. (Graphics stay
+// in their own process: running them inside the main one, as 2.1–2.2 did, isn't safe with every graphics driver.)
 app.commandLine.appendSwitch('enable-features', 'NetworkServiceInProcess,NetworkServiceInProcess2');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');

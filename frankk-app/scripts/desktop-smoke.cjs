@@ -384,7 +384,7 @@ app.whenReady().then(async () => {
     const pages = new Set([...IDS.map((id) => C(id)), E.bubble(), E.guides(), E.settings()].filter((w) => w && !w.isDestroyed()).map((w) => w.webContents.getOSProcessId()));
     console.log(`memory: ${m.length} processes, ${total} MB (${m.map((p) => `${p.type} ${Math.round(kb(p) / 1024)}`).join(', ')})`);
     check('All of Esther\'s windows share one page process', pages.size === 1, `${pages.size} page processes`);
-    check('Esther runs as at most 3 processes', m.length <= 3, m.map((p) => p.type).join(', '));
+    check('Esther runs as at most 4 processes', m.length <= 4, m.map((p) => p.type).join(', '));
   }
   const up = await js('tasks', `window.estherDesktop.updates.status()`);
   check('The updater reports its state (off when not installed)', up.state === 'dev' && up.version === app.getVersion(), JSON.stringify(up));

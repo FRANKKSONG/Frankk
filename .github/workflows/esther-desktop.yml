@@ -35,6 +35,13 @@ jobs:
       - name: Desktop checks on Windows
         timeout-minutes: 5
         run: npm run test:desktop
+      - name: Bring in the native Tasks card (preview) from its own release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p native
+          gh release download esther-native -p esther-tasks.exe -D native --clobber || echo "No native card yet; the installer goes without it."
+          ls -la native
       - name: Build the installer and the portable app
         run: npm run build:desktop
         env:
@@ -58,4 +65,4 @@ jobs:
           gh release create esther-desktop release/*.exe release/latest.yml release/*.blockmap \
             --target "$GITHUB_SHA" --prerelease \
             --title "Esther desktop $version" \
-            --notes "Esther $version for Windows. Install once with Esther-Setup-$version.exe (no admin needed); after that Esther updates itself. Esther-$version-portable.exe runs without installing but does not update itself. Ctrl+Alt+E shows and hides it."
+            --notes "Esther $version for Windows. Esther-Setup-$version.exe is a clean install: it closes Esther, keeps your tasks (with a copy in %APPDATA%\\Esther backup), clears what older versions left behind, and installs Esther with the native Tasks card preview in the Start menu. No admin needed; after that Esther updates itself. Esther-$version-portable.exe runs without installing but does not update itself. Ctrl+Alt+E shows and hides it."
