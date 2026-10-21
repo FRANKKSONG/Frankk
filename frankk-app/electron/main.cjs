@@ -8,6 +8,7 @@ const { wallpaperFor, watchWallpaper } = require('./wallpaper.cjs');
 const { pointer } = require('./pointer.cjs');
 const { diag } = require('./diag.cjs');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const LAYERS = ['desktop', 'normal', 'top'];
@@ -21,7 +22,10 @@ app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 
-const DEFAULTS = { shortcut: 'Control+Alt+E', layer: 'desktop', snap: true, scale: 1, hiddenCards: [], bubble: true, bubbleSize: 0.6 };
+// Glass: Windows' own acrylic (live, needs Windows 11 22H2 or later) or mica, or Esther's own adjustable blur.
+const NATIVE_GLASS = process.platform === 'win32' && Number(os.release().split('.')[2] ?? 0) >= 22621;
+const MATERIALS = ['acrylic', 'mica', 'esther'];
+const DEFAULTS = { material: NATIVE_GLASS ? 'acrylic' : 'esther', shortcut: 'Control+Alt+E', layer: 'desktop', snap: true, scale: 1, hiddenCards: [], bubble: true, bubbleSize: 0.6 };
 const SCALES = [0.5, 0.6, 0.75, 0.85, 0.9, 0.95, 1, 1.1, 1.25, 1.5];
 const file = () => path.join(app.getPath('userData'), 'desktop.json');
 let prefs = { ...DEFAULTS };
@@ -35,6 +39,8 @@ delete prefs.hidden;
 // 1.4–1.5 used Windows' acrylic; Esther now draws its own blur (adjustable, round corners).
 delete prefs.glass;
 if (!SCALES.includes(prefs.scale)) prefs.scale = 1;
+if (!MATERIALS.includes(prefs.material) || (!NATIVE_GLASS && prefs.material !== 'esther')) prefs.material = DEFAULTS.material;
+const nativeGlass = () => prefs.material !== 'esther';
 if (typeof prefs.bubbleSize !== 'number' || !(prefs.bubbleSize >= 0.3 && prefs.bubbleSize <= 1.5)) prefs.bubbleSize = DEFAULTS.bubbleSize;
 if (!Array.isArray(prefs.hiddenCards)) prefs.hiddenCards = [];
 let quitting = false;
@@ -83,13 +89,15 @@ function load(w, query) {
   w.webContents.on('will-navigate', (e) => e.preventDefault());
 }
 
-const windowLook = () => ({
+/** `glass`: a card (or Settings) gets the chosen glass; the bubble and the guides are simply see-through. */
+const windowLook = (glass = false) => ({
   frame: false, hasShadow: false, backgroundColor: '#00000000',
   // A widget, not an app window: it can't be maximised (double-click, dragging to the top edge), snapped,
   // minimised or made full screen.
   maximizable: false, minimizable: false, fullscreenable: false, thickFrame: false,
-  // See-through: Esther draws the card, its rounded corners and its own blur of the wallpaper behind it.
-  transparent: true, roundedCorners: false,
+  // Windows' own glass: Windows blurs whatever is behind the card, live, and rounds its corners.
+  // Esther's own glass: a see-through window; Esther draws the card, its corners and the blur.
+  ...(glass && nativeGlass() ? { transparent: false, backgroundMaterial: prefs.material, roundedCorners: true } : { transparent: true, roundedCorners: false }),
   skipTaskbar: true, show: false, icon: path.join(__dirname, 'icon.png'),
   webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false },
 });
@@ -98,7 +106,7 @@ const cardOn = (id) => !prefs.hiddenCards.includes(id);
 
 /** What a card needs to draw its blur: the wallpaper of the screen it's on, and where it sits on that screen. */
 function sendBackdrop(w) {
-  if (w.isDestroyed()) return;
+  if (w.isDestroyed() || nativeGlass()) return;
   const b = w.getBounds();
   const d = screen.getDisplayMatching(b);
   w.webContents.send('esther:backdrop', { image: wallpaperFor(d), screen: d.bounds, x: b.x, y: b.y, scale: prefs.scale });
@@ -107,11 +115,11 @@ const sendPlace = (w) => { if (!w.isDestroyed()) { const b = w.getBounds(); w.we
 
 function createCard(id) {
   const [mw, mh] = minOf(id);
-  const w = new BrowserWindow({ ...placeOf(id), minWidth: mw, minHeight: mh, title: CARDS[id].title, ...windowLook() });
-  load(w, { card: id });
+  const w = new BrowserWindow({ ...placeOf(id), minWidth: mw, minHeight: mh, title: CARDS[id].title, ...windowLook(true) });
+  load(w, { card: id, glass: nativeGlass() ? 'native' : 'esther' });
   w.webContents.on('did-finish-load', () => { w.webContents.setZoomFactor(prefs.scale); sendBackdrop(w); });
   w.webContents.once('did-finish-load', () => { if (!startHidden && cardOn(id)) w.showInactive(); });
-  w.styled = styleCard(w);
+  w.styled = styleCard(w, nativeGlass());
   // Alt+F4 or closing a card only hides it; turn it back on from Settings → Cards or the tray.
   w.on('close', (e) => { if (quitting) return; e.preventDefault(); setCard(id, false); });
   w.on('move', () => sendPlace(w));
@@ -172,11 +180,39 @@ function snapAxis(pos, anchors, lines, origin) {
   }
   return best ? { pos: best.pos, line: best.line } : { pos: onGrid(pos, origin), line: null };
 }
-/** Follow the mouse from now until the button is let go: 'move' the card, or 'resize' it from its corner. */
-function track(w, kind) {
+/**
+ * The new bounds while resizing from `edge` (n, s, e, w or a corner such as se), like Illustrator:
+ * Alt resizes from the centre (the opposite side moves too), Shift keeps the proportions, Shift+Alt does both.
+ */
+function resizeRect(b0, edge, dx, dy, mods, [mw, mh], snapX, snapY) {
+  const E = edge.includes('e'), W = edge.includes('w'), N = edge.includes('n'), S = edge.includes('s');
+  let l = b0.x, r = b0.x + b0.width, t = b0.y, bt = b0.y + b0.height;
+  const lines = [];
+  const snapEdge = (v, f, axis) => { const s = f(v); if (s.line) lines.push({ axis, ...s.line }); return s.pos; };
+  if (E) r = snapEdge(r + dx, snapX, 'x');
+  if (W) l = snapEdge(l + dx, snapX, 'x');
+  if (S) bt = snapEdge(bt + dy, snapY, 'y');
+  if (N) t = snapEdge(t + dy, snapY, 'y');
+  const cx = b0.x + b0.width / 2, cy = b0.y + b0.height / 2;
+  if (mods.alt) { if (E) l = 2 * cx - r; if (W) r = 2 * cx - l; if (S) t = 2 * cy - bt; if (N) bt = 2 * cy - t; }
+  let w = r - l, h = bt - t;
+  if (mods.shift) {
+    const ratio = b0.width / b0.height;
+    if ((E || W) && (N || S)) { if (Math.abs(w / b0.width - 1) >= Math.abs(h / b0.height - 1)) h = w / ratio; else w = h * ratio; }
+    else if (E || W) h = w / ratio; else w = h * ratio;
+    const k = Math.max(1, mw / w, mh / h); w *= k; h *= k;
+  } else { w = Math.max(mw, w); h = Math.max(mh, h); }
+  // Which side stays put: the opposite one, or the centre with Alt (or, with Shift on a side handle, the middle).
+  const x = mods.alt || (mods.shift && !E && !W) ? cx - w / 2 : W ? b0.x + b0.width - w : b0.x;
+  const y = mods.alt || (mods.shift && !N && !S) ? cy - h / 2 : N ? b0.y + b0.height - h : b0.y;
+  return { x: Math.round(x), y: Math.round(y), width: Math.round(w), height: Math.round(h), lines };
+}
+/** Follow the mouse from now until the button is let go: 'move' the card, or 'resize' it from an edge or corner. */
+function track(w, kind, edge = 'se') {
   untrack(w);
   const b0 = w.getBounds(), c0 = pointer.at();
   const wa = screen.getDisplayMatching(b0).workArea;
+  const min = w.getMinimumSize().map((v, i) => v || (i ? 120 : 200));
   let started = false, shown = '';
   w.tracking = setInterval(() => {
     if (w.isDestroyed()) return untrack(w);
@@ -197,16 +233,14 @@ function track(w, kind) {
       next = { x, y, width: b0.width, height: b0.height };
       if (x !== b.x || y !== b.y) w.setPosition(x, y);
     } else {
-      const [mw, mh] = w.getMinimumSize();
-      let right = b0.x + b0.width + dx, bottom = b0.y + b0.height + dy;
-      if (prefs.snap) {
-        const sx = snapAxis(right, [0], xs, wa.x), sy = snapAxis(bottom, [0], ys, wa.y);
-        right = sx.pos; bottom = sy.pos;
-        lines = [sx.line && { axis: 'x', ...sx.line }, sy.line && { axis: 'y', ...sy.line }].filter(Boolean);
+      const mods = pointer.mods ? pointer.mods() : (w.trackMods || {});
+      const free = (v) => ({ pos: v, line: null });
+      next = resizeRect(b0, edge, dx, dy, mods, min,
+        prefs.snap ? (v) => snapAxis(v, [0], xs, wa.x) : free, prefs.snap ? (v) => snapAxis(v, [0], ys, wa.y) : free);
+      lines = next.lines;
+      if (next.x !== b.x || next.y !== b.y || next.width !== b.width || next.height !== b.height) {
+        if (next.x === b.x && next.y === b.y) w.setSize(next.width, next.height); else w.setBounds({ x: next.x, y: next.y, width: next.width, height: next.height });
       }
-      const width = Math.max(mw || 200, Math.round(right - b0.x)), height = Math.max(mh || 120, Math.round(bottom - b0.y));
-      next = { x: b0.x, y: b0.y, width, height };
-      if (width !== b.width || height !== b.height) w.setSize(width, height);
     }
     // Tell the guides what to draw (only when something changed).
     const msg = JSON.stringify({ next, lines });
@@ -275,11 +309,11 @@ function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.shownAt = Date.now(); settingsWin.show(); settingsWin.focus(); enter([settingsWin]); return; }
   const a = screen.getPrimaryDisplay().workArea;
   const width = Math.min(Math.round(780 * prefs.scale), a.width - 80), height = Math.min(Math.round(640 * prefs.scale), a.height - 80);
-  settingsWin = new BrowserWindow({ width, height, x: a.x + Math.round((a.width - width) / 2), y: a.y + Math.round((a.height - height) / 2), title: 'Esther · Settings', ...windowLook() });
-  load(settingsWin, { card: 'settings' });
+  settingsWin = new BrowserWindow({ width, height, x: a.x + Math.round((a.width - width) / 2), y: a.y + Math.round((a.height - height) / 2), title: 'Esther · Settings', ...windowLook(true) });
+  load(settingsWin, { card: 'settings', glass: nativeGlass() ? 'native' : 'esther' });
   settingsWin.webContents.on('did-finish-load', () => { settingsWin.webContents.setZoomFactor(prefs.scale); sendBackdrop(settingsWin); });
   settingsWin.webContents.once('did-finish-load', () => { settingsWin.shownAt = Date.now(); settingsWin.show(); settingsWin.focus(); diag(`settings: shown, focused ${settingsWin.isFocused()}`); });
-  styleCard(settingsWin);
+  styleCard(settingsWin, nativeGlass());
   settingsWin.on('move', () => sendPlace(settingsWin));
   // Tucked away when you click elsewhere (but not in the moment it opens, while the click that opened it finishes).
   settingsWin.on('blur', () => setTimeout(() => {
@@ -362,7 +396,7 @@ function enter(wins, fromBubble = false) { wins.forEach((w, i) => { if (w && !w.
 /** Fade these windows out (into the bubble, if that's where they're going), then hide them. */
 function leave(wins, after, intoBubble = false) {
   for (const w of wins) if (!w.isDestroyed()) w.webContents.send('esther:leave', { to: intoBubble ? flight(w) : null });
-  const t = setTimeout(() => { leaving.delete(t); for (const w of wins) if (!w.isDestroyed()) w.hide(); after?.(); }, intoBubble ? 320 : 170);
+  const t = setTimeout(() => { leaving.delete(t); for (const w of wins) if (!w.isDestroyed()) w.hide(); after?.(); }, nativeGlass() ? 150 : intoBubble ? 320 : 170);
   leaving.set(t, wins);
 }
 const CALL_ORDER = ['header', 'calendar', 'week', 'tasks'];
@@ -391,7 +425,6 @@ function hide() {
   collapsed = true;
   const wins = liveCards().filter((w) => w.isVisible());
   if (settingsWin && !settingsWin.isDestroyed() && settingsWin.isVisible()) leave([settingsWin]);
-  if (menuWin && !menuWin.isDestroyed()) closeTrayMenu();
   if (bubble && !bubble.isDestroyed()) glide(bubble, bubbleBounds(true), 340);
   leave(wins, refreshTray, !!bubble);
 }
@@ -404,7 +437,7 @@ function toggle() {
 }
 /** Clicking the bubble: out of the bubble if gathered in it, into it if not. */
 const bubbleClick = () => (collapsed ? show() : hide());
-const broadcast = (channel, payload) => { for (const w of [...liveCards(), settingsWin, menuWin, bubble]) if (w && !w.isDestroyed()) w.webContents.send(channel, payload); };
+const broadcast = (channel, payload) => { for (const w of [...liveCards(), settingsWin, bubble]) if (w && !w.isDestroyed()) w.webContents.send(channel, payload); };
 
 function registerShortcut(accel) {
   globalShortcut.unregisterAll();
@@ -419,19 +452,31 @@ function refreshTray() {
   if (!tray) return;
   tray.setToolTip(`Esther · ${pretty(prefs.shortcut)} shows and hides`);
   broadcast('esther:changed', null);
-  // On Windows the tray menu is Esther's own (rounded, Windows 11 style); elsewhere the system menu.
-  if (process.platform === 'win32') return;
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: `Show Esther  (${pretty(prefs.shortcut)})`, click: () => show() },
-    { label: 'Hide', enabled: liveCards().some((w) => w.isVisible()), click: () => hide() },
+  // The system's own menu (on Windows 11: rounded, light or dark with Windows, and it closes like any menu).
+  const ready = updates?.status().state === 'ready';
+  trayMenu = Menu.buildFromTemplate([
+    collapsed || !liveCards().some((w) => w.isVisible())
+      ? { label: 'Show Esther', accelerator: prefs.shortcut, registerAccelerator: false, click: () => show() }
+      : { label: 'Hide Esther', accelerator: prefs.shortcut, registerAccelerator: false, click: () => hide() },
     { type: 'separator' },
     { label: 'Cards', submenu: Object.keys(CARDS).map((id) => ({ label: CARD_NAMES[id], type: 'checkbox', checked: cardOn(id), click: (i) => setCard(id, i.checked) })) },
-    { label: 'Put the cards back where they started', click: () => { resetLayout(); show(); } },
-    { label: 'Settings…', click: () => openSettings() },
+    { label: 'Put the cards back', click: () => { resetLayout(); show(); } },
+    { label: 'Where the cards sit', submenu: [
+      { label: 'On the desktop', type: 'radio', checked: prefs.layer === 'desktop', click: () => setPrefs({ layer: 'desktop' }) },
+      { label: 'Like a window', type: 'radio', checked: prefs.layer === 'normal', click: () => setPrefs({ layer: 'normal' }) },
+      { label: 'Always on top', type: 'radio', checked: prefs.layer === 'top', click: () => setPrefs({ layer: 'top' }) },
+    ] },
     { type: 'separator' },
+    { label: 'Settings…', click: () => openSettings() },
+    ready ? { label: `Restart to update to ${updates.status().next}`, click: () => updates.install() }
+      : { label: 'Check for updates', enabled: !!updates && !['dev', 'portable'].includes(updates.status().state), click: () => updates.check() },
     { label: 'Quit Esther', click: () => app.quit() },
-  ]));
+  ]);
+  tray.setContextMenu(trayMenu);
 }
+let trayMenu = null;
+const CARD_NAMES = { header: 'Header', tasks: 'Tasks', calendar: 'Calendar', week: 'This week' };
+
 /** The tray icon: Esther's "E" in Instrument Serif, one colour, in every size Windows asks for. */
 function trayIcon() {
   const tone = process.platform !== 'win32' || nativeTheme.shouldUseDarkColors ? 'light' : 'dark';
@@ -442,54 +487,13 @@ function trayIcon() {
   }
   return img.isEmpty() ? nativeImage.createFromPath(path.join(__dirname, 'tray.png')) : img;
 }
-const CARD_NAMES = { header: 'Header', tasks: 'Tasks', calendar: 'Calendar', week: 'This week' };
 
-// ---- The tray menu: a small window of its own, so it looks like the rest of Esther. It is made once and kept
-// up to date while hidden, so a right-click shows it at once, like a system menu. ----
-let menuWin = null, menuAt = null, menuSize = { width: 280, height: 440 }, menuWatch = null;
-function makeTrayMenu() {
-  if (menuWin && !menuWin.isDestroyed()) return;
-  menuWin = new BrowserWindow({ ...menuSize, x: -32000, y: -32000, title: 'Esther menu', ...windowLook(), alwaysOnTop: true });
-  load(menuWin, { card: 'menu' });
-  styleCard(menuWin);
-  menuWin.on('blur', () => setTimeout(() => { if (menuWin && !menuWin.isDestroyed() && !menuWin.isFocused()) closeTrayMenu(); }, 60));
-  menuWin.on('closed', () => { menuWin = null; });
-}
-function openTrayMenu() {
-  if (menuWin && !menuWin.isDestroyed() && menuWin.isVisible()) return closeTrayMenu(); // right-click again closes it
-  makeTrayMenu();
-  menuAt = pointer.at();
-  menuWin.wanted = true;
-  menuWin.webContents.send('esther:changed', null);
-  if (!menuWin.webContents.isLoading()) placeTrayMenu(menuSize.width, menuSize.height);
-}
-/** The menu page says how big it is (also while hidden); it opens by the mouse, clear of the taskbar. */
-function placeTrayMenu(width, height) {
-  menuSize = { width: Math.ceil(width), height: Math.ceil(height) };
-  if (!menuWin || menuWin.isDestroyed() || !menuWin.wanted) return;
-  const at = menuAt ?? pointer.at();
-  const wa = screen.getDisplayNearestPoint(at).workArea;
-  const x = Math.max(wa.x + 8, Math.min(at.x - width, wa.x + wa.width - width - 8));
-  const y = at.y - height - 8 >= wa.y ? Math.min(at.y - height - 8, wa.y + wa.height - height - 8) : Math.min(at.y + 8, wa.y + wa.height - height - 8);
-  menuWin.setBounds({ x: Math.round(x), y: Math.round(y), ...menuSize });
-  if (menuWin.isVisible()) return;
-  menuWin.show(); menuWin.focus(); enter([menuWin]);
-  // A click anywhere outside closes it, even if Windows never gave it the focus (then it gets no "blur").
-  clearInterval(menuWatch);
-  menuWatch = setInterval(() => {
-    if (!menuWin || menuWin.isDestroyed() || !menuWin.isVisible()) return clearInterval(menuWatch);
-    if (!pointer.down?.()) return;
-    const p = pointer.at(), b = menuWin.getBounds();
-    if (p.x < b.x || p.x >= b.x + b.width || p.y < b.y || p.y >= b.y + b.height) closeTrayMenu();
-  }, 30);
-}
-function closeTrayMenu() { clearInterval(menuWatch); if (menuWin && !menuWin.isDestroyed()) { menuWin.wanted = false; menuWin.hide(); } }
 
 function state() {
   return {
     shortcut: prefs.shortcut, shortcutOk, layer: prefs.layer, pinsToDesktop: !!layer?.native, snap: prefs.snap, scale: prefs.scale, scales: SCALES,
     cards: Object.keys(CARDS).map((id) => ({ id, on: cardOn(id) })), startWithWindows: startsWithWindows(), version: app.getVersion(),
-    visible: !collapsed && liveCards().some((w) => w.isVisible()), bubble: !!prefs.bubble, bubbleSize: prefs.bubbleSize,
+    visible: !collapsed && liveCards().some((w) => w.isVisible()), bubble: !!prefs.bubble, bubbleSize: prefs.bubbleSize, material: prefs.material, nativeGlass: NATIVE_GLASS,
   };
 }
 
@@ -502,6 +506,11 @@ function setPrefs(p) {
   if (typeof p.startWithWindows === 'boolean') app.setLoginItemSettings({ openAtLogin: p.startWithWindows });
   if (typeof p.snap === 'boolean') prefs.snap = p.snap;
   if (typeof p.bubble === 'boolean') setBubble(p.bubble);
+  // The glass is chosen when a window is made, so Esther restarts to switch it.
+  if (MATERIALS.includes(p.material) && p.material !== prefs.material && (NATIVE_GLASS || p.material === 'esther')) {
+    prefs.material = p.material; savePrefs();
+    if (!process.env.ESTHER_TEST) { app.relaunch(); app.exit(0); }
+  }
   if (typeof p.bubbleSize === 'number') setBubbleSize(p.bubbleSize);
   if (p.snap === true) for (const [, w] of cards) if (!w.isDestroyed()) { const b = w.getBounds(); const q = gridPoint(b, b.x, b.y); const z = gridSize(w, b.width, b.height); w.setBounds({ ...q, ...z }); }
   if (typeof p.scale === 'number') setScale(p.scale);
@@ -521,7 +530,7 @@ else {
     layer = desktopLayer(prefs.layer, diag);
     for (const id of Object.keys(CARDS)) createCard(id);
     createBubble();
-    setTimeout(() => { makeTrayMenu(); makeGuides(); }, 1500); // ready before the first right-click or drag
+    setTimeout(makeGuides, 1500); // ready before the first drag
     registerShortcut(prefs.shortcut);
     // Monitors coming and going (or waking from sleep) never leave it stranded off-screen.
     for (const ev of ['display-removed', 'display-metrics-changed', 'display-added']) screen.on(ev, () => setTimeout(() => { ensureOnScreen(); if (bubble && !bubble.isDestroyed()) bubble.setBounds(bubbleBounds(collapsed)); }, 500));
@@ -529,7 +538,6 @@ else {
     // The "E" is white on a dark taskbar and black on a light one.
     nativeTheme.on('updated', () => tray?.setImage(trayIcon()));
     tray.on('click', () => show());
-    if (process.platform === 'win32') tray.on('right-click', () => openTrayMenu());
     refreshTray();
 
     updates = setupUpdates({ app, send: (st) => { broadcast('esther:update', st); refreshTray(); }, log: (m) => console.warn(m) });
@@ -542,9 +550,12 @@ else {
     ipcMain.on('esther:show', () => show());
     ipcMain.on('esther:bubble', () => bubbleClick());
     ipcMain.on('esther:bubble-wheel', (_e, d) => { if (!collapsed) return; setBubbleSize(prefs.bubbleSize * (d < 0 ? 1.06 : 1 / 1.06)); savePrefs(); broadcast('esther:changed', null); });
-    ipcMain.on('esther:track', (e, t) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (t?.phase === 'start' && ['move', 'resize'].includes(t.kind)) track(w, t.kind); else untrack(w); });
-    ipcMain.on('esther:menu-size', (_e, s) => s && placeTrayMenu(s.width, s.height));
-    ipcMain.on('esther:menu-close', () => closeTrayMenu());
+    ipcMain.on('esther:track', (e, t) => {
+      const w = BrowserWindow.fromWebContents(e.sender);
+      if (!w) return;
+      if (t?.phase === 'mods') { w.trackMods = { shift: !!t.shift, alt: !!t.alt }; return; }
+      if (t?.phase === 'start' && ['move', 'resize'].includes(t.kind)) track(w, t.kind, /^(n|s|e|w|ne|nw|se|sw)$/.test(t.edge) ? t.edge : 'se'); else untrack(w);
+    });
     ipcMain.handle('esther:save-log', async (e) => {
       const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { defaultPath: 'esther-log.txt', filters: [{ name: 'Text', extensions: ['txt'] }] });
       if (r.canceled || !r.filePath) return false;
@@ -572,6 +583,6 @@ else {
     app.on('before-quit', () => { quitting = true; });
   });
   app.on('will-quit', () => globalShortcut.unregisterAll());
-  if (process.env.ESTHER_TEST) global.__esther = { guides: () => guidesWin, setBubbleSize, trayIcon, bubble: () => bubble, bubbleBounds, isCollapsed: () => collapsed, show, hide, toggle, resetLayout, defaultPlace, openSettings, openTrayMenu, setCard, setScale, pointer, GRID, diag, layer: () => layer, card: (id) => cards.get(id), settings: () => settingsWin, menu: () => menuWin, prefs: () => prefs };
+  if (process.env.ESTHER_TEST) global.__esther = { resizeRect, trayMenu: () => trayMenu, guides: () => guidesWin, setBubbleSize, trayIcon, bubble: () => bubble, bubbleBounds, isCollapsed: () => collapsed, show, hide, toggle, resetLayout, defaultPlace, openSettings, setCard, setScale, pointer, GRID, diag, layer: () => layer, card: (id) => cards.get(id), settings: () => settingsWin, prefs: () => prefs };
   app.on('window-all-closed', () => app.quit());
 }

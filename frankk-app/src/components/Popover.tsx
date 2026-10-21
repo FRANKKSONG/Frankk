@@ -34,9 +34,12 @@ export function Popover({ trigger, children, align = 'left', className = '' }: P
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); ref.current?.focus(); } };
+    // A click anywhere outside this window (another card, the desktop, another app) closes it too.
+    const onBlur = () => setOpen(false);
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+    window.addEventListener('blur', onBlur);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); window.removeEventListener('blur', onBlur); };
   }, [open]);
 
   return (

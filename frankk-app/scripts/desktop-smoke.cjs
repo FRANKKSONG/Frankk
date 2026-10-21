@@ -61,6 +61,9 @@ app.whenReady().then(async () => {
   await wait(300);
   await js('tasks', `[...document.querySelectorAll('.task')].find((r) => r.textContent.includes('Synced across cards')).querySelector('.date-chip button').click()`); await wait(300);
   check('The date chip opens Esther\'s own rounded date picker', await js('tasks', `!!document.querySelector('.popover.date-pop .date-picker') && parseFloat(getComputedStyle(document.querySelector('.popover.date-pop')).borderTopLeftRadius) >= 6`));
+  await js('tasks', `window.dispatchEvent(new Event('blur'))`); await wait(200);
+  check('Clicking outside the card closes an open picker', await js('tasks', `!document.querySelector('.popover')`));
+  await js('tasks', `[...document.querySelectorAll('.task')].find((r) => r.textContent.includes('Synced across cards')).querySelector('.date-chip button').click()`); await wait(300);
   await js('tasks', `document.querySelector('.date-pop .dp-today').click()`);
   await wait(800);
   check('A task typed in the Tasks card appears in the Week card', await js('week', `document.querySelector('.wday.today')?.textContent.includes('Synced across cards')`));
@@ -70,14 +73,19 @@ app.whenReady().then(async () => {
   await js('week', `[...document.querySelectorAll('.tline-title')].find((b) => b.textContent === 'Synced across cards').click()`); await wait(500);
   check('Clicking a task in the Week card opens it in the Tasks card', (await js('tasks', `document.querySelector('.task.open .task-title')?.textContent`)) === 'Synced across cards');
 
-  // Esther's own blur, rounded corners.
-  check('Each card gets the wallpaper behind it for its own blur', await js('calendar', `document.documentElement.dataset.wall === '1' && getComputedStyle(document.querySelector('.glass')).backgroundImage.startsWith('url("data:image/jpeg')`));
-  check('The frosted copy is worked out once and sits on its own element (no live blur, no page-wide variables)', await js('calendar', `(() => { const g = getComputedStyle(document.querySelector('.glass')); const r = getComputedStyle(document.documentElement); return g.filter === 'none' && r.getPropertyValue('--wall') === '' && r.getPropertyValue('--wall-x') === '' && r.getPropertyValue('--noise') === ''; })()`));
-  check('Fluent grain and tint over the glass', (await js('calendar', `getComputedStyle(document.querySelector('.glass'), '::after').backgroundImage`)).includes('data:image/png'));
-  check('Cards have rounded corners', parseFloat(await js('tasks', `getComputedStyle(document.querySelector('.app > .card')).borderTopLeftRadius`)) >= 6);
-  const wx = await js('calendar', `getComputedStyle(document.querySelector('.glass')).backgroundPositionX`);
-  C('calendar').setPosition(C('calendar').getBounds().x + 40, C('calendar').getBounds().y); await wait(500);
-  check('Moving a card keeps its blurred wallpaper lined up with the real one', parseFloat(await js('calendar', `getComputedStyle(document.querySelector('.glass')).backgroundPositionX`)) === parseFloat(wx) - 40, String(wx));
+  // The glass: Windows' own (acrylic, live, on Windows 11) or Esther's own blur of the wallpaper.
+  if (E.prefs().material !== 'esther') {
+    check('Windows\' own acrylic glass, with rounded corners asked of Windows', IDS.every((id) => C(id).styled?.round && C(id).styled.corners) && (await js('calendar', `document.documentElement.dataset.glass`)) === 'native', JSON.stringify(IDS.map((id) => C(id).styled)));
+    check('The card adds only the tint and grain over Windows\' glass', await js('calendar', `getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' && getComputedStyle(document.querySelector('.glass'), '::after').backgroundImage.includes('gradient')`));
+  } else {
+    check('Each card gets the wallpaper behind it for its own blur', await js('calendar', `document.documentElement.dataset.wall === '1' && getComputedStyle(document.querySelector('.glass')).backgroundImage.startsWith('url("data:image/jpeg')`));
+    check('The frosted copy is worked out once and sits on its own element (no live blur, no page-wide variables)', await js('calendar', `(() => { const g = getComputedStyle(document.querySelector('.glass')); const r = getComputedStyle(document.documentElement); return g.filter === 'none' && r.getPropertyValue('--wall') === '' && r.getPropertyValue('--wall-x') === '' && r.getPropertyValue('--noise') === ''; })()`));
+    check('Fluent grain and tint over the glass', (await js('calendar', `getComputedStyle(document.querySelector('.glass'), '::after').backgroundImage`)).includes('data:image/png'));
+    check('Cards have rounded corners', parseFloat(await js('tasks', `getComputedStyle(document.querySelector('.app > .card')).borderTopLeftRadius`)) >= 6);
+    const wx = await js('calendar', `getComputedStyle(document.querySelector('.glass')).backgroundPositionX`);
+    C('calendar').setPosition(C('calendar').getBounds().x + 40, C('calendar').getBounds().y); await wait(500);
+    check('Moving a card keeps its blurred wallpaper lined up with the real one', parseFloat(await js('calendar', `getComputedStyle(document.querySelector('.glass')).backgroundPositionX`)) === parseFloat(wx) - 40, String(wx));
+  }
 
   // Placing cards (snapping off for exact sizes; it has its own check below).
   await js('tasks', `window.estherDesktop.set({ snap: false })`);
@@ -129,6 +137,36 @@ app.whenReady().then(async () => {
     check('A card dragged near the screen\'s centre snaps to it', Math.abs(cb2.x + cb2.width / 2 - cx) <= 1, JSON.stringify({ cb2, cx }));
     await js('calendar', `window.estherDesktop.track('move', 'end')`); await wait(300);
     check('The guides go away when you let go', !E.guides().isVisible());
+  }
+  // Resizing from any edge or corner, with the grid and guides showing; Alt from the centre, Shift in proportion.
+  {
+    E.resetLayout(); await wait(400);
+    const resize = async (id, edge, ddx, ddy, mods = {}) => {
+      const b = C(id).getBounds();
+      E.pointer.mods = () => mods;
+      fake = { x: b.x + 10, y: b.y + 10 };
+      await js(id, `window.estherDesktop.track('resize', 'start', '${edge}')`); await wait(80);
+      fake = { x: fake.x + ddx, y: fake.y + ddy }; await wait(220);
+      const during = E.guides()?.isVisible();
+      await js(id, `window.estherDesktop.track('resize', 'end')`); await wait(250);
+      E.pointer.mods = null;
+      return { b, a: C(id).getBounds(), during };
+    };
+    const near = (a, b, t = 10) => Math.abs(a - b) <= t;
+    let r = await resize('calendar', 'e', 41, 0);
+    check('Resizing from the right edge: wider, same place, with the grid and guides showing', r.during && near(r.a.width, r.b.width + 41) && r.a.x === r.b.x && r.a.height === r.b.height, JSON.stringify(r));
+    r = await resize('calendar', 'w', -43, 0);
+    check('Resizing from the left edge: the right edge stays put', near(r.a.width, r.b.width + 43) && r.a.x + r.a.width === r.b.x + r.b.width, JSON.stringify(r));
+    r = await resize('calendar', 'n', 0, 37);
+    check('Resizing from the top edge: the bottom stays put', near(r.a.height, r.b.height - 37) && r.a.y + r.a.height === r.b.y + r.b.height, JSON.stringify(r));
+    r = await resize('calendar', 'e', 40, 0, { alt: true });
+    check('Alt: the opposite side moves too (resized from the centre)', near(r.a.width, r.b.width + 80, 20) && near(r.a.x + r.a.width / 2, r.b.x + r.b.width / 2, 2), JSON.stringify(r));
+    r = await resize('calendar', 'se', 60, 10, { shift: true });
+    check('Shift: the proportions stay the same', Math.abs(r.a.width / r.a.height - r.b.width / r.b.height) < 0.02 && r.a.x === r.b.x && r.a.y === r.b.y, JSON.stringify(r));
+    r = await resize('calendar', 'se', 50, 0, { shift: true, alt: true });
+    check('Shift+Alt: in proportion, from the centre', Math.abs(r.a.width / r.a.height - r.b.width / r.b.height) < 0.02 && near(r.a.x + r.a.width / 2, r.b.x + r.b.width / 2, 2) && near(r.a.y + r.a.height / 2, r.b.y + r.b.height / 2, 2), JSON.stringify(r));
+    check('Every card has resize edges on all four sides and corners', (await js('week', `document.querySelectorAll('.edge').length`)) === 8);
+    E.resetLayout(); await wait(400);
   }
   check('Cards use no Windows title-bar dragging (buttons in them always click)', (await js('header', `[...document.querySelectorAll('*')].filter((e) => getComputedStyle(e).webkitAppRegion === 'drag').length`)) === 0);
   E.pointer.at = realPointer.at; E.pointer.down = realPointer.down;
@@ -188,20 +226,19 @@ app.whenReady().then(async () => {
   C('tasks').setSize(360, 600); await wait(500);
   check('Tasks fits a narrow card: compact rows, list shown as a dot', await js('tasks', `(() => { const h = getComputedStyle(document.querySelector('.thead')).display === 'none'; const row = document.querySelector('.task .tr'); return h && row.getBoundingClientRect().height < 50 && !!row.querySelector('.row-dot') && getComputedStyle(row.querySelector('.row-dot')).display !== 'none' && document.querySelector('.table').scrollWidth <= document.querySelector('.table').clientWidth + 1; })()`));
   E.resetLayout(); await wait(500);
-  // The tray menu: Esther's own, rounded, ready before it's asked for.
-  await wait(1500);
-  E.openTrayMenu(); await wait(150);
-  check('The tray menu opens at once (it is ready beforehand)', E.menu().isVisible());
-  await wait(1350);
-  const M = E.menu();
-  check('The tray menu opens as a rounded Windows 11 style menu', !!M && M.isVisible() && (await M.webContents.executeJavaScript(`parseFloat(getComputedStyle(document.querySelector('.tray-menu')).borderTopLeftRadius) >= 6 && document.querySelectorAll('.tray-menu .menu-item').length >= 9`)));
-  check('The tray menu fits its items', Math.abs(M.getBounds().height - (await M.webContents.executeJavaScript(`document.querySelector('.tray-menu').offsetHeight`))) <= 2, JSON.stringify(M.getBounds()));
-  await M.webContents.executeJavaScript(`[...document.querySelectorAll('.menu-item')].find((b) => b.textContent === 'Calendar').click()`); await wait(500);
-  check('Turning a card off from the tray menu', !C('calendar').isVisible() && (await M.webContents.executeJavaScript(`document.querySelector('[role=menuitemcheckbox][aria-checked=false]')?.textContent`)) === 'Calendar');
-  await M.webContents.executeJavaScript(`[...document.querySelectorAll('.menu-item')].find((b) => b.textContent === 'Calendar').click()`); await wait(500);
-  check('…and back on', C('calendar').isVisible());
-  await M.webContents.executeJavaScript(`[...document.querySelectorAll('.menu-item')].find((b) => b.textContent === 'Settings…').click()`); await wait(1500);
-  check('Settings… in the tray menu opens Settings and closes the menu', !M.isVisible() && !!E.settings() && E.settings().isVisible());
+  // The tray menu: Windows' own menu.
+  {
+    const items = E.trayMenu().items;
+    const labels = items.map((i) => i.label);
+    check('The tray menu is the system\'s own, with the cards, Settings and Quit', ['Hide Esther', 'Cards', 'Put the cards back', 'Where the cards sit', 'Settings…', 'Quit Esther'].every((l) => labels.includes(l)), JSON.stringify(labels));
+    const cal = () => E.trayMenu().items.find((i) => i.label === 'Cards').submenu.items.find((i) => i.label === 'Calendar');
+    cal().click(); await wait(500);
+    check('Turning a card off from the tray menu', !C('calendar').isVisible() && cal().checked === false);
+    cal().click(); await wait(500);
+    check('…and back on', C('calendar').isVisible() && cal().checked === true);
+    E.trayMenu().items.find((i) => i.label === 'Settings…').click(); await wait(1500);
+    check('Settings… in the tray menu opens Settings', !!E.settings() && E.settings().isVisible());
+  }
 
   // Settings: its own card; a change there reaches the other cards.
   E.openSettings(); await wait(1500);

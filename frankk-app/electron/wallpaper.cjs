@@ -1,7 +1,7 @@
 // Esther's own blur: each card shows a blurred copy of the part of your wallpaper that sits behind it. Windows'
 // acrylic can't be made more or less blurry and forces square corners; this can, and the corners stay round.
 // The wallpaper is read from where Windows keeps the current one (TranscodedWallpaper), cropped the way "Fill" shows
-// it on each screen, and checked every 20 seconds so a slideshow or a new wallpaper is picked up.
+// it on each screen, and picked up again as soon as the wallpaper changes.
 const { nativeImage } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -41,10 +41,16 @@ function wallpaperFor(display) {
   return url;
 }
 
-/** Calls back when the wallpaper file changes. */
+/** Calls back as soon as the wallpaper changes: Windows rewrites the file, and Esther is told by the file system
+ *  (with a check every 5 seconds as well, in case a notice is missed). */
 function watchWallpaper(onChange) {
   stamp = mtime();
-  return setInterval(() => { const m = mtime(); if (m !== stamp) { stamp = m; cache.clear(); onChange(); } }, 20_000);
+  let t = null;
+  const check = () => { const m = mtime(); if (m !== stamp) { stamp = m; cache.clear(); onChange(); } };
+  const soon = () => { clearTimeout(t); t = setTimeout(check, 250); };
+  const file = wallpaperFile();
+  if (file) { try { fs.watch(path.dirname(file), { persistent: false }, (_ev, name) => { if (!name || name === path.basename(file)) soon(); }); } catch { /* no watching: the check below still works */ } }
+  return setInterval(check, 5_000);
 }
 
 module.exports = { wallpaperFor, watchWallpaper };

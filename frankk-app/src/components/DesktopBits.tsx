@@ -1,22 +1,41 @@
 import { useEffect, useState } from 'react';
-import { desktop, type UpdateStatus } from '../lib/desktop';
+import { desktop, type Edge, type UpdateStatus } from '../lib/desktop';
 
 
-/** Bottom-right corner: drag to resize the card (Esther resizes it itself, on the grid). Shows on hover. */
+const EDGES: Edge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+
+/**
+ * Resize a card from any edge or corner (Esther resizes it itself, with the grid and guides showing).
+ * Alt resizes from the centre, Shift keeps the proportions, Shift+Alt does both, like Illustrator.
+ * A small corner line at the bottom right shows on hover, as a hint.
+ */
 export function ResizeGrip() {
   if (!desktop) return null;
   return (
-    <div className="resize-grip" title="Drag to resize" aria-hidden="true"
-      onPointerDown={(e) => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        const el = e.currentTarget;
-        el.setPointerCapture(e.pointerId);
-        desktop!.track('resize', 'start');
-        const end = () => { desktop!.track('resize', 'end'); el.removeEventListener('pointerup', end); el.removeEventListener('lostpointercapture', end); };
-        el.addEventListener('pointerup', end);
-        el.addEventListener('lostpointercapture', end);
-      }} />
+    <>
+      {EDGES.map((edge) => (
+        <div key={edge} className={`edge edge-${edge}`} aria-hidden="true"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.stopPropagation(); e.preventDefault();
+            const el = e.currentTarget;
+            el.setPointerCapture(e.pointerId);
+            desktop!.trackMods(e.shiftKey, e.altKey);
+            desktop!.track('resize', 'start', edge);
+            const keys = (k: KeyboardEvent | PointerEvent) => desktop!.trackMods(k.shiftKey, k.altKey);
+            const end = () => {
+              desktop!.track('resize', 'end');
+              el.removeEventListener('pointerup', end); el.removeEventListener('lostpointercapture', end); el.removeEventListener('pointermove', keys);
+              window.removeEventListener('keydown', keys); window.removeEventListener('keyup', keys);
+            };
+            el.addEventListener('pointerup', end);
+            el.addEventListener('lostpointercapture', end);
+            el.addEventListener('pointermove', keys);
+            window.addEventListener('keydown', keys); window.addEventListener('keyup', keys);
+          }} />
+      ))}
+      <div className="resize-grip" aria-hidden="true" />
+    </>
   );
 }
 

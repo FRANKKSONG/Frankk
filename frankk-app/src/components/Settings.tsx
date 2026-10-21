@@ -8,7 +8,7 @@ import { useStore } from '../data/store';
 import { useUi } from '../ui';
 import { CLEAR_CHOICES } from '../data/storage';
 import { usePersistentState } from '../hooks/usePersistentState';
-import { accelerator, desktop, prettyKeys, type Card, type DesktopState, type Layer } from '../lib/desktop';
+import { accelerator, desktop, prettyKeys, type Card, type DesktopState, type Layer, type Material } from '../lib/desktop';
 import { DEFAULT_GRAIN, DEFAULT_WINDOW, THEMES, themeColor, themeOf, type ThemeId, type ThemePrefs, type WindowPrefs } from '../lib/theme';
 import { artPresets, downscaleImage } from '../lib/art';
 import type { Data } from '../data/model';
@@ -140,7 +140,6 @@ const CARD_LABEL: Record<Card, { label: string; hint: string }> = {
   calendar: { label: 'Calendar', hint: 'The month. Pick a day to filter Tasks.' },
   week: { label: 'This week', hint: 'Monday to Sunday at a glance.' },
   settings: { label: 'Settings', hint: '' },
-  menu: { label: 'Menu', hint: '' },
   bubble: { label: 'Bubble', hint: '' },
   guides: { label: 'Guides', hint: '' },
 };
@@ -183,9 +182,12 @@ function LookSection({ theme: prefs, setTheme: setPrefs }: Props) {
         <Row label="Opacity" hint="How solid the panels are.">
           <input type="range" min={0.2} max={1} step={0.01} value={win.opacity} aria-label="Panel opacity" onChange={(e) => setWin({ opacity: Number(e.target.value) })} /><output>{Math.round(win.opacity * 100)}%</output>
         </Row>
-        <Row label={desktop ? 'Blur behind the cards' : 'Background blur'} hint={desktop ? 'How much the wallpaper behind each card is blurred. 0 shows it sharp.' : 'How much the page background is blurred behind the panels.'}>
-          <input type="range" min={0} max={60} step={1} value={win.blur} aria-label="Blur" onChange={(e) => setWin({ blur: Number(e.target.value) })} /><output>{win.blur}px</output>
-        </Row>
+        {desktop && <GlassRow />}
+        {(!desktop || desktop.glass === 'esther') && (
+          <Row label={desktop ? 'Blur behind the cards' : 'Background blur'} hint={desktop ? 'How much the wallpaper behind each card is blurred. 0 shows it sharp.' : 'How much the page background is blurred behind the panels.'}>
+            <input type="range" min={0} max={60} step={1} value={win.blur} aria-label="Blur" onChange={(e) => setWin({ blur: Number(e.target.value) })} /><output>{win.blur}px</output>
+          </Row>
+        )}
         {desktop && (
           <Row label="Grain" hint="The fine texture on the frosted glass, like Windows 11’s acrylic.">
             <input type="range" min={0} max={1} step={0.01} value={win.grain ?? DEFAULT_GRAIN} aria-label="Grain" onChange={(e) => setWin({ grain: Number(e.target.value) })} /><output>{Math.round((win.grain ?? DEFAULT_GRAIN) * 100)}%</output>
@@ -210,6 +212,24 @@ function LookSection({ theme: prefs, setTheme: setPrefs }: Props) {
         <Row label="Start over" hint="The look’s own panels, opacity and blur."><button className="btn" onClick={() => setPrefs({ ...prefs, window: DEFAULT_WINDOW })}>Reset</button></Row>
       </div>
     </>
+  );
+}
+
+const GLASS: { id: Material; label: string; hint: string }[] = [
+  { id: 'acrylic', label: 'Windows acrylic', hint: 'Windows blurs whatever is behind each card, live, like its own menus and panels.' },
+  { id: 'mica', label: 'Windows mica', hint: 'Windows tints each card with your wallpaper’s colours, live, like Settings and File Explorer.' },
+  { id: 'esther', label: 'Esther’s own', hint: 'Esther blurs a copy of your wallpaper, and you choose how much.' },
+];
+/** Windows' own glass (live) or Esther's (adjustable blur). Changing it restarts Esther. */
+function GlassRow() {
+  const [st, setSt] = useState<DesktopState | null>(null);
+  useEffect(() => { void desktop!.state().then(setSt); }, []);
+  if (!st) return null;
+  const options = GLASS.filter((g) => st.nativeGlass || g.id === 'esther');
+  return (
+    <Row label="Glass" hint={`${GLASS.find((g) => g.id === st.material)!.hint}${st.nativeGlass ? ' Changing it restarts Esther.' : ' Windows’ own glass needs Windows 11 (22H2 or later).'}`}>
+      <Select label="Glass" value={st.material} onChange={async (material) => setSt(await desktop!.set({ material }))} options={options.map((g) => ({ value: g.id, label: g.label }))} />
+    </Row>
   );
 }
 

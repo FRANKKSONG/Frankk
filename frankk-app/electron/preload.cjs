@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('estherDesktop', {
   hide: () => ipcRenderer.send('esther:hide'),
   /** Which card this window is (header, tasks, calendar, week or settings). */
   card: new URLSearchParams(location.search).get('card') || '',
+  /** 'native': Windows draws the glass (acrylic or mica); 'esther': Esther draws it. */
+  glass: new URLSearchParams(location.search).get('glass') || 'esther',
   openSettings: () => ipcRenderer.send('esther:settings'),
   closeSettings: () => ipcRenderer.send('esther:settings-close'),
   resetLayout: () => ipcRenderer.send('esther:reset-layout'),
@@ -30,10 +32,9 @@ contextBridge.exposeInMainWorld('estherDesktop', {
   /** What the guides window should draw while a card is dragged. */
   onGuides: (cb) => { const h = (_e, g) => cb(g); ipcRenderer.on('esther:guides', h); return () => ipcRenderer.removeListener('esther:guides', h); },
   /** Move the card (or resize it from its corner) with the mouse, from now until the button is let go. */
-  track: (kind, phase) => ipcRenderer.send('esther:track', { kind, phase }),
-  /** The tray menu's size, so it can open by the mouse; and closing it. */
-  menuSize: (width, height) => ipcRenderer.send('esther:menu-size', { width, height }),
-  menuClose: () => ipcRenderer.send('esther:menu-close'),
+  track: (kind, phase, edge) => ipcRenderer.send('esther:track', { kind, phase, edge }),
+  /** Shift and Alt while resizing (where Esther can't read the keyboard itself). */
+  trackMods: (shift, alt) => ipcRenderer.send('esther:track', { phase: 'mods', shift, alt }),
   saveLog: () => ipcRenderer.invoke('esther:save-log'),
   quit: () => ipcRenderer.send('esther:quit'),
   size: (width, height) => ipcRenderer.send('esther:size', { width, height }),

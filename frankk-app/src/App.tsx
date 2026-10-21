@@ -9,7 +9,6 @@ import { Icon } from './components/Icons';
 import { card, desktop, prettyKeys, type Backdrop } from './lib/desktop';
 import { applyTheme, DEFAULT_GRAIN, DEFAULT_THEME, DEFAULT_WINDOW, type ThemePrefs } from './lib/theme';
 import { blurredWallpaper, noiseTile } from './lib/backdrop';
-import { TrayMenu } from './components/TrayMenu';
 import { Guides } from './components/Guides';
 import { greeting, longToday } from './lib/dates';
 import { lineFor } from './lib/greeting';
@@ -32,7 +31,7 @@ export default function App() {
       const typing = !!(e.target as HTMLElement).closest?.('input,select,textarea,[contenteditable="true"]');
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing && canUndo) { e.preventDefault(); undo(); say('Undone.'); }
       // On the desktop, Esc tucks Esther away (or closes Settings), unless you're typing or a menu is open.
-      else if (e.key === 'Escape' && desktop && !typing && !document.querySelector('.popover')) (card === 'settings' ? desktop.closeSettings() : card === 'menu' ? desktop.menuClose() : desktop.hide());
+      else if (e.key === 'Escape' && desktop && !typing && !document.querySelector('.popover')) (card === 'settings' ? desktop.closeSettings() : desktop.hide());
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -56,6 +55,7 @@ export default function App() {
     const root = document.documentElement;
     root.dataset.desktop = '1';
     if (card) root.dataset.card = card;
+    root.dataset.glass = desktop.glass;
     let scale = 1, screen = { x: 0, y: 0 };
     const place = (x: number, y: number) => {
       const g = glass.current;
@@ -124,7 +124,6 @@ export default function App() {
       case 'tasks': return <section className="card tasks-card" aria-label="Tasks"><ListTabs /><TaskTable /></section>;
       case 'calendar': return <MonthCalendar />;
       case 'week': return <ThisWeek />;
-      case 'menu': return <TrayMenu />;
       case 'bubble': return <button className="bubble" aria-label="Esther: show or hide the cards" onClick={() => desktop!.bubbleClick()} onWheel={(e) => desktop!.bubbleWheel(e.deltaY)}>Esther</button>;
       case 'guides': return <Guides />;
       case 'settings': return (
@@ -148,8 +147,8 @@ export default function App() {
   return (
     <div className={`app${card ? ` card-${card}` : ''}`}>
       {body}
-      {card && !['menu', 'bubble', 'guides'].includes(card) && <div ref={glass} className="glass" aria-hidden="true" />}
-      {!['header', 'menu', 'bubble', 'guides'].includes(card) && <ResizeGrip />}
+      {card && !['bubble', 'guides'].includes(card) && <div ref={glass} className="glass" aria-hidden="true" />}
+      {!['bubble', 'guides'].includes(card) && <ResizeGrip />}
       <div className={`toast${toast ? ' show' : ''}`} role="status" aria-live="polite">
         {toast?.msg}
         {toast?.undo && canUndo && <button className="toast-undo" onClick={() => { undo(); say('Undone.'); }}>Undo</button>}

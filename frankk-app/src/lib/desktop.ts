@@ -1,9 +1,14 @@
 /** Present only inside the Esther desktop app (see electron/preload.cjs). */
 /** Where the window sits: on the desktop under other windows, like a normal window, or always on top. */
 export type Layer = 'desktop' | 'normal' | 'top';
+/** Which edge or corner of a card is being dragged to resize it. */
+export type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+export type Material = 'acrylic' | 'mica' | 'esther';
 export interface DesktopState {
   shortcut: string; shortcutOk: boolean; layer: Layer; pinsToDesktop: boolean; snap: boolean; scale: number; scales: number[];
   cards: { id: Card; on: boolean }[]; startWithWindows: boolean; version: string; visible: boolean; bubble: boolean; bubbleSize: number;
+  /** The glass: Windows' acrylic or mica (live), or Esther's own adjustable blur. `nativeGlass`: Windows can do its own. */
+  material: Material; nativeGlass: boolean;
 }
 export interface Backdrop { image: string | null; screen: { x: number; y: number; width: number; height: number }; x: number; y: number; scale: number }
 /** The self-updater: 'dev' and 'portable' builds don't update themselves. */
@@ -11,9 +16,10 @@ export interface UpdateStatus { state: 'idle' | 'checking' | 'current' | 'downlo
 export interface Desktop {
   updates: { status: () => Promise<UpdateStatus>; check: () => void; install: () => void; on: (cb: (s: UpdateStatus) => void) => () => void };
   state: () => Promise<DesktopState>;
-  set: (p: Partial<Pick<DesktopState, 'shortcut' | 'layer' | 'startWithWindows' | 'snap' | 'scale' | 'bubble' | 'bubbleSize'>> & { card?: { id: Card; on: boolean } }) => Promise<DesktopState>;
+  set: (p: Partial<Pick<DesktopState, 'shortcut' | 'layer' | 'startWithWindows' | 'snap' | 'scale' | 'bubble' | 'bubbleSize' | 'material'>> & { card?: { id: Card; on: boolean } }) => Promise<DesktopState>;
   hide: () => void;
   card: string;
+  glass: 'native' | 'esther';
   openSettings: () => void;
   closeSettings: () => void;
   resetLayout: () => void;
@@ -27,9 +33,8 @@ export interface Desktop {
   bubbleWheel: (deltaY: number) => void;
   onGuides: (cb: (g: import('../components/Guides').GuidesMsg) => void) => () => void;
   show: () => void;
-  track: (kind: 'move' | 'resize', phase: 'start' | 'end') => void;
-  menuSize: (width: number, height: number) => void;
-  menuClose: () => void;
+  track: (kind: 'move' | 'resize', phase: 'start' | 'end', edge?: Edge) => void;
+  trackMods: (shift: boolean, alt: boolean) => void;
   saveLog: () => Promise<boolean>;
   quit: () => void;
   size: (width: number, height: number) => void;
@@ -51,5 +56,5 @@ export function accelerator(e: { key: string; code: string; ctrlKey: boolean; al
 }
 
 /** The card this window shows in the desktop app ('' on the website, where everything is one page). */
-export type Card = 'header' | 'tasks' | 'calendar' | 'week' | 'settings' | 'menu' | 'bubble' | 'guides';
+export type Card = 'header' | 'tasks' | 'calendar' | 'week' | 'settings' | 'bubble' | 'guides';
 export const card = (desktop?.card || '') as Card | '';

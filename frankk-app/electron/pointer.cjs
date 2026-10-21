@@ -3,7 +3,7 @@
 // from Windows or Windhawk, buttons inside the card always click, and the card can land on the grid as you drag.
 const { screen } = require('electron');
 
-let down = null;
+let down = null, mods = null;
 if (process.platform === 'win32') {
   try {
     const koffi = require('koffi');
@@ -13,8 +13,11 @@ if (process.platform === 'win32') {
     const SM_SWAPBUTTON = 23, VK_LBUTTON = 1, VK_RBUTTON = 2;
     // The main button is the right one for left-handed mouse settings.
     down = () => (GetAsyncKeyState(GetSystemMetrics(SM_SWAPBUTTON) ? VK_RBUTTON : VK_LBUTTON) & 0x8000) !== 0;
+    // Shift and Alt while resizing (keep the proportions, resize from the centre), read straight from the keyboard.
+    const VK_SHIFT = 0x10, VK_MENU = 0x12;
+    mods = () => ({ shift: (GetAsyncKeyState(VK_SHIFT) & 0x8000) !== 0, alt: (GetAsyncKeyState(VK_MENU) & 0x8000) !== 0 });
   } catch { down = null; }
 }
 
 /** The tests replace these to drive a drag without a real mouse. */
-module.exports = { pointer: { at: () => screen.getCursorScreenPoint(), down } };
+module.exports = { pointer: { at: () => screen.getCursorScreenPoint(), down, mods } };

@@ -624,3 +624,30 @@ span.update-pill { background: none; border-color: transparent; }
 [data-card='guides'] body, [data-card='guides'] .app { background: transparent !important; overflow: hidden; }
 .guides { position: fixed; inset: 0; width: 100vw; height: 100vh; opacity: 0; transition: opacity .14s; pointer-events: none; }
 .guides.on { opacity: 1; }
+
+/* ---------- 2.0: Windows' own glass (acrylic or mica), live ---------- */
+/* Windows draws the glass and rounds the window's corners (8 px, like every Windows 11 window); the card adds only
+   the panel tint (the Opacity setting) and the grain on top. */
+[data-glass='native'] body, [data-glass='native'] .app { background: transparent !important; }
+[data-card][data-glass='native'] .glass { display: block; position: absolute; inset: 0; z-index: 0; border-radius: 8px; overflow: hidden; pointer-events: none; }
+[data-card][data-glass='native'] .glass::after { content: ''; position: absolute; inset: 0;
+  background: var(--noise), linear-gradient(color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent), color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent)); }
+[data-card][data-glass='native'] .app > :is(.card, .top) { position: relative; z-index: 1; background: none !important; border: 0 !important; box-shadow: none !important; border-radius: 8px; }
+/* The window itself can't fade (Windows draws its glass), so the contents fade quickly instead. */
+@keyframes native-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes native-out { from { opacity: 1; } to { opacity: 0; } }
+[data-card][data-glass='native'].entering .app > :is(.card, .top) { animation: native-in .14s ease-out var(--enter-delay, 0ms) both; }
+[data-card][data-glass='native'].leaving .app > :is(.card, .top) { animation: native-out .12s ease-in forwards; }
+[data-card][data-glass='native'].entering .app, [data-card][data-glass='native'].leaving .app { animation: none !important; }
+
+/* Resize from any edge or corner. The corner line at the bottom right is only a hint now (the edges do the work). */
+.edge { position: fixed; z-index: 800; touch-action: none; }
+.edge-n, .edge-s { left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+.edge-n { top: 0; } .edge-s { bottom: 0; }
+.edge-e, .edge-w { top: 12px; bottom: 12px; width: 6px; cursor: ew-resize; }
+.edge-e { right: 0; } .edge-w { left: 0; }
+.edge-ne, .edge-nw, .edge-se, .edge-sw { width: 14px; height: 14px; }
+.edge-ne { top: 0; right: 0; cursor: nesw-resize; } .edge-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.edge-nw { top: 0; left: 0; cursor: nwse-resize; } .edge-se { bottom: 0; right: 0; cursor: nwse-resize; }
+.resize-grip, [data-desktop] .resize-grip { pointer-events: none; }
+[data-card].leaving .edge { display: none; }
