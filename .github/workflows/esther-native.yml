@@ -103,7 +103,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete esther-native-test --yes --cleanup-tag || true
-          ls smoke/*.png >/dev/null 2>&1 && gh release create esther-native-test smoke/*.png smoke/memory.json smoke/esther-native-log.txt \
+          files=$(ls smoke/*.png smoke/memory.json smoke/esther-native-log.txt 2>/dev/null || true)
+          [ -n "$files" ] && gh release create esther-native-test $files \
             --target "$GITHUB_SHA" --prerelease --title "Esther native: the last test run's pictures" \
             --notes "What the Windows test machine saw on its last run (for checking; not a download)." || true
       - name: Publish to the "Esther native" pre-release

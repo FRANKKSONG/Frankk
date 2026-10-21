@@ -1068,9 +1068,22 @@ struct Smoke {
     notes: RefCell<serde_json::Map<String, serde_json::Value>>,
     seen: RefCell<Vec<String>>,
     marks: RefCell<std::collections::HashMap<&'static str, Rect>>,
+    /// What the helper threads found (they work Windows' own menus, which hold up Esther while they're open).
+    bg: std::sync::Arc<std::sync::Mutex<serde_json::Map<String, serde_json::Value>>>,
 }
 
 impl Smoke {
+    /// After `ms`, on a thread of its own: `f` (with a place for its findings and the pictures' folder). For Windows'
+    /// own menus: while one is open, Esther (and this test's timer) waits for it to close.
+    fn later(&self, ms: u64, f: impl FnOnce(&mut serde_json::Map<String, serde_json::Value>, &std::path::Path) + Send + 'static) {
+        let (bg, dir) = (self.bg.clone(), self.dir.clone());
+        std::thread::spawn(move || {
+            std::thread::sleep(StdDuration::from_millis(ms));
+            let mut m = serde_json::Map::new();
+            f(&mut m, &dir);
+            bg.lock().unwrap().extend(m);
+        });
+    }
     fn w(&self, kind: &str) -> &Win { self.app.card(kind) }
     fn k(&self) -> f32 { self.w("tasks").ui.window().scale_factor() }
     fn g(&self, kind: &str) -> Esther<'_> { self.w(kind).ui.global::<Esther>() }
@@ -1113,6 +1126,15 @@ impl Smoke {
     fn all_cards(&self, shown: bool) -> bool {
         self.app.cards.iter().filter(|w| w.kind != "bubble").all(|w| visible(w) == shown)
     }
+}
+
+/// A picture of the whole screen (from any thread).
+fn shot_to(dir: &std::path::Path, name: &str) {
+    if let Some(img) = shell::capture() { let _ = img.save(dir.join(name)); }
+}
+/// Keys pressed one after another, a little apart (from a helper thread, into an open menu).
+fn keys_apart(vks: &[u16]) {
+    for vk in vks { win_input::key(*vk); std::thread::sleep(StdDuration::from_millis(120)); }
 }
 
 fn kind_mark(kind: &str) -> &'static str {
@@ -1169,10 +1191,13 @@ fn smoke_steps() -> Vec<Step> {
     step!(400, |x| { if x.real.get() { win_input::enter() } else { x.g("tasks").invoke_rename(x.first_row_id(), "Renamed on Windows".into()) } });
     step!(50, |x| x.note("renamed_by_click", x.first_task()["title"] == "Renamed on Windows"));
     // Its list: click the list pill, pick another list from the menu with the keyboard.
-    step!(450, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("list pill", "tasks", x.at("tasks", w - 338.0 + 30.0, row(x))) } });
-    step!(200, |x| { x.shot("list-menu.png"); if x.real.get() { win_input::key(down_key) } });
-    step!(150, |x| { if x.real.get() { win_input::key(down_key) } });
-    step!(450, |x| { if x.real.get() { win_input::enter() } else { x.g("tasks").invoke_move_to(x.first_row_id(), "seround".into()) } });
+    step!(600, |x| {
+        let (w, _) = x.size("tasks");
+        if x.real.get() {
+            x.later(600, move |m, dir| { m.insert("list_menu_open".into(), shell::menu_open().into()); shot_to(dir, "list-menu.png"); keys_apart(&[down_key, down_key, 0x0d]); });
+            x.click("list pill", "tasks", x.at("tasks", w - 338.0 + 30.0, row(x)));
+        } else { x.g("tasks").invoke_move_to(x.first_row_id(), "seround".into()) }
+    });
     step!(50, |x| x.note("list_after_pill_menu", x.first_task()["listId"].clone()));
     // Subtasks: click the subtasks column (opens them, the field takes the keyboard), type, Enter; close them again.
     step!(400, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("subtasks", "tasks", x.at("tasks", w - 198.0 + 12.0, row(x))) } });
@@ -1181,14 +1206,22 @@ fn smoke_steps() -> Vec<Step> {
     step!(50, |x| { x.note("subtask_added", x.first_task()["subtasks"][0]["text"] == "Sub on Windows"); x.shot("subtasks.png"); });
     step!(350, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("subtasks again", "tasks", x.at("tasks", w - 198.0 + 12.0, row(x))) } else { x.g("tasks").set_open_task("".into()) } });
     // Its date: click the date column, Down, Enter (Today).
-    step!(450, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("date", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x))) } });
-    step!(200, |x| { x.shot("date-menu.png"); if x.real.get() { win_input::key(down_key) } });
-    step!(450, |x| { if x.real.get() { win_input::enter() } else { x.g("tasks").invoke_set_date(x.first_row_id(), "today".into()) } });
+    step!(600, |x| {
+        let (w, _) = x.size("tasks");
+        if x.real.get() {
+            x.later(600, move |_, dir| { shot_to(dir, "date-menu.png"); keys_apart(&[down_key, 0x0d]); });
+            x.click("date", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x)));
+        } else { x.g("tasks").invoke_set_date(x.first_row_id(), "today".into()) }
+    });
     step!(50, |x| x.note("date_from_menu", x.first_task()["date"].clone()));
     // The date picker: the menu's "Pick a date…", then its Tomorrow.
-    step!(450, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("date again", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x))) } });
-    for _ in 0..4 { step!(120, |x| { if x.real.get() { win_input::key(down_key) } }); }
-    step!(500, |x| { if x.real.get() { win_input::enter() } });
+    step!(800, |x| {
+        let (w, _) = x.size("tasks");
+        if x.real.get() {
+            x.later(600, move |_, _| keys_apart(&[down_key, down_key, down_key, down_key, 0x0d]));
+            x.click("date again", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x)));
+        }
+    });
     step!(100, |x| {
         x.shot("date-picker.png");
         let (w, _) = x.size("tasks");
@@ -1315,25 +1348,25 @@ fn smoke_steps() -> Vec<Step> {
     });
     // The tray icon (if Windows shows it rather than tucking it into the overflow): right-click for the menu, then
     // click elsewhere (the menu should close); left-click hides, left-click again shows.
-    step!(300, |x| {
+    step!(1500, |x| {
         let r = shell::tray_rect();
         x.note("tray_icon_rect", serde_json::json!(r));
         if let (true, Some((l, t, rr, b))) = (x.real.get(), r) {
+            x.later(700, |m, dir| {
+                m.insert("tray_menu_opened".into(), shell::menu_open().into());
+                shot_to(dir, "tray-menu.png");
+                let (ax, ay, aw, ah) = win::work_area();
+                win_input::to(ax + aw - 8, ay + ah - 8);
+                win_input::down();
+                win_input::up();
+                std::thread::sleep(StdDuration::from_millis(500));
+                m.insert("tray_menu_closed_by_clicking_elsewhere".into(), (!shell::menu_open()).into());
+            });
             win_input::to((l + rr) / 2, (t + b) / 2);
             win_input::right(true);
             win_input::right(false);
         }
     });
-    step!(700, |x| { x.note("tray_menu_opened", shell::menu_open()); x.shot("tray-menu.png"); });
-    step!(600, |x| {
-        if x.real.get() && shell::menu_open() {
-            let (ax, ay, aw, ah) = win::work_area();
-            win_input::to(ax + aw - 8, ay + ah - 8);
-            win_input::down();
-            win_input::up();
-        }
-    });
-    step!(100, |x| x.note("tray_menu_closed_by_clicking_elsewhere", !shell::menu_open()));
     step!(700, |x| { if let (true, Some((l, t, r, b))) = (x.real.get(), shell::tray_rect()) { x.click("tray icon", "tasks", ((l + r) / 2, (t + b) / 2)) } });
     step!(100, |x| { if x.real.get() && shell::tray_rect().is_some() { x.note("tray_click_hid", x.all_cards(false)); } });
     step!(700, |x| { if let (true, Some((l, t, r, b))) = (x.real.get(), shell::tray_rect()) { x.click("tray icon again", "tasks", ((l + r) / 2, (t + b) / 2)) } });
@@ -1390,13 +1423,14 @@ fn smoke_report(x: &Smoke) {
         "renderer": std::env::var("SLINT_BACKEND").unwrap_or_else(|_| "winit-software".into()),
     });
     for (k, v) in x.notes.borrow().iter() { report[k] = v.clone(); }
+    for (k, v) in x.bg.lock().unwrap().iter() { report[k] = v.clone(); }
     println!("{report}");
     let _ = std::fs::write(x.dir.join("memory.json"), report.to_string());
 }
 
 /// Run the test machine's steps on a timer, then report and quit.
 fn smoke_run(dir: std::path::PathBuf, app: Rc<App>) -> slint::Timer {
-    let x = Smoke { app, dir, real: Cell::new(false), notes: Default::default(), seen: Default::default(), marks: Default::default() };
+    let x = Smoke { app, dir, real: Cell::new(false), notes: Default::default(), seen: Default::default(), marks: Default::default(), bg: Default::default() };
     let steps = smoke_steps();
     let next = Cell::new(0usize);
     let wait_until = Cell::new(Instant::now());
@@ -1409,6 +1443,7 @@ fn smoke_run(dir: std::path::PathBuf, app: Rc<App>) -> slint::Timer {
         if Instant::now() < wait_until.get() { return; }
         let i = next.get();
         if i < steps.len() {
+            log(&format!("test step {i}"));
             (steps[i].1)(&x);
             wait_until.set(Instant::now() + StdDuration::from_millis(steps[i].0));
             next.set(i + 1);
