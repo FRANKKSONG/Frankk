@@ -229,7 +229,10 @@ app.whenReady().then(async () => {
       const pt = (p) => BigInt(p.x) & 0xffffffffn | (BigInt(p.y) << 32n);
       const hw = (w) => Number(w.getNativeWindowHandle().readBigUInt64LE(0));
       const watchCover = async (ms, during) => {
-        const spots = IDS.map((id) => { const b = C(id).getBounds(); return { id, h: hw(C(id)), p: scr.dipToScreenPoint({ x: b.x + Math.round(b.width / 2), y: b.y + 14 }) }; });
+        // Only the cards no other app overlaps (the test machine has its own terminal window open over part of the desktop;
+        // a card under an app is meant to stay under it).
+        const spots = IDS.map((id) => { const b = C(id).getBounds(); return { id, h: hw(C(id)), p: scr.dipToScreenPoint({ x: b.x + Math.round(b.width / 2), y: b.y + 14 }) }; })
+          .filter((q) => Number(GetAncestor(Number(WindowFromPoint(pt(q.p))), 2)) === q.h);
         const miss = {}, seen = []; let samples = 0; const t0 = Date.now();
         const t = setInterval(() => {
           samples++;
@@ -243,16 +246,16 @@ app.whenReady().then(async () => {
         }, 4);
         await wait(150); const before = { ...miss };
         await during(); await wait(ms); clearInterval(t);
-        return { miss, before, samples, seen, spots: spots.map((q) => `${q.id}:${q.p.x},${q.p.y}`) };
+        return { miss, before, samples, seen, watched: spots.map((q) => q.id) };
       };
       E.layer().lower(); await wait(500);
       const tb = C('tasks').getBounds(), cb = C('calendar').getBounds(), wa2 = scr.getPrimaryDisplay().workArea;
       const blank = scr.dipToScreenPoint({ x: Math.round((tb.x + tb.width + cb.x) / 2), y: wa2.y + wa2.height - 30 });
       const r1 = await watchCover(1000, async () => { SetCursorPos(blank.x, blank.y); await wait(50); mouse_event(0x2, 0, 0, 0, 0); await wait(40); mouse_event(0x4, 0, 0, 0, 0); });
-      check('Windows: clicking the empty desktop never covers the cards (no flicker)', !Object.keys(r1.miss).length && IDS.every((id) => C(id).isVisible()), JSON.stringify({ ...r1, blank }));
+      check('Windows: clicking the empty desktop never covers the cards (no flicker)', r1.watched.length >= 2 && !Object.keys(r1.miss).length && IDS.every((id) => C(id).isVisible()), JSON.stringify({ ...r1, blank }));
       const toggleDesktop = () => new Promise((res) => require('node:child_process').exec('powershell -NoProfile -Command "(New-Object -ComObject Shell.Application).ToggleDesktop()"', () => res()));
       const r2 = await watchCover(1500, toggleDesktop);
-      check('Windows: Show desktop never covers the cards (no flicker)', !Object.keys(r2.miss).length && IDS.every((id) => C(id).isVisible()), JSON.stringify(r2));
+      check('Windows: Show desktop never covers the cards (no flicker)', r2.watched.length >= 2 && !Object.keys(r2.miss).length && IDS.every((id) => C(id).isVisible()), JSON.stringify(r2));
       await toggleDesktop(); await wait(800);
     }
     const other = new BrowserWindow({ width: 900, height: 700, x: 50, y: 50, title: 'Another app' });
