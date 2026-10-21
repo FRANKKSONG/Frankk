@@ -95,6 +95,10 @@ const windowLook = (glass = false) => ({
   // A widget, not an app window: it can't be maximised (double-click, dragging to the top edge), snapped,
   // minimised or made full screen.
   maximizable: false, minimizable: false, fullscreenable: false, thickFrame: false,
+  // Windows doesn't resize the cards: a frameless window otherwise gets an invisible resize border just inside its
+  // edges, which caught the mouse before Esther's own edges (so no grid, no guides, no Alt or Shift). Esther still
+  // sets the size itself. (Only on Windows: elsewhere a window that isn't resizable can't be resized at all.)
+  resizable: process.platform !== 'win32',
   // Windows' own glass: Windows blurs whatever is behind the card, live, and rounds its corners.
   // Esther's own glass: a see-through window; Esther draws the card, its corners and the blur.
   ...(glass && nativeGlass() ? { transparent: false, backgroundMaterial: prefs.material, roundedCorners: true } : { transparent: true, roundedCorners: false }),

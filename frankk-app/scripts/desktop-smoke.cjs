@@ -319,6 +319,29 @@ app.whenReady().then(async () => {
       const r2 = await watchCover(1500, toggleDesktop);
       check('Windows: Show desktop never covers the cards (no flicker)', r2.watched.length >= 2 && !Object.keys(r2.miss).length && IDS.every((id) => C(id).isVisible()), JSON.stringify(r2));
       await toggleDesktop(); await wait(800);
+
+      // Resizing with the real mouse from an edge, holding Alt: Esther's own resizing (not Windows'), from the centre,
+      // with the guides showing.
+      const keybd_event = u.func('void __stdcall keybd_event(uint8_t vk, uint8_t scan, uint32_t flags, uintptr_t extra)');
+      E.show(); await wait(800);
+      const rb = C('calendar').getBounds();
+      const edgeDip = { x: rb.x + 2, y: rb.y + Math.round(rb.height / 2) };
+      const ep = scr.dipToScreenPoint(edgeDip);
+      const ch = hw(C('calendar'));
+      const edgeHit = Number(SendMessageW(ch, 0x84, 0, (ep.y << 16) | (ep.x & 0xffff)));
+      check('Windows: a card\'s edge is Esther\'s to resize, not Windows\' (no native resize border)', edgeHit === 1, `hit test ${edgeHit} (1 = Esther's, 10-17 = Windows' resize border)`);
+      SetCursorPos(ep.x, ep.y); await wait(150);
+      keybd_event(0x12, 0, 0, 0); await wait(50); // Alt down
+      mouse_event(0x2, 0, 0, 0, 0); await wait(80);
+      let guidesSeen = false;
+      for (let i = 1; i <= 10; i++) { SetCursorPos(ep.x - 4 * i, ep.y); await wait(30); guidesSeen ||= !!E.guides()?.isVisible(); }
+      await wait(150);
+      mouse_event(0x4, 0, 0, 0, 0); await wait(50);
+      keybd_event(0x12, 0, 2, 0); await wait(300); // Alt up
+      const ra = C('calendar').getBounds();
+      check('Windows: dragging an edge with the real mouse resizes with the grid and guides showing', guidesSeen && ra.width > rb.width + 20, JSON.stringify({ rb, ra, guidesSeen }));
+      check('Windows: holding Alt resizes from the centre (the opposite edge moves too)', Math.abs((ra.x + ra.width / 2) - (rb.x + rb.width / 2)) <= 4 && ra.width >= rb.width + 60, JSON.stringify({ rb, ra }));
+      E.resetLayout(); await wait(400);
     }
     const other = new BrowserWindow({ width: 900, height: 700, x: 50, y: 50, title: 'Another app' });
     await other.loadURL('data:text/html,<h1>another app</h1>');
