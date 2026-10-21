@@ -201,7 +201,7 @@ app.whenReady().then(async () => {
   }
   check('Hide tucks every card away', IDS.every((id) => !C(id).isVisible()));
   E.toggle(); await wait(60);
-  check('The shortcut calls the cards up with an animation', await js('tasks', `document.documentElement.classList.contains('entering') && getComputedStyle(document.querySelector('.app')).animationName === 'esther-in'`));
+  check('The shortcut calls the cards up with an animation', await js('tasks', `document.documentElement.classList.contains('entering') && (document.documentElement.dataset.glass === 'native' ? getComputedStyle(document.querySelector('.app > .card')).animationName === 'native-in' : getComputedStyle(document.querySelector('.app')).animationName === 'esther-in')`));
   await wait(700);
   check('The shortcut brings every card back', IDS.every((id) => C(id).isVisible()) && (await js('tasks', `getComputedStyle(document.querySelector('.app')).opacity`)) === '1');
   C('week').setBounds({ x: -5000, y: -5000, width: 360, height: 300 }); await wait(200); E.show(); await wait(400);
