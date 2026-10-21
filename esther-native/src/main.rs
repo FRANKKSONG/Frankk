@@ -239,6 +239,7 @@ fn smoke_run(dir: std::path::PathBuf, ui_w: slint::Weak<TasksCard>, state: Rc<Re
     let t = slint::Timer::default();
     let step = RefCell::new(0u32);
     let rects: RefCell<Vec<(i32, i32, i32, i32)>> = RefCell::new(vec![]);
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(vec![]));
     let start = std::time::Instant::now();
     t.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(150), move || {
         let Some(ui) = ui_w.upgrade() else { return };
@@ -253,12 +254,13 @@ fn smoke_run(dir: std::path::PathBuf, ui_w: slint::Weak<TasksCard>, state: Rc<Re
         #[cfg(not(windows))]
         let rect = || (0, 0, 0, 0);
         match *st {
-            1..=6 => {} // let it settle
-            7 if real => { let r = rect(); rects.borrow_mut().push(r); win_input::to(r.2 - 3, (r.1 + r.3) / 2); }
+            1..=5 => {} // let it settle
+            6 if real => { #[cfg(windows)] win::clear_and_front(h); }
+            7 if real => { let r = rect(); rects.borrow_mut().push(r); win_input::to(r.2 - 3, (r.1 + r.3) / 2); seen.borrow_mut().push(format!("edge: {}", win_input::under(r.2 - 3, (r.1 + r.3) / 2, h))); }
             8 if real => win_input::down(),
             9..=14 if real => { let r = rects.borrow()[0]; win_input::to(r.2 - 3 + (*st as i32 - 8) * 12, (r.1 + r.3) / 2); }
             15 if real => win_input::up(),
-            17 if real => { let r = rect(); rects.borrow_mut().push(r); win_input::to(r.2 - (40.0 * k) as i32, r.1 + (71.0 * k) as i32); }
+            17 if real => { let r = rect(); rects.borrow_mut().push(r); let (x, y) = (r.2 - (40.0 * k) as i32, r.1 + (71.0 * k) as i32); win_input::to(x, y); seen.borrow_mut().push(format!("drag: {}", win_input::under(x, y, h))); }
             18 if real => win_input::down(),
             19..=23 if real => { let r = rects.borrow()[1]; let i = *st as i32 - 18; win_input::to(r.2 - (40.0 * k) as i32 + i * 10, r.1 + (71.0 * k) as i32 + i * 6); }
             24 if real => win_input::up(),
@@ -267,7 +269,9 @@ fn smoke_run(dir: std::path::PathBuf, ui_w: slint::Weak<TasksCard>, state: Rc<Re
                 rects.borrow_mut().push(r);
                 let compact = ((r.2 - r.0) as f32 / k) < 560.0;
                 let y = if compact { 116.0 } else { 150.0 };
-                win_input::to(r.0 + (90.0 * k) as i32, r.1 + (y * k) as i32);
+                let (x, y) = (r.0 + (90.0 * k) as i32, r.1 + (y * k) as i32);
+                win_input::to(x, y);
+                seen.borrow_mut().push(format!("add field: {}", win_input::under(x, y, h)));
             }
             27 if real => win_input::down(),
             28 if real => win_input::up(),
@@ -300,6 +304,8 @@ fn smoke_run(dir: std::path::PathBuf, ui_w: slint::Weak<TasksCard>, state: Rc<Re
                     "tool_window": tool,
                     "on_the_desktop": owned,
                     "styled": styled.borrow().clone(),
+                    "under_the_mouse": seen.borrow().clone(),
+                    "rects": rects.borrow().clone(),
                     "screenshot": shot.unwrap_or(false),
                     "renderer": std::env::var("SLINT_BACKEND").unwrap_or_else(|_| "winit-software".into()),
                 });
@@ -320,6 +326,7 @@ mod win_input {
     pub fn up() { crate::win::mouse(false) }
     pub fn type_text(s: &str) { crate::win::type_text(s) }
     pub fn enter() { crate::win::enter() }
+    pub fn under(x: i32, y: i32, h: isize) -> String { crate::win::under(x, y, h) }
 }
 #[cfg(not(windows))]
 mod win_input {
@@ -328,6 +335,7 @@ mod win_input {
     pub fn up() {}
     pub fn type_text(_s: &str) {}
     pub fn enter() {}
+    pub fn under(_x: i32, _y: i32, _h: isize) -> String { String::new() }
 }
 
 fn main() {

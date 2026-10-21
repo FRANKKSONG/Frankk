@@ -109,6 +109,30 @@ mod imp {
             (corner, tool, owned)
         }
     }
+    /// For the test machine: minimise its console windows (they sit over the desktop), and bring the card forward.
+    pub fn clear_and_front(hwnd: isize) {
+        unsafe {
+            for c in ["CASCADIA_HOSTING_WINDOW_CLASS", "ConsoleWindowClass"] {
+                for _ in 0..10 {
+                    let h = FindWindowW(wide(c).as_ptr(), std::ptr::null());
+                    if h.is_null() || IsIconic(h) != 0 { break; }
+                    ShowWindow(h, SW_MINIMIZE);
+                }
+            }
+            SetWindowPos(hwnd as HWND, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+            SetForegroundWindow(hwnd as HWND);
+        }
+    }
+    /// Which window is under (x, y): ours, or the class name of whatever covers it.
+    pub fn under(x: i32, y: i32, hwnd: isize) -> String {
+        unsafe {
+            let w = GetAncestor(WindowFromPoint(POINT { x, y }), GA_ROOT);
+            if w as isize == hwnd { return "card".into(); }
+            let mut buf = [0u16; 128];
+            let n = GetClassNameW(w, buf.as_mut_ptr(), 128);
+            String::from_utf16_lossy(&buf[..n.max(0) as usize])
+        }
+    }
     pub fn set_cursor(x: i32, y: i32) {
         unsafe { SetCursorPos(x, y); }
     }
