@@ -366,6 +366,16 @@ app.whenReady().then(async () => {
     other.destroy();
   } else console.log('(Windows window-stack checks run on Windows only)');
 
+  // Light on memory: one page process for all of Esther's windows; graphics and networking in the main process.
+  {
+    const m = app.getAppMetrics();
+    const kb = (p) => p.memory.privateBytes ?? p.memory.workingSetSize;
+    const total = Math.round(m.reduce((t, p) => t + kb(p), 0) / 1024);
+    const pages = new Set([...IDS.map((id) => C(id)), E.bubble(), E.guides(), E.settings()].filter((w) => w && !w.isDestroyed()).map((w) => w.webContents.getOSProcessId()));
+    console.log(`memory: ${m.length} processes, ${total} MB (${m.map((p) => `${p.type} ${Math.round(kb(p) / 1024)}`).join(', ')})`);
+    check('All of Esther\'s windows share one page process', pages.size === 1, `${pages.size} page processes`);
+    check('Esther runs as at most 3 processes', m.length <= 3, m.map((p) => p.type).join(', '));
+  }
   const up = await js('tasks', `window.estherDesktop.updates.status()`);
   check('The updater reports its state (off when not installed)', up.state === 'dev' && up.version === app.getVersion(), JSON.stringify(up));
   console.log(`\n${results.filter(Boolean).length}/${results.length} desktop checks passed`);

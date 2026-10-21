@@ -14,7 +14,11 @@ const path = require('node:path');
 const LAYERS = ['desktop', 'normal', 'top'];
 // A desktop widget is meant to be seen while other windows sit around it: never pause it for looking "covered"
 // (Chromium's occlusion tracking on Windows would otherwise freeze the page when it's on the desktop layer).
-app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+// Light on memory: no spare page process kept ready (Esther never opens web pages).
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,SpareRendererForSitePerProcess');
+// Light on memory: graphics and networking run inside Esther's main process instead of two more processes.
+app.commandLine.appendSwitch('in-process-gpu');
+app.commandLine.appendSwitch('enable-features', 'NetworkServiceInProcess,NetworkServiceInProcess2');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
@@ -83,6 +87,42 @@ const defaultPlace = (id) => {
 const placeOf = (id) => (onScreen(prefs.cards[id]) ? prefs.cards[id] : defaultPlace(id));
 
 const pageOptions = (query) => ({ query });
+// ---- One page process for every window. The first card ("the host") opens all the others with window.open, so
+// they share its page process instead of each starting its own (about 40 MB apiece). ----
+let host = null;
+const pending = new Map(); // window name → { options, resolve }
+const hostReady = [];
+/** Run `fn` when `w` has finished loading (now, if it already has). */
+function whenLoaded(w, fn) { if (!w.webContents.isLoading() && w.webContents.getURL()) fn(); else w.webContents.once('did-finish-load', fn); }
+/** Open one of Esther's windows: `name` is unique, `query` says what it shows. Resolves to the BrowserWindow. */
+function openWindow(name, query, options) {
+  if (!host || host.isDestroyed()) {
+    const w = new BrowserWindow(options);
+    host = w;
+    load(w, query);
+    w.webContents.setWindowOpenHandler((d) => {
+      const p = pending.get(d.frameName);
+      return p ? { action: 'allow', outlivesOpener: true, overrideBrowserWindowOptions: p.options } : { action: 'deny' };
+    });
+    w.webContents.on('did-create-window', (child, d) => {
+      const p = pending.get(d.frameName);
+      if (!p) return;
+      pending.delete(d.frameName);
+      child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+      // (Only after its first load: a window.open'd window's own first load counts as a navigation.)
+      child.webContents.once('did-finish-load', () => child.webContents.on('will-navigate', (e) => e.preventDefault()));
+      p.resolve(child);
+    });
+    whenLoaded(w, () => { while (hostReady.length) hostReady.shift()(); });
+    return Promise.resolve(w);
+  }
+  return new Promise((resolve) => {
+    pending.set(name, { options, resolve });
+    const go = () => host.webContents.executeJavaScript(`void window.open(${JSON.stringify(`?${new URLSearchParams(query)}`)}, ${JSON.stringify(name)})`, true);
+    if (host.webContents.isLoading() || !host.webContents.getURL()) hostReady.push(go); else go();
+  });
+}
+
 function load(w, query) {
   if (dev) w.loadURL(`${dev}?${new URLSearchParams(query)}`); else w.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), pageOptions(query));
   w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -103,7 +143,7 @@ const windowLook = (glass = false) => ({
   // Esther's own glass: a see-through window; Esther draws the card, its corners and the blur.
   ...(glass && nativeGlass() ? { transparent: false, backgroundMaterial: prefs.material, roundedCorners: true } : { transparent: true, roundedCorners: false }),
   skipTaskbar: true, show: false, icon: path.join(__dirname, 'icon.png'),
-  webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false },
+  webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false, backgroundThrottling: false },
 });
 
 /** Set a window's bounds. On Windows the cards aren't resizable (see windowLook), and Electron then won't let
@@ -135,12 +175,11 @@ function sendBackdrop(w) {
 }
 const sendPlace = (w) => { if (!w.isDestroyed()) { const b = w.getBounds(); w.webContents.send('esther:place', { x: b.x, y: b.y, screen: screen.getDisplayMatching(b).bounds }); } };
 
-function createCard(id) {
+async function createCard(id) {
   const [mw, mh] = minOf(id);
-  const w = new BrowserWindow({ ...placeOf(id), minWidth: mw, minHeight: mh, title: CARDS[id].title, ...windowLook(true) });
-  load(w, { card: id, glass: nativeGlass() ? 'native' : 'esther' });
+  const w = await openWindow(`esther-${id}`, { card: id, glass: nativeGlass() ? 'native' : 'esther' }, { ...placeOf(id), minWidth: mw, minHeight: mh, title: CARDS[id].title, ...windowLook(true) });
   w.webContents.on('did-finish-load', () => { w.webContents.setZoomFactor(prefs.scale); sendBackdrop(w); });
-  w.webContents.once('did-finish-load', () => { if (!startHidden && cardOn(id)) w.showInactive(); });
+  whenLoaded(w, () => { w.webContents.setZoomFactor(prefs.scale); sendBackdrop(w); if (!startHidden && cardOn(id)) w.showInactive(); });
   w.styled = styleCard(w, nativeGlass());
   // Alt+F4 or closing a card only hides it; turn it back on from Settings → Cards or the tray.
   w.on('close', (e) => { if (quitting) return; e.preventDefault(); setCard(id, false); });
@@ -273,17 +312,16 @@ function untrack(w) { if (w?.tracking) { clearInterval(w.tracking); w.tracking =
 
 // The guides window: see-through, never takes a click, above everything while you drag; made once, kept hidden.
 let guidesWin = null;
-function makeGuides() {
+async function makeGuides() {
   if (guidesWin && !guidesWin.isDestroyed()) return;
   const wa = screen.getPrimaryDisplay().workArea;
-  guidesWin = new BrowserWindow({ ...wa, title: 'Esther guides', ...windowLook(), focusable: false, alwaysOnTop: true });
+  guidesWin = await openWindow('esther-guides', { card: 'guides' }, { ...wa, title: 'Esther guides', ...windowLook(), focusable: false, alwaysOnTop: true });
   guidesWin.setIgnoreMouseEvents(true);
-  load(guidesWin, { card: 'guides' });
   styleCard(guidesWin);
   guidesWin.on('closed', () => { guidesWin = null; });
 }
 function showGuides(wa) {
-  makeGuides();
+  if (!guidesWin || guidesWin.isDestroyed()) { void makeGuides(); return; }
   const b = guidesWin.getBounds();
   if (b.x !== wa.x || b.y !== wa.y || b.width !== wa.width || b.height !== wa.height) setBox(guidesWin, wa);
   guidesWin.webContents.send('esther:guides', { show: true, area: wa, lines: [] });
@@ -326,15 +364,17 @@ function setScale(next) {
 }
 
 /** Settings: its own card, opened from the gear and tucked away when you click elsewhere. */
-function openSettings() {
+let settingsOpening = false;
+async function openSettings() {
   diag('settings: open');
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.shownAt = Date.now(); settingsWin.show(); settingsWin.focus(); enter([settingsWin]); return; }
+  if (settingsOpening) return;
+  settingsOpening = true;
   const a = screen.getPrimaryDisplay().workArea;
   const width = Math.min(Math.round(780 * prefs.scale), a.width - 80), height = Math.min(Math.round(640 * prefs.scale), a.height - 80);
-  settingsWin = new BrowserWindow({ width, height, x: a.x + Math.round((a.width - width) / 2), y: a.y + Math.round((a.height - height) / 2), title: 'Esther · Settings', ...windowLook(true) });
-  load(settingsWin, { card: 'settings', glass: nativeGlass() ? 'native' : 'esther' });
-  settingsWin.webContents.on('did-finish-load', () => { settingsWin.webContents.setZoomFactor(prefs.scale); sendBackdrop(settingsWin); });
-  settingsWin.webContents.once('did-finish-load', () => { settingsWin.shownAt = Date.now(); settingsWin.show(); settingsWin.focus(); diag(`settings: shown, focused ${settingsWin.isFocused()}`); });
+  settingsWin = await openWindow('esther-settings', { card: 'settings', glass: nativeGlass() ? 'native' : 'esther' }, { width, height, x: a.x + Math.round((a.width - width) / 2), y: a.y + Math.round((a.height - height) / 2), title: 'Esther · Settings', ...windowLook(true) });
+  settingsOpening = false;
+  whenLoaded(settingsWin, () => { settingsWin.webContents.setZoomFactor(prefs.scale); sendBackdrop(settingsWin); settingsWin.shownAt = Date.now(); settingsWin.show(); settingsWin.focus(); diag(`settings: shown, focused ${settingsWin.isFocused()}`); });
   styleCard(settingsWin, nativeGlass());
   settingsWin.on('move', () => sendPlace(settingsWin));
   // Tucked away when you click elsewhere (but not in the moment it opens, while the click that opened it finishes).
@@ -381,14 +421,18 @@ function glide(w, to, ms = 300) {
     if (t >= 1) clearInterval(w.gliding);
   }, 8);
 }
-function createBubble() {
-  if (!prefs.bubble || (bubble && !bubble.isDestroyed())) return;
-  bubble = new BrowserWindow({ ...bubbleBounds(collapsed), title: 'Esther', ...windowLook(), focusable: false });
-  load(bubble, { card: 'bubble' });
+let bubbleOpening = false;
+async function createBubble() {
+  if (!prefs.bubble || (bubble && !bubble.isDestroyed()) || bubbleOpening) return;
+  bubbleOpening = true;
+  const w = await openWindow('esther-bubble', { card: 'bubble' }, { ...bubbleBounds(collapsed), title: 'Esther', ...windowLook(), focusable: false });
+  bubbleOpening = false;
+  if (!prefs.bubble) { w.destroy(); return; }
+  bubble = w;
   styleCard(bubble);
   layer.add(bubble);
-  bubble.webContents.once('did-finish-load', () => bubble.showInactive());
-  bubble.on('closed', () => { bubble = null; });
+  whenLoaded(bubble, () => bubble?.showInactive());
+  bubble.on('closed', () => { if (bubble === w) bubble = null; });
 }
 /** Make the big bubble bigger or smaller (Settings, or the mouse wheel over it). */
 function setBubbleSize(k) {
@@ -546,13 +590,10 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   // Opening Esther again just brings this one up.
   app.on('second-instance', () => show());
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     diag.start(app.getPath('userData'));
     diag(`start ${app.getVersion()} layer ${prefs.layer} scale ${prefs.scale}`);
     layer = desktopLayer(prefs.layer, diag);
-    for (const id of Object.keys(CARDS)) createCard(id);
-    createBubble();
-    setTimeout(makeGuides, 1500); // ready before the first drag
     registerShortcut(prefs.shortcut);
     // Monitors coming and going (or waking from sleep) never leave it stranded off-screen.
     for (const ev of ['display-removed', 'display-metrics-changed', 'display-added']) screen.on(ev, () => setTimeout(() => { ensureOnScreen(); if (bubble && !bubble.isDestroyed()) setBox(bubble, bubbleBounds(collapsed)); }, 500));
@@ -602,6 +643,10 @@ else {
       const b = w.getBounds();
       setBox(w, { x: b.x, y: b.y, width: Math.max(mw || 260, want.width), height: Math.max(mh || 200, want.height) });
     });
+    // The windows come last, once everything they ask for is ready.
+    for (const id of Object.keys(CARDS)) await createCard(id); // the first (the header) hosts the others' page process
+    await createBubble();
+    setTimeout(makeGuides, 1500); // ready before the first drag
     watchWallpaper(() => { diag('wallpaper changed'); for (const w of [...liveCards(), settingsWin]) if (w) sendBackdrop(w); });
     app.on('before-quit', () => { quitting = true; });
   });

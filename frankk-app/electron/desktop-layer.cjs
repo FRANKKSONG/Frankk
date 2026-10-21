@@ -11,7 +11,7 @@
 // A light check puts back a card that has still slipped under the desktop, and re-attaches the cards if
 // Explorer restarts (a new desktop window).
 // Anywhere but Windows (or if koffi can't load) the cards are normal windows.
-const { BrowserWindow } = require('electron');
+const { BaseWindow, BrowserWindow } = require('electron');
 
 const HWND_TOP = 0, HWND_BOTTOM = 1;
 const SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_NOOWNERZORDER = 0x200;
@@ -65,7 +65,8 @@ function desktopLayer(initialMode, log = () => {}) {
     const desk = desktopWindow();
     if (!desk) { helperHwnd = 0; return; }
     if (!helper || helper.isDestroyed()) {
-      helper = new BrowserWindow({ width: 1, height: 1, x: -32000, y: -32000, show: false, frame: false, transparent: true, skipTaskbar: true, focusable: false, resizable: false, title: 'Esther desktop helper' });
+      // A bare window with no web page in it, so it costs no page process.
+      helper = new BaseWindow({ width: 1, height: 1, x: -32000, y: -32000, show: false, frame: false, transparent: true, skipTaskbar: true, focusable: false, resizable: false, title: 'Esther desktop helper' });
       helper.on('closed', () => { helper = null; helperHwnd = 0; setTimeout(() => { if (live().length) { makeHelper(); settle(); } }, 1500); });
     }
     helperHwnd = handleOf(helper);
@@ -102,6 +103,7 @@ function desktopLayer(initialMode, log = () => {}) {
   /** Is this card above some other app's window that you can see? (Then it isn't on the desktop layer any more.) */
   function aboveAnApp(h) {
     const ours = new Set(BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map(handleOf));
+    if (helperHwnd) ours.add(helperHwnd);
     const desk = desktopWindow();
     // Walk down the window stack from the card until the desktop: any app window on the way is under the card.
     for (let w = api.GetWindow(h, GW_HWNDNEXT), i = 0; w && i < 5000; w = api.GetWindow(w, GW_HWNDNEXT), i++) {

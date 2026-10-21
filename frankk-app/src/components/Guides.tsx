@@ -23,8 +23,13 @@ export function Guides() {
 }
 
 function draw(c: HTMLCanvasElement, g: GuidesMsg) {
-  const a = g.area!, dpr = window.devicePixelRatio || 1;
+  const dpr = window.devicePixelRatio || 1;
   const W = window.innerWidth, H = window.innerHeight;
+  // Everything comes in screen pixels; the page may be zoomed (all of Esther's windows share one zoom), so scale.
+  const k = W / g.area!.width;
+  const sc = (r: Rect): Rect => ({ x: r.x * k, y: r.y * k, width: r.width * k, height: r.height * k });
+  const a = sc(g.area!);
+  g = { ...g, card: g.card && sc(g.card), others: g.others?.map(sc), lines: g.lines?.map((l) => ({ ...l, v: l.v * k })) };
   if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
   const x = c.getContext('2d')!;
   x.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -36,7 +41,7 @@ function draw(c: HTMLCanvasElement, g: GuidesMsg) {
 
   // The grid: every 8 px faintly, every 32 px a little stronger.
   x.lineWidth = 1;
-  for (const [step, alpha] of [[GRID, 0.045], [GRID * 4, 0.09]] as const) {
+  for (const [step, alpha] of [[GRID * k, 0.045], [GRID * 4 * k, 0.09]] as const) {
     x.strokeStyle = `rgba(${ink},${alpha})`;
     x.beginPath();
     for (let gx = 0; gx <= W; gx += step) { x.moveTo(px(gx), 0); x.lineTo(px(gx), H); }

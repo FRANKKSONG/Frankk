@@ -1,4 +1,4 @@
-# Esther 2.0.1
+# Esther 2.1
 
 A simple to-do list for the PC that lives on your desktop, in the Esther looks (Gilded, Illuminated, Nocturne, Modern).
 React + TypeScript + Vite. Everything is saved in this browser (`localStorage`, key `esther.todo.v1`); nothing is sent anywhere.
@@ -23,6 +23,7 @@ Esther lives on the desktop like a set of Rainmeter skins: **every card is its o
 - **The Esther bubble:** the word *Esther* (Instrument Serif italic) on the desktop. Hiding gathers the cards into it in the middle of the screen; clicking it, or the shortcut, sends them back out and it shrinks to the bottom-left corner. Settings → Desktop sets its size (or use the mouse wheel over it) and turns it off.
 - **Ctrl+Alt+E** shows and hides all the cards (or brings them in front of your apps until you click elsewhere). **Esc** or the ✕ hides them. The tray icon has the rest, including *Put the cards back where they started*.
 - **Glass** (Settings → Look → *Glass*): **Windows acrylic** (the default on Windows 11 22H2+: Windows itself blurs whatever is behind each card, live, and rounds the corners), **Windows mica**, or **Esther's own** (a blurred copy of your wallpaper with an adjustable Blur, picked up as soon as the wallpaper changes). Changing it restarts Esther.
+- **Light on memory:** every Esther window (the cards, the bubble, the guides, Settings) shares one page process, and Chromium's graphics and networking run inside the main process, so Esther is 2 processes instead of 11. The desktop helper window has no page at all. Spell-check is off (no dictionary loaded).
 - **Fast glass:** the blurred wallpaper sits on one element behind each card and is moved directly as the card moves, so nothing else in the card is redrawn; Esther also asks for the graphics card even if Chromium is unsure of the driver.
 - **Frosted glass, Windows 11 style:** each card shows the wallpaper behind it, blurred, under the panel tint and a fine grain like Windows 11's acrylic, with Fluent's hairline edge. The blur is worked out once per wallpaper and setting (not every frame), so dragging and typing stay smooth. Settings → Look → *Blur behind the cards* (0 to 60 px) and *Opacity*. The wallpaper is read from Windows' current one and checked every 20 seconds.
 - **Rounded** cards, and Esther's own Windows 11 style menus everywhere: right-click menus, dropdowns, switches, the date picker and the tray icon's menu (right-click the tray icon).
@@ -44,7 +45,7 @@ Esther lives on the desktop like a set of Rainmeter skins: **every card is its o
 
 Get it from the **Esther desktop** release on GitHub (built by `.github/workflows/esther-desktop.yml` on every push): `Esther-Setup-<version>.exe` installs it for you (no admin), `Esther-<version>-portable.exe` runs without installing. The app isn't code-signed, so Windows SmartScreen will ask the first time: *More info → Run anyway*.
 
-Desktop development: `npm run desktop` (opens it), `npm run test:desktop` (74 checks, plus window-stack checks on Windows inside Electron; on Linux run it with `xvfb-run`), `npm run build:desktop` (Windows installer, on Windows).
+Desktop development: `npm run desktop` (opens it), `npm run test:desktop` (76 checks, plus window-stack checks on Windows inside Electron; on Linux run it with `xvfb-run`), `npm run build:desktop` (Windows installer, on Windows).
 
 The first time 1.0 opens, tasks from the earlier Esther (key `esther.proto.data.v4`) are brought over: General, Seround, House and B-YOU become lists, steps become subtasks, the plan or due day becomes the date. The old data is left untouched.
 
