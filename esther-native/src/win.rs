@@ -5,7 +5,9 @@
 #[cfg(windows)]
 mod imp {
     use windows_sys::Win32::Foundation::HWND;
-    use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+    use windows_sys::Win32::Foundation::{POINT, RECT};
+    use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DwmSetWindowAttribute};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
     use windows_sys::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX};
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
@@ -68,6 +70,81 @@ mod imp {
     pub fn screen_size() -> (u32, u32) {
         unsafe { (GetSystemMetrics(SM_CXSCREEN) as u32, GetSystemMetrics(SM_CYSCREEN) as u32) }
     }
+
+    // ---- The mouse and keys, for Esther's own moving and resizing (as in the Electron app). ----
+    pub fn cursor() -> (i32, i32) {
+        unsafe {
+            let mut p = POINT { x: 0, y: 0 };
+            GetCursorPos(&mut p);
+            (p.x, p.y)
+        }
+    }
+    /// Is the main mouse button still held? (The right one for left-handed settings.)
+    pub fn button_down() -> bool {
+        unsafe {
+            let vk = if GetSystemMetrics(SM_SWAPBUTTON) != 0 { VK_RBUTTON } else { VK_LBUTTON };
+            (GetAsyncKeyState(vk as i32) as u16 & 0x8000) != 0
+        }
+    }
+    /// (Shift, Alt) held right now.
+    pub fn mods() -> (bool, bool) {
+        unsafe { ((GetAsyncKeyState(VK_SHIFT as i32) as u16 & 0x8000) != 0, (GetAsyncKeyState(VK_MENU as i32) as u16 & 0x8000) != 0) }
+    }
+
+    // ---- For the test machine: what Windows says about the window, and real mouse and keyboard input. ----
+    pub fn window_rect(hwnd: isize) -> (i32, i32, i32, i32) {
+        unsafe {
+            let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            GetWindowRect(hwnd as HWND, &mut r);
+            (r.left, r.top, r.right, r.bottom)
+        }
+    }
+    pub fn facts(hwnd: isize) -> (u32, bool, bool) {
+        unsafe {
+            let h = hwnd as HWND;
+            let mut corner: u32 = 0;
+            DwmGetWindowAttribute(h, DWMWA_WINDOW_CORNER_PREFERENCE, &mut corner as *mut u32 as _, 4);
+            let tool = (GetWindowLongPtrW(h, GWL_EXSTYLE) as u32 & WS_EX_TOOLWINDOW) != 0;
+            let owned = !GetWindow(h, GW_OWNER).is_null();
+            (corner, tool, owned)
+        }
+    }
+    pub fn set_cursor(x: i32, y: i32) {
+        unsafe { SetCursorPos(x, y); }
+    }
+    fn send(inputs: &[INPUT]) {
+        unsafe { SendInput(inputs.len() as u32, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32); }
+    }
+    pub fn mouse(down: bool) {
+        let mut i: INPUT = unsafe { std::mem::zeroed() };
+        i.r#type = INPUT_MOUSE;
+        i.Anonymous.mi.dwFlags = if down { MOUSEEVENTF_LEFTDOWN } else { MOUSEEVENTF_LEFTUP };
+        send(&[i]);
+    }
+    pub fn type_text(s: &str) {
+        let mut v = Vec::new();
+        for c in s.encode_utf16() {
+            for up in [false, true] {
+                let mut i: INPUT = unsafe { std::mem::zeroed() };
+                i.r#type = INPUT_KEYBOARD;
+                i.Anonymous.ki.wScan = c;
+                i.Anonymous.ki.dwFlags = KEYEVENTF_UNICODE | if up { KEYEVENTF_KEYUP } else { 0 };
+                v.push(i);
+            }
+        }
+        send(&v);
+    }
+    pub fn enter() {
+        let mut v = Vec::new();
+        for up in [false, true] {
+            let mut i: INPUT = unsafe { std::mem::zeroed() };
+            i.r#type = INPUT_KEYBOARD;
+            i.Anonymous.ki.wVk = VK_RETURN;
+            i.Anonymous.ki.dwFlags = if up { KEYEVENTF_KEYUP } else { 0 };
+            v.push(i);
+        }
+        send(&v);
+    }
 }
 
 #[cfg(not(windows))]
@@ -84,6 +161,9 @@ mod imp {
     pub fn screen_size() -> (u32, u32) {
         (1920, 1080)
     }
+    pub fn cursor() -> (i32, i32) { (0, 0) }
+    pub fn button_down() -> bool { false }
+    pub fn mods() -> (bool, bool) { (false, false) }
 }
 
 pub use imp::*;

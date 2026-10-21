@@ -44,7 +44,13 @@ jobs:
             const m = require('./smoke/memory.json');
             const fail = [];
             if (!m.screenshot) fail.push('no screenshot');
-            if (!m.saved_to_file) fail.push('the new task was not saved to the shared file');
+            if (!m.real_input) fail.push('the window never became a Windows window (no real input)');
+            if (!(m.resized_px >= 40)) fail.push('dragging the right edge resized it by ' + m.resized_px + ' px');
+            if (!(m.moved_px >= 30)) fail.push('dragging the card moved it by ' + m.moved_px + ' px');
+            if (!m.typed_task_saved) fail.push('a task typed with the keyboard and Enter was not saved');
+            if (!m.rounded_corners_asked) fail.push('rounded corners were not asked of Windows');
+            if (!m.tool_window) fail.push('not a tool window (it would have a taskbar button)');
+            if (!m.on_the_desktop) fail.push('not attached to the desktop window');
             if (m.rows !== 5) fail.push('expected 5 rows, got ' + m.rows);
             if (m.private_mb > 40) fail.push('private memory ' + m.private_mb + ' MB is over 40 MB');
             console.log(fail.length ? 'FAIL: ' + fail.join('; ') : 'PASS: ' + m.private_mb + ' MB private, ' + m.working_set_mb + ' MB working set');

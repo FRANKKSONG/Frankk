@@ -88,7 +88,7 @@ component Field inherits Rectangle {
     public function grab-focus() { input.focus(); }
     public function select-all() { input.select-all(); }
     height: 30px;
-    if input.text == "": Text { x: 0; text: root.placeholder; color: Look.faint; font-size: root.font-size; vertical-alignment: center; height: parent.height; }
+    if input.text == "": Text { x: 0; width: parent.width; text: root.placeholder; color: Look.faint; font-size: root.font-size; vertical-alignment: center; height: parent.height; overflow: elide; }
     input := TextInput {
         x: 0;
         width: parent.width;
@@ -272,6 +272,8 @@ export component TasksCard inherits Window {
     callback set-date(string, string);
     callback move-to(string, string);
     callback delete(string);
+    callback drag-start();
+    callback resize-start(string);
     callback drag-by(length, length);
     callback drag-end();
     callback resize-by(string, length, length);
@@ -297,12 +299,16 @@ export component TasksCard inherits Window {
         padding-bottom: 8px;
         spacing: 10px;
 
-        // List tabs. The space around them moves the card.
+        // List tabs. The space around them moves the card. (Not while waiting: those wouldn't be your lists.)
         Rectangle {
             height: 32px;
+            opacity: root.can-add ? 1 : 0;
             TouchArea {
                 moved => { if self.pressed { root.drag-by(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
-                pointer-event(e) => { if e.kind == PointerEventKind.up { root.drag-end(); } }
+                pointer-event(e) => {
+                    if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.drag-start(); }
+                    if e.kind == PointerEventKind.up { root.drag-end(); }
+                }
             }
             Flickable {
                 content-width: max(tabs-row.preferred-width, self.width);
@@ -326,9 +332,13 @@ export component TasksCard inherits Window {
         // All / To do / Done, and the drag area beside it.
         Rectangle {
             height: 30px;
+            opacity: root.can-add ? 1 : 0;
             TouchArea {
                 moved => { if self.pressed { root.drag-by(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
-                pointer-event(e) => { if e.kind == PointerEventKind.up { root.drag-end(); } }
+                pointer-event(e) => {
+                    if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.drag-start(); }
+                    if e.kind == PointerEventKind.up { root.drag-end(); }
+                }
             }
             HorizontalLayout {
                 alignment: start;
@@ -356,7 +366,7 @@ export component TasksCard inherits Window {
         }
 
         // Column headings (not when narrow).
-        if !root.compact: HorizontalLayout {
+        if !root.compact && root.can-add: HorizontalLayout {
             padding-left: 46px;
             padding-right: 8px;
             spacing: 10px;
@@ -367,8 +377,34 @@ export component TasksCard inherits Window {
             Text { width: 96px; text: "DATE"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
         }
 
+        // Waiting for the shared tasks file (written by the Esther app, 2.2 or later).
+        if !root.can-add: Rectangle {
+            vertical-stretch: 1;
+            VerticalLayout {
+                alignment: center;
+                padding: 18px;
+                spacing: 10px;
+                Text { text: "Waiting for your tasks"; color: Look.text; font-family: "Instrument Serif"; font-size: 26px; horizontal-alignment: center; }
+                Text {
+                    text: "This card shows the same tasks as the Esther app. Update Esther to 2.2 or later (Settings → About → Check now, then Restart to update) and keep it running: your lists and tasks appear here by themselves.";
+                    color: Look.muted;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Until then nothing can be added here, so this card can never overwrite your tasks.";
+                    color: Look.faint;
+                    font-size: 12px;
+                    font-italic: true;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
         // Add a task.
-        HorizontalLayout {
+        if root.can-add: HorizontalLayout {
             height: 40px;
             padding-left: 8px;
             padding-right: 8px;
@@ -377,7 +413,7 @@ export component TasksCard inherits Window {
             add := Field {
                 y: 5px;
                 horizontal-stretch: 1;
-                placeholder: root.can-add ? "Add a task, Enter" : "Open Esther once to share your tasks here";
+                placeholder: "Add a task, Enter";
                 accepted(t) => { if t != "" && root.can-add { root.add-task(t); self.text = ""; } }
             }
             if root.tab == "all": Pill {
@@ -392,7 +428,7 @@ export component TasksCard inherits Window {
         }
 
         // The tasks.
-        if root.rows.length > 0: ListView {
+        if root.can-add && root.rows.length > 0: ListView {
             vertical-stretch: 1;
             for t in root.rows: Row {
                 task: t;
@@ -406,9 +442,9 @@ export component TasksCard inherits Window {
                 delete(id) => { root.delete(id); }
             }
         }
-        if root.rows.length == 0: Rectangle {
+        if root.can-add && root.rows.length == 0: Rectangle {
             vertical-stretch: 1;
-            Text { y: 18px; text: root.empty-text; color: Look.faint; font-italic: true; font-size: 13px; horizontal-alignment: center; }
+            Text { y: 18px; width: parent.width; text: root.empty-text; color: Look.faint; font-italic: true; font-size: 13px; horizontal-alignment: center; wrap: word-wrap; }
         }
 
         if !root.compact: Text { text: "Double-click a task to rename it · right-click for its date, list or delete"; color: Look.faint; font-size: 11.5px; }
@@ -431,6 +467,9 @@ export component TasksCard inherits Window {
         height: e.h;
         mouse-cursor: e.c;
         moved => { if self.pressed { root.resize-by(e.id, self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
-        pointer-event(ev) => { if ev.kind == PointerEventKind.up { root.resize-end(); } }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.left { root.resize-start(e.id); }
+            if ev.kind == PointerEventKind.up { root.resize-end(); }
+        }
     }
 }
