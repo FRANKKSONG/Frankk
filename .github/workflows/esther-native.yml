@@ -38,34 +38,74 @@ jobs:
         run: |
           mkdir -p smoke && cp tests/fixture/tasks.json smoke/
           export ESTHER_TODAY=2026-10-21 ESTHER_WALLPAPER="$(cygpath -w "$PWD/tests/fixture/wall.png")"
-          timeout 90 ./target/release/esther-native.exe --smoke "$(cygpath -w "$PWD/smoke")"
+          timeout 150 ./target/release/esther-native.exe --smoke "$(cygpath -w "$PWD/smoke")"
           echo "exe size: $(stat -c %s target/release/esther-native.exe) bytes"
           cat smoke/memory.json; echo
           node -e "
             const m = require('./smoke/memory.json');
-            const fail = [];
-            if (!m.real_input) fail.push('the windows never became Windows windows (no real input)');
-            if (m.windows !== 4) fail.push('expected 4 card windows, got ' + m.windows);
+            const fail = [], note = [];
+            const want = (ok, what) => { if (!ok) fail.push(what); };
+            want(m.real_input, 'the windows never became Windows windows (no real input)');
+            want(m.windows === 5, 'expected 4 cards and the bubble, got ' + m.windows + ' windows');
             for (const [k, c] of Object.entries(m.cards)) {
-              if (!c.screenshot) fail.push(k + ': no screenshot');
-              if (!c.rounded_corners_asked) fail.push(k + ': rounded corners were not asked of Windows');
-              if (!c.tool_window) fail.push(k + ': not a tool window (it would have a taskbar button)');
-              if (!c.on_the_desktop) fail.push(k + ': not attached to the desktop window');
+              want(c.screenshot, k + ': no picture');
+              want(c.rounded_corners_asked, k + ': rounded corners were not asked of Windows');
+              want(c.tool_window, k + ': not a tool window (it would have a taskbar button)');
+              want(c.on_the_desktop, k + ': not attached to the desktop window');
             }
-            if (!(m.resized_px <= -40)) fail.push('dragging the Tasks card\'s right edge 72 px inwards resized it by ' + m.resized_px + ' px');
-            if (!(m.moved_px >= 30)) fail.push('dragging the Tasks card moved it by ' + m.moved_px + ' px');
-            if (!(m.header_moved_px >= 24)) fail.push('dragging the header moved it by ' + m.header_moved_px + ' px');
-            if (!m.typed_task_saved) fail.push('a task typed with the keyboard and Enter was not saved');
-            if (m.rows_before_day !== 6) fail.push('expected 6 tasks before picking a day, got ' + m.rows_before_day);
-            if (m.rows_on_the_23rd !== 1) fail.push('picking the 23rd on the calendar should leave 1 task on the Tasks card, got ' + m.rows_on_the_23rd);
-            if (m.rows_after_day !== 6) fail.push('picking the 23rd again should show every day (6 tasks), got ' + m.rows_after_day);
-            if (m.pointed_out !== 't3') fail.push('clicking Buy dog food in This week should point it out on the Tasks card, got ' + JSON.stringify(m.pointed_out));
-            if (!m.ticked_in_week_done_in_tasks) fail.push('ticking a task in This week did not show it done on the Tasks card');
-            if (!m.ticked_task_saved) fail.push('ticking a task in This week was not saved');
-            if (m.header_line !== 'Stillness, too, is a labour.') fail.push('the header\'s line for 21 Oct differs from the app\'s: ' + m.header_line);
-            if (m.private_mb > 40) fail.push('private memory ' + m.private_mb + ' MB is over 40 MB');
-            console.log(fail.length ? 'FAIL: ' + fail.join('; ') : 'PASS: 4 cards, ' + m.private_mb + ' MB private, ' + m.working_set_mb + ' MB working set');
+            // Editing, with the real mouse and keyboard
+            want(m.typed_task_saved, 'a task typed into Add a task (Enter) was not saved');
+            want(m.renamed_by_click, 'clicking a task name and typing over it did not rename it');
+            want(m.list_after_pill_menu && m.list_after_pill_menu !== 'general', 'picking another list from the list pill menu left the list as ' + JSON.stringify(m.list_after_pill_menu));
+            want(m.subtask_added, 'clicking the subtasks column and typing did not add a subtask');
+            want(m.date_from_menu === '2026-10-21', 'the date menu (Down, Enter) gave ' + JSON.stringify(m.date_from_menu) + ', not today');
+            want(m.date_from_picker === '2026-10-22', 'the date picker (Tomorrow) gave ' + JSON.stringify(m.date_from_picker));
+            want(m.list_renamed === 'Everyday', 'double-clicking a list tab and typing gave ' + JSON.stringify(m.list_renamed));
+            want(m.list_added === 'Errands', 'the + for a new list gave ' + JSON.stringify(m.list_added));
+            // The cards together
+            want(m.rows_before_day === 6, 'expected 6 tasks before picking a day, got ' + m.rows_before_day);
+            want(m.rows_on_the_23rd === 1, 'picking the 23rd on the calendar should leave 1 task on the Tasks card, got ' + m.rows_on_the_23rd);
+            want(m.rows_after_day === 6, 'picking the 23rd again should show every day (6 tasks), got ' + m.rows_after_day);
+            want(m.pointed_out === 't3', 'clicking Buy dog food in This week should point it out on the Tasks card, got ' + JSON.stringify(m.pointed_out));
+            want(m.ticked_in_week_done_in_tasks, 'ticking a task in This week did not show it done on the Tasks card');
+            want(m.ticked_task_saved, 'ticking a task in This week was not saved');
+            want(m.header_line === 'Stillness, too, is a labour.', 'the header line for 21 Oct differs from the app: ' + m.header_line);
+            // Moving and resizing, the grid and the guides
+            want(m.resized_px <= -40, 'dragging the Tasks card right edge 72 px inwards resized it by ' + m.resized_px + ' px');
+            want(m.moved_px >= 30, 'dragging the Tasks card moved it by ' + m.moved_px + ' px');
+            want(m.header_moved_px >= 24, 'dragging the header moved it by ' + m.header_moved_px + ' px');
+            want(m.guides_while_resizing, 'the grid and guides did not show while resizing');
+            want(m.guides_while_moving, 'the grid and guides did not show while moving');
+            want(m.guides_hidden_after, 'the guides stayed after letting go');
+            want((m.lit_while_centring || []).includes('Centre'), 'the Centre guide did not light up near the screen centre: ' + JSON.stringify(m.lit_while_centring));
+            want(Math.abs(m.centre_off_by_px) <= 1, 'the card did not snap to the screen centre (off by ' + m.centre_off_by_px + ' px)');
+            // Hiding and showing
+            want(m.shortcut_registered, 'Ctrl+Alt+E could not be registered');
+            want(m.shortcut_hid_cards, 'Ctrl+Alt+E did not hide the cards');
+            want(m.bubble_in_the_middle, 'the bubble did not move to the middle of the screen');
+            want(m.bubble_showed_cards, 'clicking the bubble did not bring the cards back');
+            want(m.bubble_in_the_corner, 'the bubble did not go back to the bottom left');
+            if (m.tray_icon_rect) {
+              want(m.tray_menu_opened, 'right-clicking the tray icon did not open its menu');
+              want(m.tray_menu_closed_by_clicking_elsewhere, 'the tray menu stayed open after clicking elsewhere');
+              want(m.tray_click_hid, 'clicking the tray icon did not hide the cards');
+              want(m.tray_click_showed, 'clicking the tray icon again did not show the cards');
+            } else note.push('the tray icon is in the overflow on this machine, so it was not clicked');
+            want(m.startup_on && m.startup_off, 'Start with Windows did not write and remove its registry value');
+            want(m.private_mb <= 40, 'private memory ' + m.private_mb + ' MB is over 40 MB');
+            note.push('the Tasks card takes ' + m.tasks_card_draw_ms + ' ms to draw whole');
+            for (const n of note) console.log('NOTE: ' + n);
+            console.log(fail.length ? 'FAIL:\n  ' + fail.join('\n  ') : 'PASS: ' + m.private_mb + ' MB private, ' + m.working_set_mb + ' MB working set');
             process.exit(fail.length ? 1 : 0);"
+      - name: Keep the test's pictures (also when it fails)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete esther-native-test --yes --cleanup-tag || true
+          ls smoke/*.png >/dev/null 2>&1 && gh release create esther-native-test smoke/*.png smoke/memory.json smoke/esther-native-log.txt \
+            --target "$GITHUB_SHA" --prerelease --title "Esther native: the last test run's pictures" \
+            --notes "What the Windows test machine saw on its last run (for checking; not a download)." || true
       - name: Publish to the "Esther native" pre-release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -74,8 +114,7 @@ jobs:
           # build picks up for its "native preview" shortcut.)
           cp target/release/esther-native.exe smoke/esther-tasks.exe
           gh release delete esther-native --yes --cleanup-tag || true
-          gh release create esther-native target/release/esther-native.exe smoke/esther-tasks.exe \
-            smoke/header.png smoke/tasks-card.png smoke/calendar.png smoke/week.png smoke/memory.json \
+          gh release create esther-native target/release/esther-native.exe smoke/esther-tasks.exe smoke/*.png smoke/memory.json \
             --target "$GITHUB_SHA" --prerelease \
-            --title "Esther native (preview): all four cards" \
-            --notes "Esther's header, calendar, This week and Tasks cards as one native Windows program (Rust + Slint), each card its own window on the desktop. It shares tasks with Esther through %APPDATA%\\Esther\\tasks.json (Esther 2.2 or later writes that file). Just run esther-native.exe; nothing is installed. Right-click the header and choose Quit Esther to close it. Not in it yet: the tray, the shortcut, starting with Windows, the bubble and Settings."
+            --title "Esther native (preview)" \
+            --notes "Esther's header, calendar, This week and Tasks cards as one native Windows program (Rust + Slint), each card its own window on the desktop. It shares tasks with Esther through %APPDATA%\\Esther\\tasks.json (Esther 2.2 or later writes that file). Just run esther-native.exe; nothing is installed. Ctrl+Alt+E or the tray icon shows and hides it; Quit is in the tray menu. Not in it yet: Settings."

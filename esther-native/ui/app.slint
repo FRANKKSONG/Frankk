@@ -1,12 +1,13 @@
-// Esther's cards, drawn natively with Slint: the header with the greeting, the calendar, This week, and Tasks.
-// Each card is its own window (a `Card`, told which one it is by `kind`); what it shows and what it does goes
-// through the `Esther` global, which the program fills for every window from the one shared set of tasks.
+// Esther's cards, drawn natively with Slint: the header with the greeting, the calendar, This week, Tasks, and the
+// Esther bubble. Each card is its own window (a `Card`, told which one it is by `kind`); what it shows and what it
+// does goes through the `Esther` global, which the program fills for every window from the one shared set of tasks.
 // The look follows Esther's "Gilded" theme: warm dark panels over the glass, gold highlights, Instrument Serif.
 import { ListView } from "std-widgets.slint";
 import "fonts/InstrumentSerif-Regular.ttf";
 import "fonts/InstrumentSerif-Italic.ttf";
 
-export struct ListTab { id: string, name: string, color: color, open: int }
+export struct ListTab { id: string, name: string, color: color, open: int, total: int }
+export struct SubRow { id: string, text: string, done: bool }
 export struct TaskRow {
     id: string,
     title: string,
@@ -15,15 +16,19 @@ export struct TaskRow {
     list-name: string,
     list-color: color,
     date: string,
+    // the date as YYYY-MM-DD ("" for none), for the date picker
+    iso: string,
     // 0 no date, 1 today, 2 late, 3 later
     date-kind: int,
     subs: string,
+    subtasks: [SubRow],
     clears: string,
 }
-// A day on the calendar: its number, its date, open-task dots in their lists' colours.
+// A day on a calendar: its number, its date, open-task dots in their lists' colours.
 export struct CalDay { num: int, iso: string, today: bool, picked: bool, other: bool, marks: [color] }
 // A day in This week (or the "Still open from before" group), with its tasks.
 export struct WeekDay { label: string, small: string, today: bool, past: bool, late: bool, tasks: [TaskRow] }
+export struct Pigment { name: string, color: color }
 
 export global Look {
     out property <color> text: #f2ede3;
@@ -35,8 +40,14 @@ export global Look {
     out property <color> general: #e0694c;
     out property <color> lapis: #6f93df;
     out property <color> panel: #191613;
+    out property <color> pop: #1d1a16;
     out property <color> edge: #ffffff14;
-    in-out property <float> panel-alpha: 0.72;
+    // The colours a list can have (as in the app).
+    out property <[Pigment]> pigments: [
+        { name: "Vermilion", color: #c8553a }, { name: "Lapis", color: #4c6fb8 }, { name: "Verdigris", color: #3f9a80 },
+        { name: "Orpiment", color: #d4a03c }, { name: "Madder", color: #b44a6e }, { name: "Tyrian", color: #8a4f8f },
+        { name: "Azurite", color: #5a93c4 }, { name: "Malachite", color: #6aa452 },
+    ];
 }
 
 // Everything a card shows and can do. Each window has its own copy; the program keeps them all in step.
@@ -60,6 +71,12 @@ export global Esther {
     // The day picked on the calendar ("" for every day), as shown on the Tasks card, and a task to point out.
     in property <string> day-label;
     in property <string> highlight;
+    // The task whose subtasks are open, and the list being renamed.
+    in-out property <string> open-task;
+    in-out property <string> renaming-list;
+    // The date picker's month.
+    in property <string> picker-title;
+    in property <[CalDay]> picker-days;
     // Header
     in property <string> hello: "Good morning";
     in property <string> hello-letter: "G";
@@ -78,16 +95,32 @@ export global Esther {
     callback next-add-list();
     callback toggle(string);
     callback rename(string, string);
+    // (task, "today" | "tomorrow" | "next-week" | "none" | YYYY-MM-DD)
     callback set-date(string, string);
     callback move-to(string, string);
     callback delete(string);
+    callback sub-add(string, string);
+    callback sub-toggle(string, string);
+    callback sub-rename(string, string, string);
+    callback sub-delete(string, string);
+    callback add-list();
+    callback rename-list(string, string);
+    callback recolor-list(string, color);
+    // (list, move its tasks to the first other list)
+    callback delete-list(string, bool);
+    // Open the date picker on a task's date (or this month), and move it a month.
+    callback picker-open(string);
+    callback picker-step(int);
     callback clear-day();
     callback pick-day(string);
     // -1 the month before, 1 the month after, 0 this month
     callback month-step(int);
     callback reveal(string);
     callback reset-layout();
+    callback hide-all();
     callback quit();
+    callback bubble-click();
+    callback bubble-wheel(float);
 
     callback drag-start();
     callback resize-start(string);
@@ -123,13 +156,14 @@ component Pill inherits Rectangle {
     in property <length> pad: 12px;
     in property <length> font-size: 13.5px;
     callback clicked;
+    callback double-clicked;
     height: 30px;
     border-radius: self.height / 2;
     background: root.on ? Look.accent.with-alpha(0.22) : ta.has-hover ? #ffffff17 : #ffffff0b;
     border-width: 1px;
     border-color: root.on ? Look.accent.with-alpha(0.5) : Look.edge;
     animate background { duration: 120ms; }
-    ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+    ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } double-clicked => { root.double-clicked(); } }
     HorizontalLayout {
         padding-left: root.pad;
         padding-right: root.pad;
@@ -156,12 +190,15 @@ component Check inherits Rectangle {
 }
 
 // Typing never looks like a text box: just the text, a caret, and a faint line under it while focused.
+// Enter saves (accepted); clicking away saves too (left); Esc cancels.
 component Field inherits Rectangle {
     in property <string> placeholder;
     in-out property <string> text <=> input.text;
     in property <length> font-size: 14px;
+    in property <color> ink: Look.text;
     callback accepted(string);
     callback cancelled;
+    callback left(string);
     public function grab-focus() { input.focus(); }
     public function select-all() { input.select-all(); }
     height: 30px;
@@ -170,21 +207,61 @@ component Field inherits Rectangle {
         x: 0;
         width: parent.width;
         height: parent.height;
-        color: Look.text;
+        color: root.ink;
         font-size: root.font-size;
         vertical-alignment: center;
         selection-background-color: Look.accent.with-alpha(0.35);
         single-line: true;
         accepted => { root.accepted(self.text); }
         key-pressed(e) => { if e.text == Key.Escape { root.cancelled(); return accept; } reject }
+        changed has-focus => { if !self.has-focus { root.left(self.text); } }
     }
     Rectangle { y: parent.height - 1px; height: 1px; background: input.has-focus ? Look.accent.with-alpha(0.6) : transparent; }
 }
 
-// Today / Tomorrow / Next week / No date, Move to a list, Delete: the right-click menu of a task, anywhere.
+// Text you click to edit (Enter or clicking away saves, Esc cancels), like the app's.
+component Editable inherits Rectangle {
+    in property <string> text;
+    in property <length> font-size: 14px;
+    in property <bool> struck;
+    in property <color> ink: Look.text;
+    callback saved(string);
+    property <bool> editing;
+    property <bool> done-editing;
+    if !root.editing: TouchArea {
+        mouse-cursor: MouseCursor.text;
+        clicked => { root.done-editing = false; root.editing = true; }
+        t := Text {
+            x: 0;
+            width: parent.width;
+            text: root.text;
+            color: root.ink;
+            font-size: root.font-size;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        // Crossed out when it's done.
+        if root.struck: Rectangle { x: 0; y: parent.height / 2; height: 1px; width: min(t.preferred-width, parent.width); background: Look.faint; }
+    }
+    if root.editing: Field {
+        y: (parent.height - self.height) / 2;
+        text: root.text;
+        font-size: root.font-size;
+        init => { self.grab-focus(); self.select-all(); }
+        accepted(s) => { if !root.done-editing { root.done-editing = true; if s != root.text && s != "" { root.saved(s); } } root.editing = false; }
+        left(s) => { if !root.done-editing { root.done-editing = true; if s != root.text && s != "" { root.saved(s); } } root.editing = false; }
+        cancelled => { root.done-editing = true; root.editing = false; }
+    }
+}
+
+// Right-click a task (anywhere): its date, its list, delete it.
 component TaskMenu inherits ContextMenuArea {
     in property <string> id;
+    in property <string> list-id;
+    in property <bool> has-subtasks;
     Menu {
+        MenuItem { title: Esther.open-task == root.id ? "Hide subtasks" : root.has-subtasks ? "Show subtasks" : "Add subtasks"; activated => { Esther.open-task = Esther.open-task == root.id ? "" : root.id; } }
+        MenuSeparator { }
         MenuItem { title: "Today"; activated => { Esther.set-date(root.id, "today"); } }
         MenuItem { title: "Tomorrow"; activated => { Esther.set-date(root.id, "tomorrow"); } }
         MenuItem { title: "Next week"; activated => { Esther.set-date(root.id, "next-week"); } }
@@ -192,149 +269,365 @@ component TaskMenu inherits ContextMenuArea {
         MenuSeparator { }
         Menu {
             title: "Move to";
-            for l in Esther.tabs: MenuItem { title: l.name; activated => { Esther.move-to(root.id, l.id); } }
+            for l in Esther.tabs: MenuItem { title: l.name; checkable: true; checked: l.id == root.list-id; activated => { Esther.move-to(root.id, l.id); } }
         }
         MenuSeparator { }
         MenuItem { title: "Delete task"; activated => { Esther.delete(root.id); } }
     }
 }
 
-// One task: tick, name (double-click to rename), list, subtasks, date. Right-click for the rest.
+// ---- Calendars: the calendar card and the date picker ----
+component DayCell inherits Rectangle {
+    in property <CalDay> day;
+    in property <length> slot-w: 38px;
+    in property <length> slot-h: 38px;
+    in property <length> font-size: 18px;
+    callback picked(string);
+    width: min(38px, self.slot-w);
+    height: min(38px, self.slot-h);
+    border-radius: 10px;
+    border-width: root.day.picked && root.day.today ? 0 : root.day.today ? 1.5px : root.day.picked ? 1px : 0;
+    border-color: root.day.today ? Look.accent : Look.accent.with-alpha(0.4);
+    background: root.day.picked && root.day.today ? Look.accent : root.day.picked ? Look.accent.with-alpha(0.2) : ta.has-hover ? #ffffff14 : transparent;
+    animate background { duration: 120ms; }
+    ta := TouchArea { mouse-cursor: pointer; clicked => { root.picked(root.day.iso); } }
+    Text {
+        y: (parent.height - self.height) / 2 - 1px;
+        text: root.day.num;
+        font-family: "Instrument Serif";
+        font-italic: true;
+        font-size: root.font-size;
+        horizontal-alignment: center;
+        color: root.day.picked && root.day.today ? Look.accent-ink : root.day.today ? Look.accent : root.day.other ? Look.faint : Look.text;
+    }
+    HorizontalLayout {
+        y: parent.height - 8px;
+        height: 4px;
+        alignment: center;
+        spacing: 3px;
+        for m[i] in root.day.marks: Rectangle {
+            width: 4px;
+            height: 4px;
+            border-radius: 2px;
+            background: root.day.picked && root.day.today ? Look.accent-ink : m;
+        }
+    }
+}
+
+component NavButton inherits Rectangle {
+    in property <string> text;
+    callback clicked;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: ta.has-hover ? #ffffff14 : transparent;
+    ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+    Text { text: root.text; color: Look.muted; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
+}
+
+// A month of days, Monday first, filling the space it's given.
+component MonthGrid inherits Rectangle {
+    in property <[CalDay]> days;
+    in property <length> font-size: 18px;
+    callback picked(string);
+    property <int> weeks: max(1, root.days.length / 7);
+    property <length> cw: self.width / 7;
+    property <length> ch: self.height / self.weeks;
+    for d[i] in root.days: Rectangle {
+        x: mod(i, 7) * root.cw;
+        y: floor(i / 7) * root.ch;
+        width: root.cw;
+        height: root.ch;
+        DayCell { day: d; slot-w: root.cw - 2px; slot-h: root.ch - 2px; font-size: root.font-size; picked(iso) => { root.picked(iso); } }
+    }
+}
+
+component WeekLetters inherits HorizontalLayout {
+    height: 16px;
+    for d in ["M", "T", "W", "T", "F", "S", "S"]: Text { horizontal-stretch: 1; text: d; color: Look.faint; font-size: 11px; horizontal-alignment: center; }
+}
+
+// The date picker: a small month, ‹ › to move, Today / Tomorrow / No date.
+component DatePicker inherits Rectangle {
+    in property <string> task;
+    callback done;
+    width: 264px;
+    height: 300px;
+    background: Look.pop;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: Look.edge;
+    drop-shadow-blur: 18px;
+    drop-shadow-color: #00000080;
+    TouchArea { } // (clicks on the picker's background stay in the picker)
+    VerticalLayout {
+        padding: 12px;
+        spacing: 6px;
+        HorizontalLayout {
+            height: 28px;
+            Text { horizontal-stretch: 1; text: Esther.picker-title; color: Look.text; font-family: "Instrument Serif"; font-size: 19px; vertical-alignment: center; }
+            NavButton { text: "‹"; clicked => { Esther.picker-step(-1); } }
+            NavButton { text: "›"; clicked => { Esther.picker-step(1); } }
+        }
+        WeekLetters { }
+        MonthGrid {
+            vertical-stretch: 1;
+            days: Esther.picker-days;
+            font-size: 16px;
+            picked(iso) => { Esther.set-date(root.task, iso); root.done(); }
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            height: 28px;
+            Pill { height: 28px; text: "Today"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "today"); root.done(); } }
+            Pill { height: 28px; text: "Tomorrow"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "tomorrow"); root.done(); } }
+            Rectangle { horizontal-stretch: 1; }
+            Pill { height: 28px; text: "No date"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "none"); root.done(); } }
+        }
+    }
+}
+
+// One task: tick, name (click to edit), list (click to change), subtasks (click to open), date (click to pick).
+// Right-click for the rest.
 component Row inherits Rectangle {
     in property <TaskRow> task;
     in property <bool> show-list;
     in property <bool> compact;
-    property <bool> editing;
-    height: 42px;
+    property <bool> open: Esther.open-task == root.task.id;
+    property <length> line-h: 42px;
+    height: root.open ? root.line-h + root.task.subtasks.length * 32px + 40px : root.line-h;
     border-radius: 8px;
-    background: Esther.highlight == root.task.id ? Look.accent.with-alpha(0.14) : hover.has-hover ? #ffffff0a : transparent;
+    background: Esther.highlight == root.task.id ? Look.accent.with-alpha(0.14) : root.open ? #ffffff08 : hover.has-hover ? #ffffff0a : transparent;
     animate background { duration: 200ms; }
     hover := TouchArea { }
     TaskMenu {
         id: root.task.id;
+        list-id: root.task.list-id;
+        has-subtasks: root.task.subtasks.length > 0;
+        y: 0;
+        height: root.line-h;
         HorizontalLayout {
             padding-left: 8px;
             padding-right: 8px;
             spacing: 10px;
             VerticalLayout { alignment: center; Check { checked: root.task.done; toggled => { Esther.toggle(root.task.id); } } }
-            // The name
-            Rectangle {
+            // The name, the list as a dot when narrow, and "clears in N days".
+            HorizontalLayout {
                 horizontal-stretch: 1;
-                if !root.editing: title-area := TouchArea {
-                    double-clicked => { root.editing = true; }
-                    HorizontalLayout {
-                        spacing: 8px;
-                        if root.compact && root.show-list: Dot { color: root.task.list-color; }
-                        Rectangle {
-                            horizontal-stretch: 1;
-                            title := Text {
-                                x: 0;
-                                width: parent.width;
-                                text: root.task.title;
-                                color: root.task.done ? Look.faint : Look.text;
-                                font-size: 14px;
-                                vertical-alignment: center;
-                                overflow: elide;
-                            }
-                            // Crossed out when it's done.
-                            if root.task.done: Rectangle {
-                                x: 0;
-                                y: parent.height / 2;
-                                height: 1px;
-                                width: min(title.preferred-width, parent.width);
-                                background: Look.faint;
-                            }
-                        }
-                        if root.task.clears != "": Text { text: root.task.clears; color: Look.faint; font-size: 11.5px; font-italic: true; vertical-alignment: center; }
-                    }
-                }
-                if root.editing: Field {
-                    y: (parent.height - self.height) / 2;
+                spacing: 8px;
+                if root.compact && root.show-list: Dot { color: root.task.list-color; }
+                Editable {
+                    horizontal-stretch: 1;
                     text: root.task.title;
-                    init => { self.grab-focus(); self.select-all(); }
-                    accepted(t) => { Esther.rename(root.task.id, t); root.editing = false; }
-                    cancelled => { root.editing = false; }
+                    struck: root.task.done;
+                    ink: root.task.done ? Look.faint : Look.text;
+                    saved(s) => { Esther.rename(root.task.id, s); }
                 }
+                if root.task.clears != "": Text { text: root.task.clears; color: Look.faint; font-size: 11.5px; font-italic: true; vertical-alignment: center; }
             }
+            // The list: click for the lists.
             if root.show-list && !root.compact: Rectangle {
                 width: 130px;
-                HorizontalLayout {
-                    alignment: start;
-                    Rectangle {
+                list-menu := ContextMenuArea {
+                    Menu {
+                        for l in Esther.tabs: MenuItem { title: l.name; checkable: true; checked: l.id == root.task.list-id; activated => { Esther.move-to(root.task.id, l.id); } }
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        list-pill := Rectangle {
+                            height: 24px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 12px;
+                            background: root.task.list-color.with-alpha(lp.has-hover ? 0.26 : 0.16);
+                            lp := TouchArea { mouse-cursor: pointer; clicked => { list-menu.show({ x: 0, y: list-pill.y + list-pill.height + 2px }); } }
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 10px;
+                                spacing: 6px;
+                                Dot { color: root.task.list-color; }
+                                Text { text: root.task.list-name; color: Look.text; font-size: 12.5px; vertical-alignment: center; overflow: elide; }
+                                Text { text: "⌄"; color: Look.faint; font-size: 11px; vertical-alignment: center; }
+                            }
+                        }
+                    }
+                }
+            }
+            // Subtasks: click to open them (or to add the first).
+            if root.task.subs != "" || !root.compact: Rectangle {
+                width: root.compact ? subs-text.preferred-width + 8px : 70px;
+                subs-ta := TouchArea { mouse-cursor: pointer; clicked => { Esther.open-task = root.open ? "" : root.task.id; } }
+                subs-text := Text {
+                    x: 0;
+                    text: root.task.subs != "" ? (root.open ? "▾ " : "▸ ") + root.task.subs : subs-ta.has-hover || root.open ? "+ sub" : "—";
+                    color: root.open || subs-ta.has-hover ? Look.accent : root.task.subs != "" ? Look.muted : Look.faint;
+                    font-size: 12.5px;
+                    vertical-alignment: center;
+                    height: parent.height;
+                }
+            }
+            // The date: click for a quick date or the picker.
+            Rectangle {
+                width: root.compact ? (root.task.date-kind != 0 ? chip.width : 0) : 96px;
+                date-menu := ContextMenuArea {
+                    Menu {
+                        MenuItem { title: "Today"; activated => { Esther.set-date(root.task.id, "today"); } }
+                        MenuItem { title: "Tomorrow"; activated => { Esther.set-date(root.task.id, "tomorrow"); } }
+                        MenuItem { title: "Next week"; activated => { Esther.set-date(root.task.id, "next-week"); } }
+                        MenuItem { title: "Pick a date…"; activated => { Esther.picker-open(root.task.iso); picker.show(); } }
+                        MenuSeparator { }
+                        MenuItem { title: "No date"; enabled: root.task.date-kind != 0; activated => { Esther.set-date(root.task.id, "none"); } }
+                    }
+                    chip := Rectangle {
+                        x: 0;
+                        width: chip-text.preferred-width + 18px;
                         height: 24px;
                         y: (parent.height - self.height) / 2;
                         border-radius: 12px;
-                        background: root.task.list-color.with-alpha(0.16);
-                        HorizontalLayout {
-                            padding-left: 8px;
-                            padding-right: 10px;
-                            spacing: 6px;
-                            Dot { color: root.task.list-color; }
-                            Text { text: root.task.list-name; color: Look.text; font-size: 12.5px; vertical-alignment: center; overflow: elide; }
-                        }
-                    }
-                }
-            }
-            if root.task.subs != "" || !root.compact: Text {
-                width: root.compact ? self.preferred-width : 70px;
-                text: root.task.subs != "" ? root.task.subs : "—";
-                color: root.task.subs != "" ? Look.muted : Look.faint;
-                font-size: 12.5px;
-                vertical-alignment: center;
-            }
-            // The date chip
-            VerticalLayout {
-                alignment: center;
-                width: root.compact ? self.preferred-width : 96px;
-                if root.task.date-kind != 0: Rectangle {
-                    height: 24px;
-                    border-radius: 12px;
-                    background: root.task.date-kind == 1 ? Look.accent.with-alpha(0.16) : root.task.date-kind == 2 ? Look.danger.with-alpha(0.15) : #ffffff10;
-                    HorizontalLayout {
-                        padding-left: 9px;
-                        padding-right: 9px;
-                        Text {
-                            text: root.task.date;
+                        visible: root.task.date-kind != 0 || dt.has-hover;
+                        background: root.task.date-kind == 1 ? Look.accent.with-alpha(0.16) : root.task.date-kind == 2 ? Look.danger.with-alpha(0.15) : #ffffff10;
+                        chip-text := Text {
+                            text: root.task.date-kind != 0 ? root.task.date : "+ date";
                             font-size: 12.5px;
                             vertical-alignment: center;
+                            horizontal-alignment: center;
                             color: root.task.date-kind == 1 ? Look.accent : root.task.date-kind == 2 ? Look.danger : Look.muted;
                         }
                     }
+                    dt := TouchArea { mouse-cursor: pointer; clicked => { date-menu.show({ x: 0, y: chip.y + chip.height + 2px }); } }
+                }
+                picker := PopupWindow {
+                    x: root.compact ? -200px : -170px;
+                    y: chip.y + chip.height + 4px;
+                    width: 264px;
+                    height: 300px;
+                    close-policy: close-on-click-outside;
+                    DatePicker { task: root.task.id; done => { picker.close(); } }
                 }
             }
         }
     }
-    Rectangle { y: parent.height - 1px; height: 1px; background: Look.edge; }
+    // Subtasks, when open: tick, click to edit, right-click to delete; add one with Enter.
+    if root.open: VerticalLayout {
+        y: root.line-h;
+        height: root.height - root.line-h;
+        padding-left: 46px;
+        padding-right: 8px;
+        padding-bottom: 6px;
+        for s in root.task.subtasks: ContextMenuArea {
+            Menu { MenuItem { title: "Delete subtask"; activated => { Esther.sub-delete(root.task.id, s.id); } } }
+            HorizontalLayout {
+                height: 32px;
+                spacing: 10px;
+                VerticalLayout { alignment: center; Check { size: 16px; checked: s.done; toggled => { Esther.sub-toggle(root.task.id, s.id); } } }
+                Editable {
+                    horizontal-stretch: 1;
+                    text: s.text;
+                    font-size: 13.5px;
+                    struck: s.done;
+                    ink: s.done ? Look.faint : Look.muted;
+                    saved(t) => { Esther.sub-rename(root.task.id, s.id, t); }
+                }
+            }
+        }
+        HorizontalLayout {
+            height: 34px;
+            spacing: 10px;
+            Text { width: 16px; text: "+"; color: Look.faint; font-size: 15px; horizontal-alignment: center; vertical-alignment: center; }
+            sub-add := Field {
+                y: 2px;
+                horizontal-stretch: 1;
+                font-size: 13.5px;
+                placeholder: "Add a subtask, Enter";
+                accepted(t) => { if t != "" { Esther.sub-add(root.task.id, t); self.text = ""; } }
+                init => { if root.task.subtasks.length == 0 { self.grab-focus(); } }
+            }
+        }
+    }
+    Rectangle { y: root.line-h - 1px; height: 1px; background: Look.edge; }
 }
 
 // ---- The Tasks card ----
+
+// A list tab: click to show it, double-click to rename, right-click for its colour, rename, delete.
+component ListPill inherits Rectangle {
+    in property <ListTab> list;
+    // (Its width, from the name and the count, as the pill lays them out.)
+    property <length> name-w: name-measure.preferred-width;
+    property <length> count-w: count-measure.preferred-width;
+    width: Esther.renaming-list == root.list.id ? max(120px, root.name-w + 40px) : 12px + 7px + 7px + root.name-w + 7px + root.count-w + 12px;
+    height: 30px;
+    name-measure := Text { visible: false; text: root.list.name; font-size: 13.5px; }
+    count-measure := Text { visible: false; text: root.list.open; font-size: 11.5px; }
+    if Esther.renaming-list != root.list.id: pill-menu := ContextMenuArea {
+        Menu {
+            MenuItem { title: "Rename"; activated => { Esther.renaming-list = root.list.id; } }
+            Menu {
+                title: "Colour";
+                for p in Look.pigments: MenuItem { title: p.name; checkable: true; checked: p.color == root.list.color; activated => { Esther.recolor-list(root.list.id, p.color); } }
+            }
+            MenuSeparator { }
+            if root.list.total == 0: MenuItem { title: "Delete list"; enabled: Esther.tabs.length > 1; activated => { Esther.delete-list(root.list.id, false); } }
+            if root.list.total > 0: Menu {
+                title: "Delete list…";
+                enabled: Esther.tabs.length > 1;
+                MenuItem { title: "Move its " + root.list.total + (root.list.total == 1 ? " task" : " tasks") + " to " + (Esther.tabs[0].id == root.list.id ? Esther.tabs[1].name : Esther.tabs[0].name) + ", then delete"; activated => { Esther.delete-list(root.list.id, true); } }
+                MenuItem { title: "Delete it with its " + root.list.total + (root.list.total == 1 ? " task" : " tasks"); activated => { Esther.delete-list(root.list.id, false); } }
+            }
+        }
+        pill := Pill {
+            text: root.list.name;
+            count: root.list.open;
+            show-dot: true;
+            dot: root.list.color;
+            on: Esther.tab == root.list.id;
+            clicked => { Esther.pick-tab(root.list.id); }
+            double-clicked => { Esther.renaming-list = root.list.id; }
+        }
+    }
+    if Esther.renaming-list == root.list.id: Rectangle {
+        border-radius: 15px;
+        background: Look.accent.with-alpha(0.16);
+        border-width: 1px;
+        border-color: Look.accent.with-alpha(0.5);
+        name-field := Field {
+            x: 12px;
+            width: parent.width - 24px;
+            font-size: 13.5px;
+            text: root.list.name;
+            init => { self.grab-focus(); self.select-all(); }
+            accepted(t) => { Esther.rename-list(root.list.id, t); Esther.renaming-list = ""; }
+            left(t) => { if Esther.renaming-list == root.list.id { Esther.rename-list(root.list.id, t); Esther.renaming-list = ""; } }
+            cancelled => { Esther.renaming-list = ""; }
+        }
+    }
+}
+
 component TasksBody inherits Rectangle {
     VerticalLayout {
         padding: 14px;
         padding-bottom: 8px;
         spacing: 10px;
 
-        // List tabs. The space around them moves the card. (Not while waiting: those wouldn't be your lists.)
+        // List tabs, and + for a new list. The space around them moves the card. (Not while waiting.)
         Rectangle {
             height: 32px;
             opacity: Esther.can-add ? 1 : 0;
             DragArea { }
-            Flickable {
-                content-width: max(tabs-row.preferred-width, self.width);
-                interactive: true;
-                tabs-row := HorizontalLayout {
-                    alignment: start;
-                    spacing: 6px;
-                    Pill { text: "All"; count: Esther.count-tab-all; on: Esther.tab == "all"; clicked => { Esther.pick-tab("all"); } }
-                    for l in Esther.tabs: Pill {
-                        text: l.name;
-                        count: l.open;
-                        show-dot: true;
-                        dot: l.color;
-                        on: Esther.tab == l.id;
-                        clicked => { Esther.pick-tab(l.id); }
+            HorizontalLayout {
+                spacing: 6px;
+                Flickable {
+                    horizontal-stretch: 1;
+                    content-width: max(tabs-row.preferred-width, self.width);
+                    interactive: true;
+                    tabs-row := HorizontalLayout {
+                        alignment: start;
+                        spacing: 6px;
+                        Pill { text: "All"; count: Esther.count-tab-all; on: Esther.tab == "all"; clicked => { Esther.pick-tab("all"); } }
+                        for l in Esther.tabs: ListPill { list: l; }
                     }
                 }
+                // A new list (always at the right, however many lists there are).
+                Pill { width: 30px; height: 30px; y: 1px; pad: 0; text: "+"; font-size: 16px; clicked => { Esther.add-list(); } }
             }
         }
 
@@ -398,7 +691,7 @@ component TasksBody inherits Rectangle {
                 spacing: 10px;
                 Text { text: "Waiting for your tasks"; color: Look.text; font-family: "Instrument Serif"; font-size: 26px; horizontal-alignment: center; }
                 Text {
-                    text: "These cards show the same tasks as the Esther app. Update Esther to 2.2 or later (Settings → About → Check now, then Restart to update) and keep it running: your lists and tasks appear here by themselves.";
+                    text: "These cards show the same tasks as the Esther app. Update Esther to 2.2 or later (Settings → About → Check now, then Restart to update) and open it once: your lists and tasks appear here by themselves.";
                     color: Look.muted;
                     font-size: 13px;
                     wrap: word-wrap;
@@ -453,7 +746,7 @@ component TasksBody inherits Rectangle {
             Text { y: 18px; width: parent.width; text: Esther.empty-text; color: Look.faint; font-italic: true; font-size: 13px; horizontal-alignment: center; wrap: word-wrap; }
         }
 
-        if !Esther.compact: Text { text: "Double-click a task to rename it · right-click for its date, list or delete"; color: Look.faint; font-size: 11.5px; }
+        if !Esther.compact: Text { text: "Click a name to edit it · click the list, subtasks or date to change them · right-click for more"; color: Look.faint; font-size: 11.5px; overflow: elide; }
     }
 }
 
@@ -496,13 +789,14 @@ component HeaderBody inherits Rectangle {
     DragArea { }
     ContextMenuArea {
         Menu {
+            MenuItem { title: "Hide Esther"; activated => { Esther.hide-all(); } }
             MenuItem { title: "Put every card back"; activated => { Esther.reset-layout(); } }
             MenuSeparator { }
             MenuItem { title: "Quit Esther"; activated => { Esther.quit(); } }
         }
         HorizontalLayout {
             padding-left: 20px;
-            padding-right: 20px;
+            padding-right: 14px;
             spacing: 20px;
             // Double-click the emblem and name to put every card back where it started.
             brand := TouchArea {
@@ -541,57 +835,17 @@ component HeaderBody inherits Rectangle {
                     Text { text: Esther.line; color: Look.text; font-family: "Instrument Serif"; font-italic: true; font-size: 17px; overflow: elide; }
                 }
             }
+            // Hide (the shortcut or the bubble brings Esther back).
+            VerticalLayout {
+                alignment: start;
+                padding-top: 12px;
+                NavButton { text: "×"; clicked => { Esther.hide-all(); } }
+            }
         }
     }
 }
 
 // ---- The calendar: the month, open tasks as dots; click a day to see only that day on the Tasks card ----
-component NavButton inherits Rectangle {
-    in property <string> text;
-    callback clicked;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: ta.has-hover ? #ffffff14 : transparent;
-    ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
-    Text { text: root.text; color: Look.muted; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
-}
-
-component DayCell inherits Rectangle {
-    in property <CalDay> day;
-    width: min(38px, self.slot-w);
-    height: min(38px, self.slot-h);
-    in property <length> slot-w: 38px;
-    in property <length> slot-h: 38px;
-    border-radius: 10px;
-    border-width: root.day.picked && root.day.today ? 0 : root.day.today ? 1.5px : root.day.picked ? 1px : 0;
-    border-color: root.day.today ? Look.accent : Look.accent.with-alpha(0.4);
-    background: root.day.picked && root.day.today ? Look.accent : root.day.picked ? Look.accent.with-alpha(0.2) : ta.has-hover ? #ffffff14 : transparent;
-    animate background { duration: 120ms; }
-    ta := TouchArea { mouse-cursor: pointer; clicked => { Esther.pick-day(root.day.iso); } }
-    Text {
-        y: (parent.height - self.height) / 2 - 1px;
-        text: root.day.num;
-        font-family: "Instrument Serif";
-        font-italic: true;
-        font-size: 18px;
-        horizontal-alignment: center;
-        color: root.day.picked && root.day.today ? Look.accent-ink : root.day.today ? Look.accent : root.day.other ? Look.faint : Look.text;
-    }
-    HorizontalLayout {
-        y: parent.height - 8px;
-        height: 4px;
-        alignment: center;
-        spacing: 3px;
-        for m[i] in root.day.marks: Rectangle {
-            width: 4px;
-            height: 4px;
-            border-radius: 2px;
-            background: root.day.picked && root.day.today ? Look.accent-ink : m;
-        }
-    }
-}
-
 component CalendarBody inherits Rectangle {
     VerticalLayout {
         padding: 16px;
@@ -608,23 +862,8 @@ component CalendarBody inherits Rectangle {
             Pill { height: 28px; text: "Today"; pad: 10px; font-size: 12.5px; clicked => { Esther.month-step(0); } }
             NavButton { y: 1px; text: "›"; clicked => { Esther.month-step(1); } }
         }
-        HorizontalLayout {
-            height: 16px;
-            for d in ["M", "T", "W", "T", "F", "S", "S"]: Text { horizontal-stretch: 1; text: d; color: Look.faint; font-size: 11px; horizontal-alignment: center; }
-        }
-        grid := Rectangle {
-            vertical-stretch: 1;
-            property <int> weeks: max(1, Esther.days.length / 7);
-            property <length> cw: self.width / 7;
-            property <length> ch: self.height / self.weeks;
-            for d[i] in Esther.days: Rectangle {
-                x: mod(i, 7) * grid.cw;
-                y: floor(i / 7) * grid.ch;
-                width: grid.cw;
-                height: grid.ch;
-                DayCell { day: d; slot-w: grid.cw - 2px; slot-h: grid.ch - 2px; }
-            }
-        }
+        WeekLetters { }
+        MonthGrid { vertical-stretch: 1; days: Esther.days; picked(iso) => { Esther.pick-day(iso); } }
     }
 }
 
@@ -639,6 +878,8 @@ component Line inherits Rectangle {
     background: ta.has-hover ? #ffffff0d : transparent;
     TaskMenu {
         id: root.task.id;
+        list-id: root.task.list-id;
+        has-subtasks: root.task.subtasks.length > 0;
         HorizontalLayout {
             padding-left: 4px;
             padding-right: 4px;
@@ -714,19 +955,40 @@ component WeekBody inherits Rectangle {
     }
 }
 
+// ---- The Esther bubble: the word "Esther". Click it to show or hide the cards; the mouse wheel sizes it. ----
+component BubbleBody inherits Rectangle {
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { Esther.bubble-click(); }
+        scroll-event(e) => { Esther.bubble-wheel(e.delta-y / 1px); accept }
+    }
+    Text {
+        y: (parent.height - self.height) / 2 - parent.height * 0.05;
+        width: parent.width;
+        text: "Esther";
+        font-family: "Instrument Serif";
+        font-italic: true;
+        font-size: parent.height * 0.74;
+        horizontal-alignment: center;
+        color: ta.has-hover ? Look.accent : Look.text;
+        animate color { duration: 150ms; }
+    }
+}
+
 // ---- A card: one window, with the glass behind it, its body, and its edges to resize by ----
 export component Card inherits Window {
-    // "header", "tasks", "calendar" or "week"
+    // "header", "tasks", "calendar", "week" or "bubble"
     in property <string> kind: "tasks";
-    title: root.kind == "header" ? "Esther" : root.kind == "calendar" ? "Esther · Calendar" : root.kind == "week" ? "Esther · This week" : "Esther · Tasks";
+    title: root.kind == "header" ? "Esther" : root.kind == "calendar" ? "Esther · Calendar" : root.kind == "week" ? "Esther · This week" : root.kind == "bubble" ? "Esther bubble" : "Esther · Tasks";
     no-frame: true;
     background: Look.panel;
     default-font-family: "Segoe UI Variable Text";
     default-font-size: 13px;
-    min-width: root.kind == "header" ? 420px : root.kind == "week" ? 280px : 300px;
-    min-height: root.kind == "header" ? 96px : root.kind == "calendar" ? 330px : root.kind == "week" ? 220px : 260px;
+    min-width: root.kind == "header" ? 420px : root.kind == "week" ? 280px : root.kind == "bubble" ? 40px : 300px;
+    min-height: root.kind == "header" ? 96px : root.kind == "calendar" ? 330px : root.kind == "week" ? 220px : root.kind == "bubble" ? 20px : 260px;
 
-    // Glass: a blurred copy of the wallpaper, slid into line with the real one, under the panel tint.
+    // Glass: the blurred wallpaper with the panel's tint already in it, at the screen's own size, slid into line
+    // with the real wallpaper behind the window (drawn pixel for pixel: smooth, and quick to draw).
     in property <bool> has-glass;
     in property <image> glass;
     in property <length> glass-x;
@@ -744,7 +1006,7 @@ export component Card inherits Window {
             height: root.glass-h;
             image-fit: fill;
         }
-        Rectangle { background: Look.panel.with-alpha(root.has-glass ? Look.panel-alpha : 1); }
+        if !root.has-glass: Rectangle { background: Look.panel; }
         Rectangle { border-width: 1px; border-color: Look.edge; }
     }
 
@@ -752,27 +1014,30 @@ export component Card inherits Window {
     if root.kind == "header": HeaderBody { }
     if root.kind == "calendar": CalendarBody { }
     if root.kind == "week": WeekBody { }
+    if root.kind == "bubble": BubbleBody { }
 
-    // Resize from any edge or corner (Esther lands it on the 8 px grid).
-    for e in [
-        { id: "n", x: 12px, y: 0px, w: root.width - 24px, h: 6px, c: MouseCursor.ns-resize },
-        { id: "s", x: 12px, y: root.height - 6px, w: root.width - 24px, h: 6px, c: MouseCursor.ns-resize },
-        { id: "w", x: 0px, y: 12px, w: 6px, h: root.height - 24px, c: MouseCursor.ew-resize },
-        { id: "e", x: root.width - 6px, y: 12px, w: 6px, h: root.height - 24px, c: MouseCursor.ew-resize },
-        { id: "nw", x: 0px, y: 0px, w: 12px, h: 12px, c: MouseCursor.nwse-resize },
-        { id: "se", x: root.width - 12px, y: root.height - 12px, w: 12px, h: 12px, c: MouseCursor.nwse-resize },
-        { id: "ne", x: root.width - 12px, y: 0px, w: 12px, h: 12px, c: MouseCursor.nesw-resize },
-        { id: "sw", x: 0px, y: root.height - 12px, w: 12px, h: 12px, c: MouseCursor.nesw-resize },
-    ]: TouchArea {
-        x: e.x;
-        y: e.y;
-        width: e.w;
-        height: e.h;
-        mouse-cursor: e.c;
-        moved => { if self.pressed { Esther.resize-by(e.id, self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
-        pointer-event(ev) => {
-            if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.left { Esther.resize-start(e.id); }
-            if ev.kind == PointerEventKind.up { Esther.resize-end(); }
+    // Resize from any edge or corner (Esther lands it on the grid and the guides).
+    if root.kind != "bubble": Rectangle {
+        for e in [
+            { id: "n", x: 12px, y: 0px, w: root.width - 24px, h: 6px, c: MouseCursor.ns-resize },
+            { id: "s", x: 12px, y: root.height - 6px, w: root.width - 24px, h: 6px, c: MouseCursor.ns-resize },
+            { id: "w", x: 0px, y: 12px, w: 6px, h: root.height - 24px, c: MouseCursor.ew-resize },
+            { id: "e", x: root.width - 6px, y: 12px, w: 6px, h: root.height - 24px, c: MouseCursor.ew-resize },
+            { id: "nw", x: 0px, y: 0px, w: 12px, h: 12px, c: MouseCursor.nwse-resize },
+            { id: "se", x: root.width - 12px, y: root.height - 12px, w: 12px, h: 12px, c: MouseCursor.nwse-resize },
+            { id: "ne", x: root.width - 12px, y: 0px, w: 12px, h: 12px, c: MouseCursor.nesw-resize },
+            { id: "sw", x: 0px, y: root.height - 12px, w: 12px, h: 12px, c: MouseCursor.nesw-resize },
+        ]: TouchArea {
+            x: e.x;
+            y: e.y;
+            width: e.w;
+            height: e.h;
+            mouse-cursor: e.c;
+            moved => { if self.pressed { Esther.resize-by(e.id, self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
+            pointer-event(ev) => {
+                if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.left { Esther.resize-start(e.id); }
+                if ev.kind == PointerEventKind.up { Esther.resize-end(); }
+            }
         }
     }
 }

@@ -136,13 +136,6 @@ mod imp {
             }
         }
     }
-    /// Bring a card forward and give it the keyboard (for the test machine's clicks and typing).
-    pub fn front(hwnd: isize) {
-        unsafe {
-            SetWindowPos(hwnd as HWND, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-            SetForegroundWindow(hwnd as HWND);
-        }
-    }
     /// Which window is under (x, y): ours, or the class name of whatever covers it.
     pub fn under(x: i32, y: i32, hwnd: isize) -> String {
         unsafe {
@@ -175,6 +168,24 @@ mod imp {
                 i.Anonymous.ki.dwFlags = KEYEVENTF_UNICODE | if up { KEYEVENTF_KEYUP } else { 0 };
                 v.push(i);
             }
+        }
+        send(&v);
+    }
+    pub fn mouse_right(down: bool) {
+        let mut i: INPUT = unsafe { std::mem::zeroed() };
+        i.r#type = INPUT_MOUSE;
+        i.Anonymous.mi.dwFlags = if down { MOUSEEVENTF_RIGHTDOWN } else { MOUSEEVENTF_RIGHTUP };
+        send(&[i]);
+    }
+    /// Press keys together (in order) and let them go (in reverse), e.g. Ctrl+Alt+E.
+    pub fn keys(vks: &[u16]) {
+        let mut v = Vec::new();
+        for (vk, up) in vks.iter().map(|k| (*k, false)).chain(vks.iter().rev().map(|k| (*k, true))) {
+            let mut i: INPUT = unsafe { std::mem::zeroed() };
+            i.r#type = INPUT_KEYBOARD;
+            i.Anonymous.ki.wVk = vk;
+            i.Anonymous.ki.dwFlags = if up { KEYEVENTF_KEYUP } else { 0 };
+            v.push(i);
         }
         send(&v);
     }
