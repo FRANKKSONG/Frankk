@@ -258,7 +258,8 @@ fn smoke_run(dir: std::path::PathBuf, ui_w: slint::Weak<TasksCard>, state: Rc<Re
             6 if real => { #[cfg(windows)] win::clear_and_front(h); }
             7 if real => { let r = rect(); rects.borrow_mut().push(r); win_input::to(r.2 - 3, (r.1 + r.3) / 2); seen.borrow_mut().push(format!("edge: {}", win_input::under(r.2 - 3, (r.1 + r.3) / 2, h))); }
             8 if real => win_input::down(),
-            9..=14 if real => { let r = rects.borrow()[0]; win_input::to(r.2 - 3 + (*st as i32 - 8) * 12, (r.1 + r.3) / 2); }
+            // (inwards: the test machine's screen is small, and the mouse can't go past its edge)
+            9..=14 if real => { let r = rects.borrow()[0]; win_input::to(r.2 - 3 - (*st as i32 - 8) * 12, (r.1 + r.3) / 2); }
             15 if real => win_input::up(),
             17 if real => { let r = rect(); rects.borrow_mut().push(r); let (x, y) = (r.2 - (40.0 * k) as i32, r.1 + (71.0 * k) as i32); win_input::to(x, y); seen.borrow_mut().push(format!("drag: {}", win_input::under(x, y, h))); }
             18 if real => win_input::down(),

@@ -45,7 +45,7 @@ jobs:
             const fail = [];
             if (!m.screenshot) fail.push('no screenshot');
             if (!m.real_input) fail.push('the window never became a Windows window (no real input)');
-            if (!(m.resized_px >= 40)) fail.push('dragging the right edge resized it by ' + m.resized_px + ' px');
+            if (!(m.resized_px <= -40)) fail.push('dragging the right edge 72 px inwards resized it by ' + m.resized_px + ' px');
             if (!(m.moved_px >= 30)) fail.push('dragging the card moved it by ' + m.moved_px + ' px');
             if (!m.typed_task_saved) fail.push('a task typed with the keyboard and Enter was not saved');
             if (!m.rounded_corners_asked) fail.push('rounded corners were not asked of Windows');
