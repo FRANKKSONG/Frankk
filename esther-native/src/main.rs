@@ -1146,6 +1146,7 @@ impl Smoke {
         self.seen.borrow_mut().push(format!("{label}: {}", win_input::under(p.0, p.1, self.w(kind).hwnd.get())));
     }
     fn click(&self, label: &str, kind: &str, p: (i32, i32)) {
+        win_input::clear_consoles();
         self.point(label, kind, p);
         win_input::down();
         win_input::up();
@@ -1261,7 +1262,14 @@ fn smoke_steps() -> Vec<Step> {
         let (w, _) = x.size("tasks");
         if x.real.get() { x.click("subtasks again", "tasks", x.at("tasks", w - 198.0 + 12.0, row(x))) } else { x.g("tasks").set_open_task("".into()) }
     });
-    step!(50, |x| x.note("subtasks_closed_by_click", x.g("tasks").get_open_task().is_empty()));
+    step!(400, |x| {
+        x.note("subtasks_closed_by_click", x.g("tasks").get_open_task().is_empty());
+        // (What Esther itself draws now, and what the screen shows: they should agree.)
+        if let Ok(buf) = x.w("tasks").ui.window().take_snapshot() {
+            if let Some(i) = image::RgbaImage::from_raw(buf.width(), buf.height(), buf.as_bytes().to_vec()) { let _ = i.save(x.dir.join("closed-drawn.png")); }
+        }
+        x.shot("closed-screen.png");
+    });
     // Its date: click the date column (the date picker opens), then its Tomorrow; again, then the 25th.
     fn picker_at(x: &Smoke, px: f32, py: f32) -> (i32, i32) {
         let (w, _) = x.size("tasks");
@@ -1273,6 +1281,9 @@ fn smoke_steps() -> Vec<Step> {
     step!(700, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("date", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x))) } });
     step!(500, |x| {
         x.shot("date-picker.png");
+        if let Ok(buf) = x.w("tasks").ui.window().take_snapshot() {
+            if let Some(i) = image::RgbaImage::from_raw(buf.width(), buf.height(), buf.as_bytes().to_vec()) { let _ = i.save(x.dir.join("date-picker-drawn.png")); }
+        }
         if x.real.get() { x.click("picker: Tomorrow", "tasks", picker_at(x, 108.0, 60.0)) } else { x.g("tasks").invoke_set_date(x.first_row_id(), "tomorrow".into()) }
     });
     step!(50, |x| x.note("date_from_picker_quick", x.first_task()["date"].clone()));
@@ -1379,7 +1390,7 @@ fn smoke_steps() -> Vec<Step> {
 
     // ---- Hiding and showing: Ctrl+Alt+E, the bubble, the tray ----
     step!(300, |x| shell::focus(x.w("tasks").hwnd.get()));
-    step!(800, |x| { if x.real.get() { win_input::keys(&[0x11, 0x12, 0x45]) } else { on_shell(&x.app, shell::Ev::Toggle) } }); // Ctrl+Alt+E
+    step!(800, |x| { if x.real.get() { win_input::clear_consoles(); win_input::keys(&[0x11, 0x12, 0x45]) } else { on_shell(&x.app, shell::Ev::Toggle) } }); // Ctrl+Alt+E
     step!(100, |x| {
         x.note("shortcut_registered", x.app.hotkey_ok.get());
         x.note("shortcut_hid_cards", x.all_cards(false));
@@ -1390,7 +1401,7 @@ fn smoke_steps() -> Vec<Step> {
     });
     step!(900, |x| {
         let (bx, by, bw, bh) = rect_of(x.w("bubble"));
-        if x.real.get() { x.click("bubble", "bubble", (bx + bw / 2, by + bh / 2)) } else { x.g("bubble").invoke_bubble_click() }
+        if x.real.get() { win_input::clear_consoles(); x.click("bubble", "bubble", (bx + bw / 2, by + bh / 2)) } else { x.g("bubble").invoke_bubble_click() }
     });
     step!(100, |x| {
         x.note("bubble_showed_cards", x.all_cards(true));
@@ -1512,7 +1523,7 @@ mod win_input {
     pub fn to(x: i32, y: i32) { crate::win::set_cursor(x, y) }
     pub fn down() { crate::win::mouse(true) }
     pub fn up() { crate::win::mouse(false) }
-    pub fn type_text(s: &str) { crate::win::type_text(s) }
+    pub fn type_text(s: &str) { crate::win::clear_consoles(); crate::win::type_text(s) }
     pub fn enter() { crate::win::enter() }
     pub fn keys(vks: &[u16]) { crate::win::keys(vks) }
     pub fn under(x: i32, y: i32, h: isize) -> String { crate::win::under(x, y, h) }

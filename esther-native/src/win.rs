@@ -124,9 +124,20 @@ mod imp {
             (corner, tool, owned)
         }
     }
-    /// For the test machine: minimise its console windows (they sit over the desktop).
+    /// For the test machine: minimise its console windows (they sit over the desktop), and close any dialog of
+    /// another program's that popped up (the test machine's Windows sometimes warns about its page file).
     pub fn clear_consoles() {
         unsafe {
+            let me = windows_sys::Win32::System::Threading::GetCurrentProcessId();
+            let mut h = FindWindowExW(std::ptr::null_mut(), std::ptr::null_mut(), wide("#32770").as_ptr(), std::ptr::null());
+            let mut n = 0;
+            while !h.is_null() && n < 50 {
+                let mut pid = 0u32;
+                GetWindowThreadProcessId(h, &mut pid);
+                if pid != me && IsWindowVisible(h) != 0 { PostMessageW(h, WM_CLOSE, 0, 0); }
+                h = FindWindowExW(std::ptr::null_mut(), h, wide("#32770").as_ptr(), std::ptr::null());
+                n += 1;
+            }
             for c in ["CASCADIA_HOSTING_WINDOW_CLASS", "ConsoleWindowClass"] {
                 for _ in 0..10 {
                     let h = FindWindowW(wide(c).as_ptr(), std::ptr::null());
