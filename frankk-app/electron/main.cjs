@@ -106,6 +106,16 @@ const windowLook = (glass = false) => ({
   webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true, backgroundThrottling: false },
 });
 
+/** Set a window's bounds. On Windows the cards aren't resizable (see windowLook), and Electron then won't let
+ *  even Esther make them shorter, so resizing is allowed just for the moment Esther changes the size. */
+function setBox(w, b) {
+  if (w.isDestroyed()) return;
+  const locked = !w.isResizable();
+  if (locked) w.setResizable(true);
+  w.setBounds(b);
+  if (locked) w.setResizable(false);
+}
+
 const cardOn = (id) => !prefs.hiddenCards.includes(id);
 
 /** What a card needs to draw its blur: the wallpaper of the screen it's on, and where it sits on that screen. */
@@ -243,7 +253,7 @@ function track(w, kind, edge = 'se') {
         prefs.snap ? (v) => snapAxis(v, [0], xs, wa.x) : free, prefs.snap ? (v) => snapAxis(v, [0], ys, wa.y) : free);
       lines = next.lines;
       if (next.x !== b.x || next.y !== b.y || next.width !== b.width || next.height !== b.height) {
-        if (next.x === b.x && next.y === b.y) w.setSize(next.width, next.height); else w.setBounds({ x: next.x, y: next.y, width: next.width, height: next.height });
+        setBox(w, { x: next.x, y: next.y, width: next.width, height: next.height });
       }
     }
     // Tell the guides what to draw (only when something changed).
@@ -267,7 +277,7 @@ function makeGuides() {
 function showGuides(wa) {
   makeGuides();
   const b = guidesWin.getBounds();
-  if (b.x !== wa.x || b.y !== wa.y || b.width !== wa.width || b.height !== wa.height) guidesWin.setBounds(wa);
+  if (b.x !== wa.x || b.y !== wa.y || b.width !== wa.width || b.height !== wa.height) setBox(guidesWin, wa);
   guidesWin.webContents.send('esther:guides', { show: true, area: wa, lines: [] });
   guidesWin.showInactive();
   guidesWin.setAlwaysOnTop(true, 'screen-saver');
@@ -299,7 +309,7 @@ function setScale(next) {
     const b = w.getBounds();
     const [mw, mh] = minOf(id);
     w.setMinimumSize(mw, mh);
-    w.setBounds({ x: b.x, y: b.y, width: Math.max(mw, Math.round(b.width * r)), height: Math.max(mh, Math.round(b.height * r)) });
+    setBox(w, { x: b.x, y: b.y, width: Math.max(mw, Math.round(b.width * r)), height: Math.max(mh, Math.round(b.height * r)) });
     w.webContents.setZoomFactor(next);
     sendBackdrop(w);
   }
@@ -332,11 +342,11 @@ function openSettings() {
 function resetLayout() {
   prefs.cards = {};
   savePrefs();
-  for (const [id, w] of cards) if (!w.isDestroyed()) { w.setBounds(defaultPlace(id)); sendBackdrop(w); }
+  for (const [id, w] of cards) if (!w.isDestroyed()) { setBox(w, defaultPlace(id)); sendBackdrop(w); }
 }
 
 /** Put cards back on a screen if a monitor was unplugged, turned off or changed resolution. */
-function ensureOnScreen() { for (const [id, w] of cards) if (!w.isDestroyed() && !onScreen(w.getBounds())) { delete prefs.cards[id]; w.setBounds(defaultPlace(id)); } }
+function ensureOnScreen() { for (const [id, w] of cards) if (!w.isDestroyed() && !onScreen(w.getBounds())) { delete prefs.cards[id]; setBox(w, defaultPlace(id)); } }
 
 // ---- The Esther bubble: the word "Esther" on the desktop. Hiding gathers the cards into it, in the middle of the
 // screen; clicking it (or the shortcut) sends them back out from it, and it shrinks to the bottom-left corner. ----
@@ -359,7 +369,7 @@ function glide(w, to, ms = 300) {
   w.gliding = setInterval(() => {
     if (w.isDestroyed()) return clearInterval(w.gliding);
     const t = Math.min(1, (Date.now() - t0) / ms), k = ease(t);
-    w.setBounds({ x: Math.round(from.x + (to.x - from.x) * k), y: Math.round(from.y + (to.y - from.y) * k), width: Math.round(from.width + (to.width - from.width) * k), height: Math.round(from.height + (to.height - from.height) * k) });
+    setBox(w, { x: Math.round(from.x + (to.x - from.x) * k), y: Math.round(from.y + (to.y - from.y) * k), width: Math.round(from.width + (to.width - from.width) * k), height: Math.round(from.height + (to.height - from.height) * k) });
     if (t >= 1) clearInterval(w.gliding);
   }, 8);
 }
@@ -375,7 +385,7 @@ function createBubble() {
 /** Make the big bubble bigger or smaller (Settings, or the mouse wheel over it). */
 function setBubbleSize(k) {
   prefs.bubbleSize = Math.round(Math.max(BUBBLE_SIZES[0], Math.min(BUBBLE_SIZES[1], k)) * 100) / 100;
-  if (bubble && !bubble.isDestroyed() && collapsed) bubble.setBounds(bubbleBounds(true));
+  if (bubble && !bubble.isDestroyed() && collapsed) setBox(bubble, bubbleBounds(true));
 }
 function setBubble(on) {
   prefs.bubble = on;
@@ -516,7 +526,7 @@ function setPrefs(p) {
     if (!process.env.ESTHER_TEST) { app.relaunch(); app.exit(0); }
   }
   if (typeof p.bubbleSize === 'number') setBubbleSize(p.bubbleSize);
-  if (p.snap === true) for (const [, w] of cards) if (!w.isDestroyed()) { const b = w.getBounds(); const q = gridPoint(b, b.x, b.y); const z = gridSize(w, b.width, b.height); w.setBounds({ ...q, ...z }); }
+  if (p.snap === true) for (const [, w] of cards) if (!w.isDestroyed()) { const b = w.getBounds(); const q = gridPoint(b, b.x, b.y); const z = gridSize(w, b.width, b.height); setBox(w, { ...q, ...z }); }
   if (typeof p.scale === 'number') setScale(p.scale);
   if (p.card && CARDS[p.card.id]) setCard(p.card.id, !!p.card.on);
   savePrefs();
@@ -537,7 +547,7 @@ else {
     setTimeout(makeGuides, 1500); // ready before the first drag
     registerShortcut(prefs.shortcut);
     // Monitors coming and going (or waking from sleep) never leave it stranded off-screen.
-    for (const ev of ['display-removed', 'display-metrics-changed', 'display-added']) screen.on(ev, () => setTimeout(() => { ensureOnScreen(); if (bubble && !bubble.isDestroyed()) bubble.setBounds(bubbleBounds(collapsed)); }, 500));
+    for (const ev of ['display-removed', 'display-metrics-changed', 'display-added']) screen.on(ev, () => setTimeout(() => { ensureOnScreen(); if (bubble && !bubble.isDestroyed()) setBox(bubble, bubbleBounds(collapsed)); }, 500));
     tray = new Tray(trayIcon());
     // The "E" is white on a dark taskbar and black on a light one.
     nativeTheme.on('updated', () => tray?.setImage(trayIcon()));
@@ -581,7 +591,8 @@ else {
       // The grip reports CSS pixels; at other scales the window is that many times bigger or smaller.
       const z = prefs.scale;
       const want = id ? gridSize(w, s.width * z, s.height * z) : { width: Math.round(s.width * z), height: Math.round(s.height * z) };
-      w.setSize(Math.max(mw || 260, want.width), Math.max(mh || 200, want.height));
+      const b = w.getBounds();
+      setBox(w, { x: b.x, y: b.y, width: Math.max(mw || 260, want.width), height: Math.max(mh || 200, want.height) });
     });
     watchWallpaper(() => { diag('wallpaper changed'); for (const w of [...liveCards(), settingsWin]) if (w) sendBackdrop(w); });
     app.on('before-quit', () => { quitting = true; });
