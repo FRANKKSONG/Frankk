@@ -458,7 +458,7 @@ component Row inherits Rectangle {
                 subs-ta := TouchArea { mouse-cursor: pointer; clicked => { Esther.open-task = root.open ? "" : root.task.id; } }
                 subs-text := Text {
                     x: 0;
-                    text: root.task.subs != "" ? (root.open ? "▾ " : "▸ ") + root.task.subs : subs-ta.has-hover || root.open ? "+ sub" : "—";
+                    text: root.task.subs != "" ? root.task.subs : subs-ta.has-hover || root.open ? "+ sub" : "—";
                     color: root.open || subs-ta.has-hover ? Look.accent : root.task.subs != "" ? Look.muted : Look.faint;
                     font-size: 12.5px;
                     vertical-alignment: center;

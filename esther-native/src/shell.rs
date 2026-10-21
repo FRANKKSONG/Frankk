@@ -278,6 +278,15 @@ mod imp {
     pub fn stop() {
         notify(NIM_DELETE);
     }
+    /// The hidden window the tray talks to.
+    pub fn host() -> isize {
+        HOST.with(|h| h.get())
+    }
+    /// What the tray sends when its icon is clicked (`right`: the right button), sent straight to Esther's hidden
+    /// window (for the test machine, where Windows may tuck the icon away). From any thread.
+    pub fn post_tray_click(host: isize, right: bool) {
+        unsafe { PostMessageW(host as HWND, WM_TRAY, 1, if right { WM_RBUTTONUP } else { WM_LBUTTONUP } as LPARAM); }
+    }
 
     // ---- Start with Windows: the "Esther native" value under HKCU\…\Run ----
     pub fn startup() -> bool {
@@ -392,6 +401,8 @@ mod imp {
     pub fn start(_tip: &str) -> bool { false }
     pub fn set_tip(_tip: &str) {}
     pub fn stop() {}
+    pub fn host() -> isize { 0 }
+    pub fn post_tray_click(_host: isize, _right: bool) {}
     pub fn startup() -> bool { false }
     pub fn set_startup(_on: bool) -> bool { false }
     pub fn show(_hwnd: isize, _on: bool) {}

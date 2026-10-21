@@ -258,6 +258,45 @@ fn model<T: Clone + 'static>(v: Vec<T>) -> ModelRc<T> {
     ModelRc::new(VecModel::from(v))
 }
 
+/// The same as what a card already shows? (Then it isn't handed a new list: the rows stay as they are, so a
+/// double-click on them still counts, and nothing is drawn again for nothing.)
+trait Same {
+    fn same(&self, o: &Self) -> bool;
+}
+fn same_list<T: Same + Clone + 'static>(a: &ModelRc<T>, b: &[T]) -> bool {
+    a.row_count() == b.len() && a.iter().zip(b).all(|(x, y)| x.same(y))
+}
+impl Same for ListTab { fn same(&self, o: &Self) -> bool { self == o } }
+impl Same for SubRow { fn same(&self, o: &Self) -> bool { self == o } }
+impl Same for Color { fn same(&self, o: &Self) -> bool { self == o } }
+impl Same for TaskRow {
+    fn same(&self, o: &Self) -> bool {
+        let v: Vec<SubRow> = o.subtasks.iter().collect();
+        (&self.id, &self.title, self.done, &self.list_id, &self.list_name, self.list_color, &self.date, &self.iso, self.date_kind, &self.subs, &self.clears)
+            == (&o.id, &o.title, o.done, &o.list_id, &o.list_name, o.list_color, &o.date, &o.iso, o.date_kind, &o.subs, &o.clears)
+            && same_list(&self.subtasks, &v)
+    }
+}
+impl Same for CalDay {
+    fn same(&self, o: &Self) -> bool {
+        let v: Vec<Color> = o.marks.iter().collect();
+        (self.num, &self.iso, self.today, self.picked, self.other) == (o.num, &o.iso, o.today, o.picked, o.other) && same_list(&self.marks, &v)
+    }
+}
+impl Same for WeekDay {
+    fn same(&self, o: &Self) -> bool {
+        let v: Vec<TaskRow> = o.tasks.iter().collect();
+        (&self.label, &self.small, self.today, self.past, self.late) == (&o.label, &o.small, o.today, o.past, o.late) && same_list(&self.tasks, &v)
+    }
+}
+/// Hand a card a new list only if it differs from what it shows.
+macro_rules! set_list {
+    ($g:expr, $get:ident, $set:ident, $v:expr) => {{
+        let v = $v;
+        if !same_list(&$g.$get(), &v) { $g.$set(model(v)); }
+    }};
+}
+
 // ---- What each card shows ----
 fn fill_tasks(g: &Esther, st: &State, today: Date) {
     let d = &st.store.data;
@@ -284,7 +323,7 @@ fn fill_tasks(g: &Esther, st: &State, today: Date) {
         }
         .into(),
     );
-    g.set_rows(model(rows));
+    set_list!(g, get_rows, set_rows, rows);
     g.set_day_label(st.day.map(|d| if d == today { "Today".to_string() } else { long_date(d) }).unwrap_or_default().into());
     g.set_highlight(st.highlight.clone().into());
     if let Some(l) = d.lists.get(st.add_list % d.lists.len().max(1)) {
@@ -330,11 +369,11 @@ fn month_title(first: Date) -> String {
 
 fn fill_calendar(g: &Esther, st: &State, today: Date) {
     g.set_month_title(month_title(st.month).into());
-    g.set_days(model(month_days(st, st.month, st.day, today)));
+    set_list!(g, get_days, set_days, month_days(st, st.month, st.day, today));
 }
 fn fill_picker(g: &Esther, st: &State, today: Date) {
     g.set_picker_title(month_title(st.picker_month).into());
-    g.set_picker_days(model(month_days(st, st.picker_month, st.picker_day, today)));
+    set_list!(g, get_picker_days, set_picker_days, month_days(st, st.picker_month, st.picker_day, today));
 }
 
 /// Monday to Sunday, and anything still open from before Monday.
@@ -366,7 +405,7 @@ fn week_days(st: &State, today: Date) -> Vec<WeekDay> {
 fn fill_week(g: &Esther, st: &State, today: Date) {
     let mon = week_start(today);
     g.set_week_range(format!("{} – {}", short_date(mon, today), short_date(mon + Duration::days(6), today)).into());
-    g.set_week(model(week_days(st, today)));
+    set_list!(g, get_week, set_week, week_days(st, today));
 }
 
 /// Push the current state into every card.
@@ -390,10 +429,10 @@ fn refresh(app: &App) {
         let g = w.ui.global::<Esther>();
         g.set_can_add(st.store.shared);
         match w.kind {
-            "tasks" => { g.set_tabs(model(tabs.clone())); fill_tasks(&g, &st, today) }
+            "tasks" => { set_list!(g, get_tabs, set_tabs, tabs.clone()); fill_tasks(&g, &st, today) }
             "header" => fill_header(&g, today),
             "calendar" => fill_calendar(&g, &st, today),
-            "week" => { g.set_tabs(model(tabs.clone())); fill_week(&g, &st, today) }
+            "week" => { set_list!(g, get_tabs, set_tabs, tabs.clone()); fill_week(&g, &st, today) }
             _ => {}
         }
     }
@@ -1132,6 +1171,14 @@ impl Smoke {
 fn shot_to(dir: &std::path::Path, name: &str) {
     if let Some(img) = shell::capture() { let _ = img.save(dir.join(name)); }
 }
+/// Wait (up to 3 s) for one of Windows' own menus to show; true if it did.
+fn wait_menu() -> bool {
+    for _ in 0..60 {
+        if shell::menu_open() { std::thread::sleep(StdDuration::from_millis(150)); return true; }
+        std::thread::sleep(StdDuration::from_millis(50));
+    }
+    false
+}
 /// Keys pressed one after another, a little apart (from a helper thread, into an open menu).
 fn keys_apart(vks: &[u16]) {
     for vk in vks { win_input::key(*vk); std::thread::sleep(StdDuration::from_millis(120)); }
@@ -1191,10 +1238,10 @@ fn smoke_steps() -> Vec<Step> {
     step!(400, |x| { if x.real.get() { win_input::enter() } else { x.g("tasks").invoke_rename(x.first_row_id(), "Renamed on Windows".into()) } });
     step!(50, |x| x.note("renamed_by_click", x.first_task()["title"] == "Renamed on Windows"));
     // Its list: click the list pill, pick another list from the menu with the keyboard.
-    step!(600, |x| {
+    step!(1800, |x| {
         let (w, _) = x.size("tasks");
         if x.real.get() {
-            x.later(600, move |m, dir| { m.insert("list_menu_open".into(), shell::menu_open().into()); shot_to(dir, "list-menu.png"); keys_apart(&[down_key, down_key, 0x0d]); });
+            x.later(100, move |m, dir| { m.insert("list_menu_open".into(), wait_menu().into()); shot_to(dir, "list-menu.png"); keys_apart(&[down_key, down_key, 0x0d]); });
             x.click("list pill", "tasks", x.at("tasks", w - 338.0 + 30.0, row(x)));
         } else { x.g("tasks").invoke_move_to(x.first_row_id(), "seround".into()) }
     });
@@ -1204,21 +1251,26 @@ fn smoke_steps() -> Vec<Step> {
     step!(150, |x| { if x.real.get() { win_input::type_text("Sub on Windows") } });
     step!(450, |x| { if x.real.get() { win_input::enter() } else { x.g("tasks").invoke_sub_add(x.first_row_id(), "Sub on Windows".into()) } });
     step!(50, |x| { x.note("subtask_added", x.first_task()["subtasks"][0]["text"] == "Sub on Windows"); x.shot("subtasks.png"); });
-    step!(350, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("subtasks again", "tasks", x.at("tasks", w - 198.0 + 12.0, row(x))) } else { x.g("tasks").set_open_task("".into()) } });
-    // Its date: click the date column, Down, Enter (Today).
     step!(600, |x| {
+        x.note("open_before_closing", x.g("tasks").get_open_task().to_string());
+        let (w, _) = x.size("tasks");
+        if x.real.get() { x.click("subtasks again", "tasks", x.at("tasks", w - 198.0 + 12.0, row(x))) } else { x.g("tasks").set_open_task("".into()) }
+    });
+    step!(50, |x| x.note("subtasks_closed_by_click", x.g("tasks").get_open_task().is_empty()));
+    // Its date: click the date column, Down, Enter (Today).
+    step!(1800, |x| {
         let (w, _) = x.size("tasks");
         if x.real.get() {
-            x.later(600, move |_, dir| { shot_to(dir, "date-menu.png"); keys_apart(&[down_key, 0x0d]); });
+            x.later(100, move |m, dir| { m.insert("date_menu_open".into(), wait_menu().into()); shot_to(dir, "date-menu.png"); keys_apart(&[down_key, 0x0d]); });
             x.click("date", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x)));
         } else { x.g("tasks").invoke_set_date(x.first_row_id(), "today".into()) }
     });
     step!(50, |x| x.note("date_from_menu", x.first_task()["date"].clone()));
     // The date picker: the menu's "Pick a date…", then its Tomorrow.
-    step!(800, |x| {
+    step!(1800, |x| {
         let (w, _) = x.size("tasks");
         if x.real.get() {
-            x.later(600, move |_, _| keys_apart(&[down_key, down_key, down_key, down_key, 0x0d]));
+            x.later(100, move |m, _| { m.insert("date_menu_open_again".into(), wait_menu().into()); keys_apart(&[down_key, down_key, down_key, down_key, 0x0d]); });
             x.click("date again", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x)));
         }
     });
@@ -1306,11 +1358,11 @@ fn smoke_steps() -> Vec<Step> {
         x.shot("drag-guides.png");
     });
     step!(100, |x| { let before = x.marks.borrow()["tasks-before"]; x.note("moved_px", rect_of(x.w("tasks")).0 - before.0); });
-    // Snap to the screen's centre: bring the card's middle 5 px short of it; it should land exactly on it.
+    // Snap to the screen's centre: bring the card's middle 3 px short of it; it should land exactly on it.
     drag(&mut s, "centre", "tasks", |x| { let (l, t, w, _) = rect_of(x.w("tasks")); (l + w - (40.0 * x.k()) as i32, t + (71.0 * x.k()) as i32) }, |x| {
         let (l, _, w, _) = rect_of(x.w("tasks"));
         let (ax, _, aw, _) = win::work_area();
-        (ax + aw / 2 - 5 - (l + w / 2), 0)
+        (ax + aw / 2 - 3 - (l + w / 2), 0)
     }, 6, |x| {
         x.note("lit_while_centring", x.app.lit.borrow().iter().map(|l| l.kind.label()).collect::<Vec<_>>());
         x.shot("centre-guide.png");
@@ -1346,32 +1398,30 @@ fn smoke_steps() -> Vec<Step> {
         x.note("bubble_in_the_corner", bx - ax < 40 && (ay + ah) - (by + bh) < 40);
         x.shot("shown.png");
     });
-    // The tray icon (if Windows shows it rather than tucking it into the overflow): right-click for the menu, then
-    // click elsewhere (the menu should close); left-click hides, left-click again shows.
-    step!(1500, |x| {
-        let r = shell::tray_rect();
-        x.note("tray_icon_rect", serde_json::json!(r));
-        if let (true, Some((l, t, rr, b))) = (x.real.get(), r) {
-            x.later(700, |m, dir| {
-                m.insert("tray_menu_opened".into(), shell::menu_open().into());
-                shot_to(dir, "tray-menu.png");
-                let (ax, ay, aw, ah) = win::work_area();
-                win_input::to(ax + aw - 8, ay + ah - 8);
-                win_input::down();
-                win_input::up();
-                std::thread::sleep(StdDuration::from_millis(500));
-                m.insert("tray_menu_closed_by_clicking_elsewhere".into(), (!shell::menu_open()).into());
-            });
-            win_input::to((l + rr) / 2, (t + b) / 2);
-            win_input::right(true);
-            win_input::right(false);
-        }
+    // The tray icon. (The test machine's Windows tucks new icons into the overflow, so the clicks are sent to Esther
+    // the way Windows sends them, straight to its hidden window.) Right-click: Windows' own menu shows; click
+    // elsewhere and it should close. Left-click hides; left-click again shows.
+    step!(2500, |x| {
+        x.note("tray_icon_rect", serde_json::json!(shell::tray_rect()));
+        if !x.real.get() { return; }
+        let host = shell::host();
+        x.later(50, move |m, dir| {
+            shell::post_tray_click(host, true);
+            m.insert("tray_menu_opened".into(), wait_menu().into());
+            shot_to(dir, "tray-menu.png");
+            let (ax, ay, aw, ah) = win::work_area();
+            win_input::to(ax + aw - 8, ay + ah - 8);
+            win_input::down();
+            win_input::up();
+            std::thread::sleep(StdDuration::from_millis(600));
+            m.insert("tray_menu_closed_by_clicking_elsewhere".into(), (!shell::menu_open()).into());
+        });
     });
-    step!(700, |x| { if let (true, Some((l, t, r, b))) = (x.real.get(), shell::tray_rect()) { x.click("tray icon", "tasks", ((l + r) / 2, (t + b) / 2)) } });
-    step!(100, |x| { if x.real.get() && shell::tray_rect().is_some() { x.note("tray_click_hid", x.all_cards(false)); } });
-    step!(700, |x| { if let (true, Some((l, t, r, b))) = (x.real.get(), shell::tray_rect()) { x.click("tray icon again", "tasks", ((l + r) / 2, (t + b) / 2)) } });
-    step!(100, |x| {
-        if x.real.get() && shell::tray_rect().is_some() { x.note("tray_click_showed", x.all_cards(true)); }
+    step!(900, |x| { if x.real.get() { shell::post_tray_click(shell::host(), false) } });
+    step!(50, |x| { if x.real.get() { x.note("tray_click_hid", x.all_cards(false)); } });
+    step!(900, |x| { if x.real.get() { shell::post_tray_click(shell::host(), false) } });
+    step!(50, |x| {
+        if x.real.get() { x.note("tray_click_showed", x.all_cards(true)); }
         if x.app.collapsed.get() { show_all(&x.app) }
     });
     // Start with Windows (from the tray menu's handler): on, then off again.
@@ -1461,7 +1511,6 @@ mod win_input {
     pub fn to(x: i32, y: i32) { crate::win::set_cursor(x, y) }
     pub fn down() { crate::win::mouse(true) }
     pub fn up() { crate::win::mouse(false) }
-    pub fn right(down: bool) { crate::win::mouse_right(down) }
     pub fn type_text(s: &str) { crate::win::type_text(s) }
     pub fn enter() { crate::win::enter() }
     pub fn key(vk: u16) { crate::win::keys(&[vk]) }
@@ -1474,7 +1523,6 @@ mod win_input {
     pub fn to(_x: i32, _y: i32) {}
     pub fn down() {}
     pub fn up() {}
-    pub fn right(_down: bool) {}
     pub fn type_text(_s: &str) {}
     pub fn enter() {}
     pub fn key(_vk: u16) {}

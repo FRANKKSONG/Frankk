@@ -171,12 +171,6 @@ mod imp {
         }
         send(&v);
     }
-    pub fn mouse_right(down: bool) {
-        let mut i: INPUT = unsafe { std::mem::zeroed() };
-        i.r#type = INPUT_MOUSE;
-        i.Anonymous.mi.dwFlags = if down { MOUSEEVENTF_RIGHTDOWN } else { MOUSEEVENTF_RIGHTUP };
-        send(&[i]);
-    }
     /// Press keys together (in order) and let them go (in reverse), e.g. Ctrl+Alt+E.
     pub fn keys(vks: &[u16]) {
         let mut v = Vec::new();
