@@ -797,6 +797,7 @@ fn on_shell(app: &App, ev: shell::Ev) {
     use shell::*;
     match ev {
         Ev::Toggle => toggle(app),
+        Ev::TrayClick => if app.collapsed.get() { show_all(app) } else { hide_all(app) },
         Ev::Command(CMD_SHOW_HIDE) => if app.collapsed.get() { show_all(app) } else { hide_all(app) },
         Ev::Command(c) if (CMD_CARD..CMD_CARD + 4).contains(&c) => {
             let kind = KINDS[(c - CMD_CARD) as usize];
@@ -1179,17 +1180,21 @@ fn wait_menu() -> bool {
     }
     false
 }
-/// Keys pressed one after another, a little apart (from a helper thread, into an open menu).
-fn keys_apart(vks: &[u16]) {
-    for vk in vks { win_input::key(*vk); std::thread::sleep(StdDuration::from_millis(120)); }
+/// Click item `index` of the menu that's showing (from a helper thread). True if it was there to click.
+fn click_menu_item(index: u32) -> bool {
+    let Some((l, t, r, b)) = shell::menu_item_rect(index) else { return false };
+    win_input::to((l + r) / 2, (t + b) / 2);
+    std::thread::sleep(StdDuration::from_millis(150));
+    win_input::down();
+    win_input::up();
+    true
 }
-
 fn kind_mark(kind: &str) -> &'static str {
     match kind { "tasks" => "tasks-before", "header" => "header-before", _ => "card-before" }
 }
 
 /// A drag with the real mouse, from a point (worked out when it starts) by (dx, dy) in `n` moves; `mid` runs just
-/// before the last move (to look at the guides while they show).
+/// after the last move, before letting go (to look at the guides while they show).
 fn drag(s: &mut Vec<Step>, label: &'static str, kind: &'static str, from: fn(&Smoke) -> (i32, i32), by: fn(&Smoke) -> (i32, i32), n: i32, mid: fn(&Smoke)) {
     s.push((80, Box::new(move |x: &Smoke| {
         x.marks.borrow_mut().insert(kind_mark(kind), rect_of(x.w(kind)));
@@ -1205,9 +1210,10 @@ fn drag(s: &mut Vec<Step>, label: &'static str, kind: &'static str, from: fn(&Sm
             if !x.real.get() { return; }
             let (px, py, dx, dy) = x.marks.borrow()[label];
             win_input::to(px + dx * j / n, py + dy * j / n);
-            if j == n - 1 { mid(x); }
         })));
     }
+    // (Still holding the button, where it ended: look at the guides.)
+    s.push((150, Box::new(move |x: &Smoke| { if x.real.get() { mid(x) } })));
     s.push((300, Box::new(|x: &Smoke| { if x.real.get() { win_input::up() } })));
 }
 
@@ -1217,7 +1223,6 @@ fn smoke_steps() -> Vec<Step> {
         ($ms:expr, |$x:ident| $body:expr) => { s.push(($ms, Box::new(move |$x: &Smoke| { $body; }))) };
     }
     let row = |x: &Smoke| spots::first_row(x.g("tasks").get_compact());
-    let down_key = 0x28u16;
 
     // Settle: the windows exist and have faded in. The test machine's console windows go out of the way.
     step!(1200, |x| { if x.real.get() { win_input::clear_consoles(); } });
@@ -1241,7 +1246,7 @@ fn smoke_steps() -> Vec<Step> {
     step!(1800, |x| {
         let (w, _) = x.size("tasks");
         if x.real.get() {
-            x.later(100, move |m, dir| { m.insert("list_menu_open".into(), wait_menu().into()); shot_to(dir, "list-menu.png"); keys_apart(&[down_key, down_key, 0x0d]); });
+            x.later(100, move |m, dir| { m.insert("list_menu_open".into(), wait_menu().into()); shot_to(dir, "list-menu.png"); m.insert("list_menu_item_clicked".into(), click_menu_item(1).into()); });
             x.click("list pill", "tasks", x.at("tasks", w - 338.0 + 30.0, row(x)));
         } else { x.g("tasks").invoke_move_to(x.first_row_id(), "seround".into()) }
     });
@@ -1261,7 +1266,7 @@ fn smoke_steps() -> Vec<Step> {
     step!(1800, |x| {
         let (w, _) = x.size("tasks");
         if x.real.get() {
-            x.later(100, move |m, dir| { m.insert("date_menu_open".into(), wait_menu().into()); shot_to(dir, "date-menu.png"); keys_apart(&[down_key, 0x0d]); });
+            x.later(100, move |m, dir| { m.insert("date_menu_open".into(), wait_menu().into()); shot_to(dir, "date-menu.png"); m.insert("date_menu_item_clicked".into(), click_menu_item(0).into()); });
             x.click("date", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x)));
         } else { x.g("tasks").invoke_set_date(x.first_row_id(), "today".into()) }
     });
@@ -1270,7 +1275,7 @@ fn smoke_steps() -> Vec<Step> {
     step!(1800, |x| {
         let (w, _) = x.size("tasks");
         if x.real.get() {
-            x.later(100, move |m, _| { m.insert("date_menu_open_again".into(), wait_menu().into()); keys_apart(&[down_key, down_key, down_key, down_key, 0x0d]); });
+            x.later(100, move |m, _| { m.insert("date_menu_open_again".into(), wait_menu().into()); m.insert("pick_item_clicked".into(), click_menu_item(3).into()); });
             x.click("date again", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x)));
         }
     });
@@ -1329,7 +1334,7 @@ fn smoke_steps() -> Vec<Step> {
         x.note("week_task_id", t.as_ref().map(|t| t.id.to_string()).unwrap_or_default());
         if x.real.get() { x.click("week task name", "week", x.at("week", 110.0, y)) } else if let Some(t) = t { x.g("week").invoke_reveal(t.id) }
     });
-    step!(50, |x| x.note("pointed_out", x.g("tasks").get_highlight().to_string()));
+    step!(700, |x| x.note("pointed_out", x.g("tasks").get_highlight().to_string()));
     step!(400, |x| {
         let (y, _) = week_spot(x);
         if x.real.get() { x.click("week tick", "week", x.at("week", 16.0 + 6.0 + 4.0 + 7.5, y)) } else if let Some(t) = monday_task(x) { x.g("week").invoke_toggle(t.id) }
@@ -1513,7 +1518,6 @@ mod win_input {
     pub fn up() { crate::win::mouse(false) }
     pub fn type_text(s: &str) { crate::win::type_text(s) }
     pub fn enter() { crate::win::enter() }
-    pub fn key(vk: u16) { crate::win::keys(&[vk]) }
     pub fn keys(vks: &[u16]) { crate::win::keys(vks) }
     pub fn under(x: i32, y: i32, h: isize) -> String { crate::win::under(x, y, h) }
     pub fn clear_consoles() { crate::win::clear_consoles() }
@@ -1525,7 +1529,6 @@ mod win_input {
     pub fn up() {}
     pub fn type_text(_s: &str) {}
     pub fn enter() {}
-    pub fn key(_vk: u16) {}
     pub fn keys(_vks: &[u16]) {}
     pub fn under(_x: i32, _y: i32, _h: isize) -> String { String::new() }
     pub fn clear_consoles() {}

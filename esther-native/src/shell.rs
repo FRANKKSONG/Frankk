@@ -11,8 +11,11 @@ use std::cell::RefCell;
 /// What the tray or the shortcut asked for.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Ev {
-    /// The shortcut, or a click on the tray icon.
+    /// The shortcut: hide if the cards are in front, otherwise bring them forward.
     Toggle,
+    /// A click on the tray icon: hide if they're out, show if they're away.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    TrayClick,
     /// A tray menu item (one of the `CMD_` numbers).
     Command(u32),
 }
@@ -227,7 +230,7 @@ mod imp {
         match msg {
             WM_TRAY => {
                 match lp as u32 {
-                    WM_LBUTTONUP => push(Ev::Toggle),
+                    WM_LBUTTONUP => push(Ev::TrayClick),
                     WM_RBUTTONUP | WM_CONTEXTMENU => {
                         let cmd = tray_menu(hwnd);
                         if cmd != 0 { push(Ev::Command(cmd)); }
@@ -359,6 +362,18 @@ mod imp {
             (Shell_NotifyIconGetRect(&id, &mut r) == 0 && r.right > r.left).then_some((r.left, r.top, r.right, r.bottom))
         }
     }
+    /// Where item `index` of the menu that's showing is on the screen (separators count).
+    pub fn menu_item_rect(index: u32) -> Option<(i32, i32, i32, i32)> {
+        const MN_GETHMENU: u32 = 0x01E1;
+        unsafe {
+            let w = FindWindowW(wide("#32768").as_ptr(), std::ptr::null());
+            if w.is_null() { return None; }
+            let menu = SendMessageW(w, MN_GETHMENU, 0, 0) as HMENU;
+            if menu.is_null() { return None; }
+            let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            (GetMenuItemRect(std::ptr::null_mut(), menu, index, &mut r) != 0).then_some((r.left, r.top, r.right, r.bottom))
+        }
+    }
     /// Is a menu (Windows' own, class #32768) showing?
     pub fn menu_open() -> bool {
         unsafe {
@@ -414,6 +429,7 @@ mod imp {
     pub fn foreground() -> isize { 0 }
     pub fn tray_rect() -> Option<(i32, i32, i32, i32)> { None }
     pub fn menu_open() -> bool { false }
+    pub fn menu_item_rect(_index: u32) -> Option<(i32, i32, i32, i32)> { None }
     pub fn capture() -> Option<image::RgbaImage> { None }
 }
 
