@@ -157,8 +157,20 @@ mod imp {
             String::from_utf16_lossy(&buf[..n.max(0) as usize])
         }
     }
+    /// Move the mouse to (x, y) as a real mouse would (a move in the input queue, so whatever is clicked next is
+    /// clicked there; moving the pointer alone doesn't tell the window).
     pub fn set_cursor(x: i32, y: i32) {
-        unsafe { SetCursorPos(x, y); }
+        unsafe {
+            let (vx, vy) = (GetSystemMetrics(SM_XVIRTUALSCREEN), GetSystemMetrics(SM_YVIRTUALSCREEN));
+            let (vw, vh) = (GetSystemMetrics(SM_CXVIRTUALSCREEN).max(2), GetSystemMetrics(SM_CYVIRTUALSCREEN).max(2));
+            let mut i: INPUT = std::mem::zeroed();
+            i.r#type = INPUT_MOUSE;
+            i.Anonymous.mi.dx = ((x - vx) as i64 * 65535 / (vw - 1) as i64) as i32;
+            i.Anonymous.mi.dy = ((y - vy) as i64 * 65535 / (vh - 1) as i64) as i32;
+            i.Anonymous.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+            send(&[i]);
+            SetCursorPos(x, y);
+        }
     }
     fn send(inputs: &[INPUT]) {
         unsafe { SendInput(inputs.len() as u32, inputs.as_ptr(), std::mem::size_of::<INPUT>() as i32); }
