@@ -108,6 +108,14 @@ const windowLook = (glass = false) => ({
 
 /** Set a window's bounds. On Windows the cards aren't resizable (see windowLook), and Electron then won't let
  *  even Esther make them shorter, so resizing is allowed just for the moment Esther changes the size. */
+/** A window's smallest size, as Esther set it. (Asking the window doesn't work on Windows: a window that isn't
+ *  resizable reports its current size as its smallest, so a card could never be made smaller.) */
+function minSizeOf(w) {
+  const id = [...cards].find(([, c]) => c === w)?.[0];
+  if (id) return minOf(id);
+  if (w === settingsWin) return [Math.round(480 * prefs.scale), Math.round(360 * prefs.scale)];
+  return [200, 120];
+}
 function setBox(w, b) {
   if (w.isDestroyed()) return;
   const locked = !w.isResizable();
@@ -163,7 +171,7 @@ function gridPoint(b, x, y) {
 /** The size a card takes: its right and bottom edges land on the grid too, so cards line up with each other. */
 function gridSize(w, width, height) {
   const b = w.getBounds();
-  const [mw, mh] = w.getMinimumSize();
+  const [mw, mh] = minSizeOf(w);
   if (prefs.snap) {
     const wa = screen.getDisplayMatching(b).workArea;
     width = onGrid(b.x + width, wa.x) - b.x;
@@ -226,7 +234,7 @@ function track(w, kind, edge = 'se') {
   untrack(w);
   const b0 = w.getBounds(), c0 = pointer.at();
   const wa = screen.getDisplayMatching(b0).workArea;
-  const min = w.getMinimumSize().map((v, i) => v || (i ? 120 : 200));
+  const min = minSizeOf(w);
   let started = false, shown = '';
   w.tracking = setInterval(() => {
     if (w.isDestroyed()) return untrack(w);
@@ -586,7 +594,7 @@ else {
     ipcMain.on('esther:size', (e, s) => {
       const w = BrowserWindow.fromWebContents(e.sender);
       if (!w || !s || w.isMinimized()) return;
-      const [mw, mh] = w.getMinimumSize();
+      const [mw, mh] = minSizeOf(w);
       const id = [...cards].find(([, c]) => c === w)?.[0];
       // The grip reports CSS pixels; at other scales the window is that many times bigger or smaller.
       const z = prefs.scale;
