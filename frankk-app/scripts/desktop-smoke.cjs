@@ -248,7 +248,12 @@ app.whenReady().then(async () => {
         await during(); await wait(ms); clearInterval(t);
         return { miss, before, samples, seen, watched: spots.map((q) => q.id) };
       };
+      // The runner's own console window would sit over the cards; minimise it so the desktop is clear, as on a real one.
+      const FindWindowW = u.func('uintptr_t __stdcall FindWindowW(str16 c, str16 t)');
+      const ShowWindow = u.func('bool __stdcall ShowWindow(uintptr_t h, int n)');
+      for (const c of ['CASCADIA_HOSTING_WINDOW_CLASS', 'ConsoleWindowClass']) for (let h = FindWindowW(c, null), i = 0; h && i < 10; h = FindWindowW(c, null), i++) ShowWindow(h, 6);
       E.layer().lower(); await wait(500);
+      check('Windows: clicking away puts the cards back down (none stays above an app)', IDS.every((id) => !E.layer().aboveAnApp(C(id))));
       const tb = C('tasks').getBounds(), cb = C('calendar').getBounds(), wa2 = scr.getPrimaryDisplay().workArea;
       const blank = scr.dipToScreenPoint({ x: Math.round((tb.x + tb.width + cb.x) / 2), y: wa2.y + wa2.height - 30 });
       const r1 = await watchCover(1000, async () => { SetCursorPos(blank.x, blank.y); await wait(50); mouse_event(0x2, 0, 0, 0, 0); await wait(40); mouse_event(0x4, 0, 0, 0, 0); });

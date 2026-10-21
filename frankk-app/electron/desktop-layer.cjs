@@ -105,7 +105,7 @@ function desktopLayer(initialMode, log = () => {}) {
     const desk = desktopWindow();
     // Walk down the window stack from the card until the desktop: any app window on the way is under the card.
     for (let w = api.GetWindow(h, GW_HWNDNEXT), i = 0; w && i < 5000; w = api.GetWindow(w, GW_HWNDNEXT), i++) {
-      if (w === helperHwnd || w === desk) return false;
+      if (w === desk) return false; // (Esther's own windows, the helper included, are skipped below)
       if (!ours.has(w) && api.IsWindowVisible(w) && !api.IsIconic(w) && !cloaked(w)) return true;
     }
     return false;
