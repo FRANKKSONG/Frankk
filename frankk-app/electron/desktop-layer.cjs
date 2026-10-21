@@ -4,12 +4,12 @@
 //   'normal'  – like any window.
 //   'top'     – always on top.
 //
-// How 'desktop' works (the same idea Rainmeter uses): a tiny invisible helper window is "owned" by the desktop
-// window (the one holding the icons). Windows keeps owned windows directly above their owner, so the helper sits
-// just above the desktop. A card that has slipped under the desktop is put back right under the helper.
-// It only steps in when a card is actually in the wrong place, so it never fights Windows while you minimise,
-// show the desktop or move windows around (that fight is what made it flicker). The cards themselves aren't owned
-// by the desktop, so they survive Explorer restarting; the helper is simply made again.
+// How 'desktop' works: every card is "owned" by the desktop window (the one holding the icons). Windows always
+// keeps owned windows above their owner, and moves them with it: when you click the empty desktop or press
+// Show desktop, Windows brings the desktop forward and the cards come along, so they never blink away (with a
+// tiny helper window as the reference point, as Rainmeter does, they were briefly covered until Esther noticed).
+// A light check puts back a card that has still slipped under the desktop, and re-attaches the cards if
+// Explorer restarts (a new desktop window).
 // Anywhere but Windows (or if koffi can't load) the cards are normal windows.
 const { BrowserWindow } = require('electron');
 
@@ -78,11 +78,18 @@ function desktopLayer(initialMode, log = () => {}) {
   const below = (a, b) => { for (let w = api.GetWindow(b, GW_HWNDNEXT), i = 0; w && i < 5000; w = api.GetWindow(w, GW_HWNDNEXT), i++) if (w === a) return true; return false; };
   const pinned = () => mode === 'desktop' && !raised;
 
+  /** On the desktop layer the cards are owned by the desktop window; otherwise by nothing. */
+  function own(w) {
+    if (!api || w.isDestroyed()) return;
+    const h = handleOf(w), want = mode === 'desktop' ? desktopWindow() : 0;
+    if (api.GetWindow(h, GW_OWNER) !== want) { api.SetWindowLongPtrW(h, GWLP_HWNDPARENT, want); log(`layer: ${w.getTitle()} ${want ? 'attached to' : 'detached from'} the desktop`); }
+  }
   /** Put back only the cards that have slipped under the desktop. Cards that are fine are left alone. */
   function settle() {
-    if (!api || !pinned()) return;
+    if (!api || mode !== 'desktop') return;
     if (!helperOk()) makeHelper();
-    if (!helperHwnd) return;
+    for (const w of live()) own(w);
+    if (!helperHwnd || raised) return;
     const desk = desktopWindow();
     for (const w of live()) {
       if (!w.isVisible()) continue;
@@ -121,8 +128,8 @@ function desktopLayer(initialMode, log = () => {}) {
 
   if (api) {
     makeHelper();
-    // A light check once a second: only acts if a card has fallen under the desktop (e.g. after Explorer restarts).
-    setInterval(settle, 1000);
+    // A light check: only acts if a card has fallen under the desktop or Explorer has restarted.
+    setInterval(settle, 500);
   }
 
   return {
@@ -131,18 +138,21 @@ function desktopLayer(initialMode, log = () => {}) {
     add(w) {
       wins.add(w);
       w.setAlwaysOnTop(mode === 'top');
+      own(w);
       // Clicking from one card to another isn't "clicking away"; only when no card has focus do they go back down.
       w.on('blur', () => setTimeout(() => { if (!anyFocused()) { raised = false; lowerAll(); } }, 120));
       w.on('show', () => setTimeout(settle, 0));
       w.on('closed', () => wins.delete(w));
     },
-    setMode(m) { mode = m; raised = false; apply(); if (m === 'desktop') lowerAll(); else if (api) live().forEach((w) => api.SetWindowPos(handleOf(w), HWND_TOP, 0, 0, 0, 0, KEEP)); },
+    setMode(m) { mode = m; raised = false; apply(); live().forEach(own); if (m === 'desktop') lowerAll(); else if (api) live().forEach((w) => api.SetWindowPos(handleOf(w), HWND_TOP, 0, 0, 0, 0, KEEP)); },
     /** Bring the cards to the front until you click elsewhere. */
     raise() { raised = true; if (api) live().forEach((w) => w.isVisible() && api.SetWindowPos(handleOf(w), HWND_TOP, 0, 0, 0, 0, KEEP)); },
     lower() { raised = false; lowerAll(); },
     isRaised: () => raised,
     /** For the Windows test: where things are in the window stack. */
     aboveAnApp: (w) => (api ? aboveAnApp(handleOf(w)) : false),
+    owner: (w) => (api ? api.GetWindow(handleOf(w), GW_OWNER) : 0),
+    desktop: () => (api ? desktopWindow() : 0),
     debug: (w) => (api ? { hwnd: handleOf(w), helperHwnd, desk: desktopWindow(), helperOwner: helperHwnd ? api.GetWindow(helperHwnd, GW_OWNER) : 0, aboveDesktop: below(desktopWindow(), handleOf(w)), below: (other) => below(handleOf(w), other) } : null),
   };
 }

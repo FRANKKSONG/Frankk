@@ -134,22 +134,45 @@ app.whenReady().then(async () => {
 
   // Hiding and coming back, with Esther's own fade-out and call-up.
   E.hide(); await wait(40);
-  check('Hiding fades the cards out first', IDS.every((id) => C(id).isVisible()) && (await js('tasks', `document.documentElement.classList.contains('leaving')`)));
-  await wait(300);
+  check('Hiding gathers the cards into the Esther bubble first', IDS.every((id) => C(id).isVisible()) && (await js('tasks', `document.documentElement.classList.contains('leaving') && document.documentElement.classList.contains('fly-to')`)));
+  await wait(450);
+  {
+    const bb = E.bubble().getBounds(), big = E.bubbleBounds(true);
+    check('…and the bubble grows into "Esther" in the middle of the screen', E.isCollapsed() && E.bubble().isVisible() && bb.x === big.x && bb.y === big.y && bb.width === big.width, JSON.stringify({ bb, big }));
+    check('The bubble is "Esther" in Instrument Serif italic', await E.bubble().webContents.executeJavaScript(`(() => { const s = getComputedStyle(document.querySelector('.bubble')); return document.querySelector('.bubble').textContent === 'Esther' && s.fontFamily.includes('Instrument Serif') && s.fontStyle === 'italic'; })()`));
+  }
   check('Hide tucks every card away', IDS.every((id) => !C(id).isVisible()));
   E.toggle(); await wait(60);
   check('The shortcut calls the cards up with an animation', await js('tasks', `document.documentElement.classList.contains('entering') && getComputedStyle(document.querySelector('.app > .card')).animationName === 'esther-in'`));
-  await wait(450);
+  await wait(700);
   check('The shortcut brings every card back', IDS.every((id) => C(id).isVisible()) && (await js('tasks', `getComputedStyle(document.querySelector('.app > .card')).opacity`)) === '1');
   C('week').setBounds({ x: -5000, y: -5000, width: 360, height: 300 }); await wait(200); E.show(); await wait(400);
+  E.hide(); await wait(500);
+  await E.bubble().webContents.executeJavaScript(`document.querySelector('.bubble').click()`); await wait(80);
+  check('Clicking the bubble brings the cards back out of it', IDS.every((id) => C(id).isVisible()) && (await js('calendar', `document.documentElement.classList.contains('fly-from')`)));
+  await wait(500);
+  { const bb = E.bubble().getBounds(), small = E.bubbleBounds(false); check('…and the bubble becomes a small "Esther" in the bottom-left corner', !E.isCollapsed() && bb.x === small.x && bb.y === small.y && bb.height === small.height, JSON.stringify({ bb, small })); }
+  await js('tasks', `window.estherDesktop.set({ bubble: false })`); await wait(200);
+  check('The bubble can be turned off in Settings', !E.bubble());
+  await js('tasks', `window.estherDesktop.set({ bubble: true })`); await wait(1200);
+  check('…and on again', !!E.bubble() && E.bubble().isVisible());
   check('A card stranded off-screen (monitor change) comes back on screen', C('week').getBounds().x > -1000);
   if (process.platform === 'win32') check('Windows: cards can\'t be maximised, minimised or made full screen', IDS.every((id) => !C(id).isMaximizable() && !C(id).isMinimizable() && !C(id).isFullScreenable()));
   C('tasks').maximize(); await wait(300);
   check('Asking a card to maximise does nothing', !C('tasks').isMaximized());
   check('Text is a solid colour (no see-through grey)', await js('week', `(() => { const c = getComputedStyle(document.querySelector('.card-head .quiet')).color; return !c.includes('/') && !c.startsWith('rgba'); })()`));
 
-  // The tray menu: Esther's own, rounded.
-  E.openTrayMenu(); await wait(1500);
+  // The tray icon: Esther's "E".
+  check('The tray icon is the monochrome "E" in every size', E.trayIcon().getScaleFactors().length >= 4, JSON.stringify(E.trayIcon().getScaleFactors()));
+  // Compact Tasks: narrow enough to sit beside the calendar and the week.
+  C('tasks').setSize(360, 600); await wait(500);
+  check('Tasks fits a narrow card: compact rows, list shown as a dot', await js('tasks', `(() => { const h = getComputedStyle(document.querySelector('.thead')).display === 'none'; const row = document.querySelector('.task .tr'); return h && row.getBoundingClientRect().height < 50 && !!row.querySelector('.row-dot') && getComputedStyle(row.querySelector('.row-dot')).display !== 'none' && document.querySelector('.table').scrollWidth <= document.querySelector('.table').clientWidth + 1; })()`));
+  E.resetLayout(); await wait(500);
+  // The tray menu: Esther's own, rounded, ready before it's asked for.
+  await wait(1500);
+  E.openTrayMenu(); await wait(150);
+  check('The tray menu opens at once (it is ready beforehand)', E.menu().isVisible());
+  await wait(1350);
   const M = E.menu();
   check('The tray menu opens as a rounded Windows 11 style menu', !!M && M.isVisible() && (await M.webContents.executeJavaScript(`parseFloat(getComputedStyle(document.querySelector('.tray-menu')).borderTopLeftRadius) >= 6 && document.querySelectorAll('.tray-menu .menu-item').length >= 9`)));
   check('The tray menu fits its items', Math.abs(M.getBounds().height - (await M.webContents.executeJavaScript(`document.querySelector('.tray-menu').offsetHeight`))) <= 2, JSON.stringify(M.getBounds()));
@@ -176,6 +199,7 @@ app.whenReady().then(async () => {
     check('Windows: cards skip Windows\' window animations and are tool windows', IDS.every((id) => C(id).styled?.applied && C(id).styled.transitions && C(id).styled.tool), JSON.stringify(IDS.map((id) => C(id).styled)));
     const L = E.layer();
     S.hide();
+    check('Windows: on the desktop layer the cards (and the bubble) are attached to the desktop window', IDS.every((id) => L.owner(C(id)) === L.desktop()) && L.owner(E.bubble()) === L.desktop(), JSON.stringify(IDS.map((id) => L.owner(C(id))).concat([L.desktop()])));
     // The gear, clicked with the real mouse: nothing in the header may act as a title bar or cover it.
     {
       const koffi = require('koffi');
@@ -198,6 +222,26 @@ app.whenReady().then(async () => {
       mouse_event(0x2, 0, 0, 0, 0); await wait(60); mouse_event(0x4, 0, 0, 0, 0); await wait(1500);
       check('Windows: clicking the gear with the mouse opens Settings', !!E.settings() && E.settings().isVisible(), E.diag.text().split('\n').slice(-12).join(' | '));
       E.settings()?.hide();
+
+      // Clicking the empty desktop, and Show desktop, must never cover the cards, not even for a moment.
+      const pt = (p) => BigInt(p.x) & 0xffffffffn | (BigInt(p.y) << 32n);
+      const hw = (w) => Number(w.getNativeWindowHandle().readBigUInt64LE(0));
+      const watchCover = async (ms, during) => {
+        const spots = IDS.map((id) => { const b = C(id).getBounds(); return { id, h: hw(C(id)), p: scr.dipToScreenPoint({ x: b.x + Math.round(b.width / 2), y: b.y + 14 }) }; });
+        const miss = {}; let samples = 0;
+        const t = setInterval(() => { samples++; for (const q of spots) if (Number(GetAncestor(Number(WindowFromPoint(pt(q.p))), 2)) !== q.h) miss[q.id] = (miss[q.id] || 0) + 1; }, 4);
+        await during(); await wait(ms); clearInterval(t);
+        return { miss, samples };
+      };
+      E.layer().lower(); await wait(500);
+      const tb = C('tasks').getBounds(), cb = C('calendar').getBounds(), wa2 = scr.getPrimaryDisplay().workArea;
+      const blank = scr.dipToScreenPoint({ x: Math.round((tb.x + tb.width + cb.x) / 2), y: wa2.y + wa2.height - 30 });
+      const r1 = await watchCover(1000, async () => { SetCursorPos(blank.x, blank.y); await wait(50); mouse_event(0x2, 0, 0, 0, 0); await wait(40); mouse_event(0x4, 0, 0, 0, 0); });
+      check('Windows: clicking the empty desktop never covers the cards (no flicker)', !Object.keys(r1.miss).length && IDS.every((id) => C(id).isVisible()), JSON.stringify({ ...r1, blank }));
+      const toggleDesktop = () => new Promise((res) => require('node:child_process').exec('powershell -NoProfile -Command "(New-Object -ComObject Shell.Application).ToggleDesktop()"', () => res()));
+      const r2 = await watchCover(1500, toggleDesktop);
+      check('Windows: Show desktop never covers the cards (no flicker)', !Object.keys(r2.miss).length && IDS.every((id) => C(id).isVisible()), JSON.stringify(r2));
+      await toggleDesktop(); await wait(800);
     }
     const other = new BrowserWindow({ width: 900, height: 700, x: 50, y: 50, title: 'Another app' });
     await other.loadURL('data:text/html,<h1>another app</h1>');

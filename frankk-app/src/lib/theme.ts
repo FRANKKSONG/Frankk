@@ -21,6 +21,8 @@ export interface WindowPrefs {
   blur: number;
   /** How much the background art is darkened. */
   dim: number;
+  /** How much fine grain is on the frosted glass (0 = none, 1 = a lot). */
+  grain?: number;
   /** Your own colour for the panels (any colour; text turns light or dark to stay readable). Unset = the look's own. */
   panelColor?: string;
 }
@@ -39,6 +41,7 @@ export interface ThemePrefs {
   window?: WindowPrefs;
 }
 
+export const DEFAULT_GRAIN = 0.3;
 export const DEFAULT_WINDOW: WindowPrefs = { background: 'millefleur', color: '#0e0c0a', opacity: 0.72, blur: 24, dim: 0.8 };
 
 interface Theme {

@@ -67,7 +67,7 @@ export function TaskTable() {
         <div className="tr thead" role="row">
           <span /><span />
           {head('title', 'Task')}
-          {allTab && head('list', 'List', '', 'list')}
+          {allTab && head('list', 'List', 'list-col', 'list')}
           {head('subs', 'Subtasks', 'num', 'subs')}
           {head('date', 'Date', '', 'date')}
         </div>
@@ -172,11 +172,12 @@ function Row({ task, grip, showList, open, onOpen, listName }: { task: Task; gri
           <button className="expand" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} subtasks of ${task.title}`} onClick={() => onOpen(!open)}>
             <Icon name="chevronR" size={12} style={{ transform: open ? 'rotate(90deg)' : undefined }} />
           </button>
+          {showList && <i className="row-dot" title={listName} style={{ background: list?.color }} />}
           <Editable className="task-title" label="Task name" value={task.title} onSave={(v) => dispatch({ type: 'task/update', id: task.id, patch: { title: v } })} />
           {task.done && clearAfter > 0 && task.doneAt && <span className="clears">{clearsIn(task.doneAt, clearAfter)}</span>}
         </span>
         {showList && (
-          <span className="td" role="cell">
+          <span className="td list-col" role="cell">
             <Select label={`List of ${task.title}`} value={task.listId} onChange={(listId) => dispatch({ type: 'task/update', id: task.id, patch: { listId } })}
               options={data.lists.map((l) => ({ value: l.id, label: l.name, dot: l.color }))}
               trigger={() => <span className="list-pill" style={{ '--lc': list?.color } as React.CSSProperties}><i className="dot" style={{ background: list?.color }} /><span>{listName}</span></span>} />

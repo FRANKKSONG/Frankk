@@ -7,7 +7,7 @@ import { SettingsMenu, SettingsPanel } from './components/Settings';
 import { ResizeGrip, UpdatePill } from './components/DesktopBits';
 import { Icon } from './components/Icons';
 import { card, desktop, prettyKeys, type Backdrop } from './lib/desktop';
-import { applyTheme, DEFAULT_THEME, DEFAULT_WINDOW, type ThemePrefs } from './lib/theme';
+import { applyTheme, DEFAULT_GRAIN, DEFAULT_THEME, DEFAULT_WINDOW, type ThemePrefs } from './lib/theme';
 import { blurredWallpaper, noiseTile } from './lib/backdrop';
 import { TrayMenu } from './components/TrayMenu';
 import { greeting, longToday } from './lib/dates';
@@ -73,8 +73,15 @@ export default function App() {
       root.classList.add(cls);
     };
     play('entering', Math.max(0, ['header', 'calendar', 'week', 'tasks'].indexOf(card)) * 40);
-    const offEnter = desktop.onEnter((p) => play('entering', p.delay));
-    const offLeave = desktop.onLeave(() => play('leaving'));
+    // Into the Esther bubble and out of it: the card flies towards (or from) where the bubble is.
+    const fly = (k: 'to' | 'from', v?: { x: number; y: number } | null) => {
+      root.style.setProperty(`--${k}-x`, v ? `${v.x}px` : '0px');
+      root.style.setProperty(`--${k}-y`, v ? `${v.y}px` : k === 'to' ? '6px' : '10px');
+      root.style.setProperty(`--${k}-s`, v ? '.12' : k === 'to' ? '.98' : '.97');
+      root.classList.toggle(`fly-${k}`, !!v);
+    };
+    const offEnter = desktop.onEnter((p) => { fly('from', p.from); play('entering', p.delay); });
+    const offLeave = desktop.onLeave((p) => { fly('to', p.to); play('leaving'); });
     // Move a card by its title area: Esther moves the window itself (Windows' title-bar dragging is off).
     const onDown = (e: PointerEvent) => {
       const t = e.target as Element;
@@ -89,7 +96,7 @@ export default function App() {
     return () => { offBackdrop?.(); offPlace?.(); offEnter?.(); offLeave?.(); root.removeEventListener('pointerdown', onDown); };
   }, []);
   // The frosted glass is worked out once per wallpaper and Blur setting (not every frame).
-  const blur = ({ ...DEFAULT_WINDOW, ...theme.window }).blur;
+  const { blur, grain = DEFAULT_GRAIN } = { ...DEFAULT_WINDOW, ...theme.window };
   useEffect(() => {
     const root = document.documentElement;
     if (!backdrop?.image) { delete root.dataset.wall; return; }
@@ -98,12 +105,13 @@ export default function App() {
       blurredWallpaper(backdrop.image!, backdrop.screen.width, backdrop.screen.height, blur).then((url) => {
         if (!live) return;
         root.style.setProperty('--wall', `url("${url}")`);
-        root.style.setProperty('--noise', `url("${noiseTile()}")`);
+        root.style.setProperty('--noise', `url("${noiseTile(grain)}")`);
         root.dataset.wall = '1';
       }).catch(() => { delete root.dataset.wall; });
     }, 60);
     return () => { live = false; window.clearTimeout(t); };
   }, [backdrop, blur]);
+  useEffect(() => { if (desktop) document.documentElement.style.setProperty('--noise', `url("${noiseTile(grain)}")`); }, [grain]);
 
   const body = (() => {
     switch (card) {
@@ -112,6 +120,7 @@ export default function App() {
       case 'calendar': return <MonthCalendar />;
       case 'week': return <ThisWeek />;
       case 'menu': return <TrayMenu />;
+      case 'bubble': return <button className="bubble" aria-label="Esther: show or hide the cards" onClick={() => desktop!.bubbleClick()}>Esther</button>;
       case 'settings': return (
         <section className="card settings-card" aria-label="Settings">
           <header className="card-head"><h2>Settings</h2><button className="icon-btn" aria-label="Close settings" onClick={() => desktop!.closeSettings()}><Icon name="close" size={16} /></button></header>
@@ -133,7 +142,7 @@ export default function App() {
   return (
     <div className={`app${card ? ` card-${card}` : ''}`}>
       {body}
-      {card !== 'header' && card !== 'menu' && <ResizeGrip />}
+      {!['header', 'menu', 'bubble'].includes(card) && <ResizeGrip />}
       <div className={`toast${toast ? ' show' : ''}`} role="status" aria-live="polite">
         {toast?.msg}
         {toast?.undo && canUndo && <button className="toast-undo" onClick={() => { undo(); say('Undone.'); }}>Undo</button>}

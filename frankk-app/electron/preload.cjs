@@ -21,8 +21,10 @@ contextBridge.exposeInMainWorld('estherDesktop', {
   onChanged: (cb) => { const h = () => cb(); ipcRenderer.on('esther:changed', h); return () => ipcRenderer.removeListener('esther:changed', h); },
   /** Esther's own call-up and fade-out. */
   onEnter: (cb) => { const h = (_e, p) => cb(p); ipcRenderer.on('esther:enter', h); return () => ipcRenderer.removeListener('esther:enter', h); },
-  onLeave: (cb) => { const h = () => cb(); ipcRenderer.on('esther:leave', h); return () => ipcRenderer.removeListener('esther:leave', h); },
+  onLeave: (cb) => { const h = (_e, p) => cb(p || {}); ipcRenderer.on('esther:leave', h); return () => ipcRenderer.removeListener('esther:leave', h); },
   show: () => ipcRenderer.send('esther:show'),
+  /** The Esther bubble on the desktop was clicked. */
+  bubbleClick: () => ipcRenderer.send('esther:bubble'),
   /** Move the card (or resize it from its corner) with the mouse, from now until the button is let go. */
   track: (kind, phase) => ipcRenderer.send('esther:track', { kind, phase }),
   /** The tray menu's size, so it can open by the mouse; and closing it. */

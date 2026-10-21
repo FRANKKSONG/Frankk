@@ -510,8 +510,8 @@ span.update-pill { background: none; border-color: transparent; }
   background: var(--noise), linear-gradient(color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent), color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent)); }
 
 /* Call-up when Esther is shown, fade-out when it's hidden: Esther's own, Windows' window animations are off. */
-@keyframes esther-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
-@keyframes esther-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(6px) scale(.98); } }
+@keyframes esther-in { from { opacity: 0; transform: translate(var(--from-x, 0px), var(--from-y, 10px)) scale(var(--from-s, .97)); } to { opacity: 1; transform: none; } }
+@keyframes esther-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(var(--to-x, 0px), var(--to-y, 6px)) scale(var(--to-s, .98)); } }
 [data-card].entering .app > :is(.card, .top, .tray-menu) { animation: esther-in .26s cubic-bezier(.2, .9, .25, 1) var(--enter-delay, 0ms) both; }
 [data-card].leaving .app > :is(.card, .top, .tray-menu) { animation: esther-out .14s cubic-bezier(.4, 0, 1, 1) forwards; }
 [data-card='menu'].entering .app > .tray-menu { animation-duration: .16s; }
@@ -564,3 +564,53 @@ span.update-pill { background: none; border-color: transparent; }
 .menu-mark { width: 15px; display: grid; place-items: center; flex: none; color: var(--accent); }
 .radio-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .tray-menu .menu-item > svg { color: var(--muted); }
+
+/* ---------- 1.8: the Esther bubble, a refined calendar, compact tasks, quicker menus ---------- */
+/* Into the bubble and out of it. */
+[data-card].fly-to.leaving .app > :is(.card, .top) { animation-duration: .3s; animation-timing-function: cubic-bezier(.55, 0, .75, .1); }
+[data-card].fly-from.entering .app > :is(.card, .top) { animation-duration: .44s; animation-timing-function: cubic-bezier(.16, 1, .3, 1); }
+/* The bubble: just "Esther", in Instrument Serif italic; it scales with its window (big in the middle, small in the corner). */
+[data-card='bubble'] body, [data-card='bubble'] .app { background: transparent !important; overflow: hidden; }
+.bubble { position: fixed; inset: 0; display: grid; place-items: center; padding-bottom: 7vh; font: italic 400 74vh/1 'Instrument Serif', Georgia, serif; letter-spacing: -.01em;
+  color: var(--text); text-shadow: 0 1px 2px rgba(0,0,0,.35), 0 4px 22px rgba(0,0,0,.3); white-space: nowrap; cursor: pointer; transition: color .2s, opacity .2s; }
+.bubble:hover { color: var(--accent); }
+.bubble:focus-visible { outline: none; color: var(--accent); }
+
+/* Calendar: today, the picked day and hovering share one rounded square, centred on the date. */
+.cal-grid { justify-items: center; align-items: center; }
+.day, [data-style='medieval'] .day { position: relative; width: 38px; height: 38px; max-width: 100%; padding: 0; gap: 0; display: grid; place-items: center; border-radius: 10px; transition: background .12s, box-shadow .12s; }
+.day .num, .day.today .num, [data-style='medieval'] .day.today .num { width: auto; height: auto; border: 0; background: none; border-radius: 0; color: inherit; transform: translateY(-1px); }
+.day .marks { position: absolute; left: 0; right: 0; bottom: 4px; height: 4px; justify-content: center; gap: 3px; }
+.day .marks i, [data-style='medieval'] .day .marks i { width: 4px; height: 4px; border-radius: 50%; }
+.day:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.day.today { color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.day.picked { background: color-mix(in srgb, var(--accent) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); color: var(--text); }
+.day.today.picked { background: var(--accent); box-shadow: none; color: var(--accent-ink); }
+.day.today.picked .marks i { background: var(--accent-ink) !important; }
+.dp-day { border-radius: 9px; }
+
+/* Menus open quickly with a small settle, like Windows 11's. */
+@keyframes pop-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.popover { animation: pop-in .1s cubic-bezier(.2, .9, .3, 1); }
+[data-card='menu'].entering .app > .tray-menu { animation: pop-in .1s cubic-bezier(.2, .9, .3, 1) both; }
+
+/* Tasks: when the card (or the page) is narrow, a compact table that fits beside the calendar and the week. */
+.tasks-card, .table-card { container: tasks / inline-size; }
+.row-dot { display: none; width: 7px; height: 7px; border-radius: 50%; flex: none; margin-right: 2px; }
+@container tasks (max-width: 560px) {
+  .tr, .table-card.all .tr { grid-template-columns: 12px 22px minmax(0, 1fr) auto auto; gap: 6px; padding-right: 2px; }
+  .thead { display: none; }
+  .list-col { display: none !important; }
+  .table-card.all .row-dot { display: inline-block; }
+  .subs-btn .bar { display: none; }
+  .subs-btn.none { display: none; }
+  .add-row .select-btn.list-pick > span, .add-row .select-btn.list-pick > svg { display: none; }
+  .add-row .select-btn.list-pick { display: inline-flex; padding: 0 6px; min-height: 26px; }
+  .table-card .hint { display: none; }
+  .table-tools { gap: 6px; }
+  .seg button { padding: 3px 9px; font-size: 12.5px; }
+  .date-chip button { padding: 2px 7px; font-size: 12px; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .tab-sort { flex-wrap: nowrap !important; }
+}
+@container tasks (max-width: 560px) { .add-row > span:empty:not(:first-child) { display: none; } }

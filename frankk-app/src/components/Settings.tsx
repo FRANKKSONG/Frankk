@@ -9,7 +9,7 @@ import { useUi } from '../ui';
 import { CLEAR_CHOICES } from '../data/storage';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { accelerator, desktop, prettyKeys, type Card, type DesktopState, type Layer } from '../lib/desktop';
-import { DEFAULT_WINDOW, THEMES, themeColor, themeOf, type ThemeId, type ThemePrefs, type WindowPrefs } from '../lib/theme';
+import { DEFAULT_GRAIN, DEFAULT_WINDOW, THEMES, themeColor, themeOf, type ThemeId, type ThemePrefs, type WindowPrefs } from '../lib/theme';
 import { artPresets, downscaleImage } from '../lib/art';
 import type { Data } from '../data/model';
 
@@ -116,6 +116,9 @@ function DesktopSection({ st, setSt }: { st: DesktopState; setSt: (s: DesktopSta
       <Row label="Size" hint="Makes every card bigger or smaller.">
         <Select label="Size" value={st.scale} onChange={async (scale) => setSt(await desktop!.set({ scale }))} options={st.scales.map((s) => ({ value: s, label: `${Math.round(s * 100)}%` }))} />
       </Row>
+      <Row label="The Esther bubble" hint="“Esther” on the desktop: hiding gathers the cards into it in the middle of the screen; click it (or press the shortcut) and they come back out, and it moves to the bottom-left corner.">
+        <Switch label="The Esther bubble" on={st.bubble} onChange={async (bubble) => setSt(await desktop!.set({ bubble }))} />
+      </Row>
       <Row label="Snap cards into line" hint="When you let go of a card, it lines up with the others and the screen edges, with even gaps.">
         <Switch label="Snap cards into line" on={st.snap} onChange={async (snap) => setSt(await desktop!.set({ snap }))} />
       </Row>
@@ -133,6 +136,7 @@ const CARD_LABEL: Record<Card, { label: string; hint: string }> = {
   week: { label: 'This week', hint: 'Monday to Sunday at a glance.' },
   settings: { label: 'Settings', hint: '' },
   menu: { label: 'Menu', hint: '' },
+  bubble: { label: 'Bubble', hint: '' },
 };
 
 function CardsSection({ st, setSt }: { st: DesktopState; setSt: (s: DesktopState) => void }) {
@@ -176,6 +180,11 @@ function LookSection({ theme: prefs, setTheme: setPrefs }: Props) {
         <Row label={desktop ? 'Blur behind the cards' : 'Background blur'} hint={desktop ? 'How much the wallpaper behind each card is blurred. 0 shows it sharp.' : 'How much the page background is blurred behind the panels.'}>
           <input type="range" min={0} max={60} step={1} value={win.blur} aria-label="Blur" onChange={(e) => setWin({ blur: Number(e.target.value) })} /><output>{win.blur}px</output>
         </Row>
+        {desktop && (
+          <Row label="Grain" hint="The fine texture on the frosted glass, like Windows 11’s acrylic.">
+            <input type="range" min={0} max={1} step={0.01} value={win.grain ?? DEFAULT_GRAIN} aria-label="Grain" onChange={(e) => setWin({ grain: Number(e.target.value) })} /><output>{Math.round((win.grain ?? DEFAULT_GRAIN) * 100)}%</output>
+          </Row>
+        )}
         <Row label="Highlight colour" hint="Today, the selected tab, ticks and buttons.">
           {!!Object.keys(prefs.colors).length && <button className="link-btn" onClick={() => setPrefs({ ...prefs, colors: {} })}>Use the look’s</button>}
           <ColorSelect label="Highlight colour" value={themeColor(prefs, 'accent')} onChange={(c) => setPrefs({ ...prefs, colors: { ...prefs.colors, accent: c } })} />

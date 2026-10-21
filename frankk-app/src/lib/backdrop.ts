@@ -41,15 +41,18 @@ export function blurredWallpaper(src: string, screenW: number, screenH: number, 
   return cache.get(key)!;
 }
 
-let noise: string | null = null;
-/** A fine, faint grain (Windows 11's acrylic has one), as a small tile. */
-export function noiseTile(): string {
-  if (noise) return noise;
+const noise = new Map<number, string>();
+/** A fine grain (Windows 11's acrylic has one) as a small tile; `strength` 0–1 is the Grain setting. */
+export function noiseTile(strength: number): string {
+  const a = Math.round(Math.max(0, Math.min(1, strength)) * 34);
+  if (noise.has(a)) return noise.get(a)!;
   const c = document.createElement('canvas');
   c.width = c.height = 96;
   const x = c.getContext('2d')!;
   const d = x.createImageData(96, 96);
-  for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 10; }
+  for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = a; }
   x.putImageData(d, 0, 0);
-  return (noise = c.toDataURL('image/png'));
+  const url = c.toDataURL('image/png');
+  noise.set(a, url);
+  return url;
 }
