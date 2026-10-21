@@ -17,8 +17,11 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// Draw with the graphics card even if Chromium is unsure about the driver (otherwise every card is drawn in software).
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
 
-const DEFAULTS = { shortcut: 'Control+Alt+E', layer: 'desktop', snap: true, scale: 1, hiddenCards: [], bubble: true };
+const DEFAULTS = { shortcut: 'Control+Alt+E', layer: 'desktop', snap: true, scale: 1, hiddenCards: [], bubble: true, bubbleSize: 0.6 };
 const SCALES = [0.5, 0.6, 0.75, 0.85, 0.9, 0.95, 1, 1.1, 1.25, 1.5];
 const file = () => path.join(app.getPath('userData'), 'desktop.json');
 let prefs = { ...DEFAULTS };
@@ -32,6 +35,7 @@ delete prefs.hidden;
 // 1.4–1.5 used Windows' acrylic; Esther now draws its own blur (adjustable, round corners).
 delete prefs.glass;
 if (!SCALES.includes(prefs.scale)) prefs.scale = 1;
+if (typeof prefs.bubbleSize !== 'number' || !(prefs.bubbleSize >= 0.3 && prefs.bubbleSize <= 1.5)) prefs.bubbleSize = DEFAULTS.bubbleSize;
 if (!Array.isArray(prefs.hiddenCards)) prefs.hiddenCards = [];
 let quitting = false;
 const savePrefs = () => { try { fs.mkdirSync(path.dirname(file()), { recursive: true }); fs.writeFileSync(file(), JSON.stringify(prefs, null, 2)); } catch { /* read-only profile */ } };
@@ -145,28 +149,97 @@ function gridSize(w, width, height) {
   }
   return { width: Math.max(mw || 200, Math.round(width)), height: Math.max(mh || 120, Math.round(height)) };
 }
+// ---- Guides, like Illustrator's smart guides: the screen's centre, middle and quarters, and the other cards' edges
+// and centres. A card dragged near one snaps to it and the guide lights up; the grid shows while you drag. ----
+const SNAP = 10; // how close (px) a card's edge or centre must come to a guide to snap to it
+function guideLines(w, wa) {
+  const xs = [0.25, 0.5, 0.75].map((q) => ({ v: Math.round(wa.x + wa.width * q), kind: q === 0.5 ? 'centre' : 'quarter' }));
+  const ys = [0.25, 0.5, 0.75].map((q) => ({ v: Math.round(wa.y + wa.height * q), kind: q === 0.5 ? 'middle' : 'quarter' }));
+  for (const o of liveCards()) {
+    if (o === w || !o.isVisible()) continue;
+    const b = o.getBounds();
+    xs.push({ v: b.x, kind: 'card' }, { v: Math.round(b.x + b.width / 2), kind: 'card' }, { v: b.x + b.width, kind: 'card' }, { v: b.x - GAP, kind: 'gap' }, { v: b.x + b.width + GAP, kind: 'gap' });
+    ys.push({ v: b.y, kind: 'card' }, { v: Math.round(b.y + b.height / 2), kind: 'card' }, { v: b.y + b.height, kind: 'card' }, { v: b.y - GAP, kind: 'gap' }, { v: b.y + b.height + GAP, kind: 'gap' });
+  }
+  return { xs, ys };
+}
+/** Snap one axis: whichever of `anchors` (offsets from `pos`: an edge or the centre) comes closest to a guide, within SNAP. */
+function snapAxis(pos, anchors, lines, origin) {
+  let best = null;
+  for (const a of anchors) for (const l of lines) {
+    const d = Math.abs(pos + a - l.v);
+    if (d <= SNAP && (!best || d < best.d)) best = { d, pos: l.v - a, line: l };
+  }
+  return best ? { pos: best.pos, line: best.line } : { pos: onGrid(pos, origin), line: null };
+}
 /** Follow the mouse from now until the button is let go: 'move' the card, or 'resize' it from its corner. */
 function track(w, kind) {
   untrack(w);
   const b0 = w.getBounds(), c0 = pointer.at();
-  let started = false;
+  const wa = screen.getDisplayMatching(b0).workArea;
+  let started = false, shown = '';
   w.tracking = setInterval(() => {
     if (w.isDestroyed()) return untrack(w);
     if (pointer.down && !pointer.down()) return untrack(w); // let go outside the card
     const c = pointer.at(), dx = c.x - c0.x, dy = c.y - c0.y;
     if (!started && Math.abs(dx) + Math.abs(dy) < 4) return; // a click (or a double-click on the logo), not a drag
-    started = true;
+    if (!started) { started = true; if (prefs.snap) showGuides(wa); }
     const b = w.getBounds();
+    const { xs, ys } = prefs.snap ? guideLines(w, wa) : { xs: [], ys: [] };
+    let next, lines = [];
     if (kind === 'move') {
-      const p = gridPoint(b0, b0.x + dx, b0.y + dy);
-      if (p.x !== b.x || p.y !== b.y) w.setPosition(p.x, p.y);
+      let x = b0.x + dx, y = b0.y + dy;
+      if (prefs.snap) {
+        const sx = snapAxis(x, [0, b0.width / 2, b0.width], xs, wa.x), sy = snapAxis(y, [0, b0.height / 2, b0.height], ys, wa.y);
+        x = Math.round(sx.pos); y = Math.round(sy.pos);
+        lines = [sx.line && { axis: 'x', ...sx.line }, sy.line && { axis: 'y', ...sy.line }].filter(Boolean);
+      }
+      next = { x, y, width: b0.width, height: b0.height };
+      if (x !== b.x || y !== b.y) w.setPosition(x, y);
     } else {
-      const s = gridSize(w, b0.width + dx, b0.height + dy);
-      if (s.width !== b.width || s.height !== b.height) w.setSize(s.width, s.height);
+      const [mw, mh] = w.getMinimumSize();
+      let right = b0.x + b0.width + dx, bottom = b0.y + b0.height + dy;
+      if (prefs.snap) {
+        const sx = snapAxis(right, [0], xs, wa.x), sy = snapAxis(bottom, [0], ys, wa.y);
+        right = sx.pos; bottom = sy.pos;
+        lines = [sx.line && { axis: 'x', ...sx.line }, sy.line && { axis: 'y', ...sy.line }].filter(Boolean);
+      }
+      const width = Math.max(mw || 200, Math.round(right - b0.x)), height = Math.max(mh || 120, Math.round(bottom - b0.y));
+      next = { x: b0.x, y: b0.y, width, height };
+      if (width !== b.width || height !== b.height) w.setSize(width, height);
     }
+    // Tell the guides what to draw (only when something changed).
+    const msg = JSON.stringify({ next, lines });
+    if (prefs.snap && msg !== shown) { shown = msg; sendGuides({ area: wa, card: next, lines, others: liveCards().filter((o) => o !== w && o.isVisible()).map((o) => o.getBounds()) }); }
   }, 8);
 }
-function untrack(w) { if (w?.tracking) { clearInterval(w.tracking); w.tracking = null; } }
+function untrack(w) { if (w?.tracking) { clearInterval(w.tracking); w.tracking = null; hideGuides(); } }
+
+// The guides window: see-through, never takes a click, above everything while you drag; made once, kept hidden.
+let guidesWin = null;
+function makeGuides() {
+  if (guidesWin && !guidesWin.isDestroyed()) return;
+  const wa = screen.getPrimaryDisplay().workArea;
+  guidesWin = new BrowserWindow({ ...wa, title: 'Esther guides', ...windowLook(), focusable: false, alwaysOnTop: true });
+  guidesWin.setIgnoreMouseEvents(true);
+  load(guidesWin, { card: 'guides' });
+  styleCard(guidesWin);
+  guidesWin.on('closed', () => { guidesWin = null; });
+}
+function showGuides(wa) {
+  makeGuides();
+  const b = guidesWin.getBounds();
+  if (b.x !== wa.x || b.y !== wa.y || b.width !== wa.width || b.height !== wa.height) guidesWin.setBounds(wa);
+  guidesWin.webContents.send('esther:guides', { show: true, area: wa, lines: [] });
+  guidesWin.showInactive();
+  guidesWin.setAlwaysOnTop(true, 'screen-saver');
+}
+const sendGuides = (g) => { if (guidesWin && !guidesWin.isDestroyed()) guidesWin.webContents.send('esther:guides', { show: true, ...g }); };
+function hideGuides() {
+  if (!guidesWin || guidesWin.isDestroyed() || !guidesWin.isVisible()) return;
+  guidesWin.webContents.send('esther:guides', { show: false });
+  setTimeout(() => { if (guidesWin && !guidesWin.isDestroyed()) guidesWin.hide(); }, 160);
+}
 
 /** Turn one card on or off. */
 function setCard(id, on) {
@@ -231,9 +304,11 @@ function ensureOnScreen() { for (const [id, w] of cards) if (!w.isDestroyed() &&
 // screen; clicking it (or the shortcut) sends them back out from it, and it shrinks to the bottom-left corner. ----
 let bubble = null, collapsed = false;
 const BIG = { width: 520, height: 190 }, SMALL = { width: 118, height: 43 };
+const BUBBLE_SIZES = [0.3, 1.5]; // the big bubble, from 30% to 150% of 520 × 190
 function bubbleBounds(big) {
   const wa = screen.getPrimaryDisplay().workArea;
-  const s = big ? BIG : SMALL;
+  const k = prefs.bubbleSize;
+  const s = big ? { width: Math.round(BIG.width * k), height: Math.round(BIG.height * k) } : SMALL;
   return big ? { x: Math.round(wa.x + (wa.width - s.width) / 2), y: Math.round(wa.y + (wa.height - s.height) / 2), ...s }
     : { x: wa.x + GAP, y: wa.y + wa.height - s.height - GAP, ...s };
 }
@@ -258,6 +333,11 @@ function createBubble() {
   layer.add(bubble);
   bubble.webContents.once('did-finish-load', () => bubble.showInactive());
   bubble.on('closed', () => { bubble = null; });
+}
+/** Make the big bubble bigger or smaller (Settings, or the mouse wheel over it). */
+function setBubbleSize(k) {
+  prefs.bubbleSize = Math.round(Math.max(BUBBLE_SIZES[0], Math.min(BUBBLE_SIZES[1], k)) * 100) / 100;
+  if (bubble && !bubble.isDestroyed() && collapsed) bubble.setBounds(bubbleBounds(true));
 }
 function setBubble(on) {
   prefs.bubble = on;
@@ -409,7 +489,7 @@ function state() {
   return {
     shortcut: prefs.shortcut, shortcutOk, layer: prefs.layer, pinsToDesktop: !!layer?.native, snap: prefs.snap, scale: prefs.scale, scales: SCALES,
     cards: Object.keys(CARDS).map((id) => ({ id, on: cardOn(id) })), startWithWindows: startsWithWindows(), version: app.getVersion(),
-    visible: !collapsed && liveCards().some((w) => w.isVisible()), bubble: !!prefs.bubble,
+    visible: !collapsed && liveCards().some((w) => w.isVisible()), bubble: !!prefs.bubble, bubbleSize: prefs.bubbleSize,
   };
 }
 
@@ -422,6 +502,7 @@ function setPrefs(p) {
   if (typeof p.startWithWindows === 'boolean') app.setLoginItemSettings({ openAtLogin: p.startWithWindows });
   if (typeof p.snap === 'boolean') prefs.snap = p.snap;
   if (typeof p.bubble === 'boolean') setBubble(p.bubble);
+  if (typeof p.bubbleSize === 'number') setBubbleSize(p.bubbleSize);
   if (p.snap === true) for (const [, w] of cards) if (!w.isDestroyed()) { const b = w.getBounds(); const q = gridPoint(b, b.x, b.y); const z = gridSize(w, b.width, b.height); w.setBounds({ ...q, ...z }); }
   if (typeof p.scale === 'number') setScale(p.scale);
   if (p.card && CARDS[p.card.id]) setCard(p.card.id, !!p.card.on);
@@ -440,7 +521,7 @@ else {
     layer = desktopLayer(prefs.layer, diag);
     for (const id of Object.keys(CARDS)) createCard(id);
     createBubble();
-    setTimeout(makeTrayMenu, 1500); // ready before the first right-click
+    setTimeout(() => { makeTrayMenu(); makeGuides(); }, 1500); // ready before the first right-click or drag
     registerShortcut(prefs.shortcut);
     // Monitors coming and going (or waking from sleep) never leave it stranded off-screen.
     for (const ev of ['display-removed', 'display-metrics-changed', 'display-added']) screen.on(ev, () => setTimeout(() => { ensureOnScreen(); if (bubble && !bubble.isDestroyed()) bubble.setBounds(bubbleBounds(collapsed)); }, 500));
@@ -460,6 +541,7 @@ else {
     ipcMain.on('esther:hide', () => hide());
     ipcMain.on('esther:show', () => show());
     ipcMain.on('esther:bubble', () => bubbleClick());
+    ipcMain.on('esther:bubble-wheel', (_e, d) => { if (!collapsed) return; setBubbleSize(prefs.bubbleSize * (d < 0 ? 1.06 : 1 / 1.06)); savePrefs(); broadcast('esther:changed', null); });
     ipcMain.on('esther:track', (e, t) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (t?.phase === 'start' && ['move', 'resize'].includes(t.kind)) track(w, t.kind); else untrack(w); });
     ipcMain.on('esther:menu-size', (_e, s) => s && placeTrayMenu(s.width, s.height));
     ipcMain.on('esther:menu-close', () => closeTrayMenu());
@@ -490,6 +572,6 @@ else {
     app.on('before-quit', () => { quitting = true; });
   });
   app.on('will-quit', () => globalShortcut.unregisterAll());
-  if (process.env.ESTHER_TEST) global.__esther = { trayIcon, bubble: () => bubble, bubbleBounds, isCollapsed: () => collapsed, show, hide, toggle, resetLayout, defaultPlace, openSettings, openTrayMenu, setCard, setScale, pointer, GRID, diag, layer: () => layer, card: (id) => cards.get(id), settings: () => settingsWin, menu: () => menuWin, prefs: () => prefs };
+  if (process.env.ESTHER_TEST) global.__esther = { guides: () => guidesWin, setBubbleSize, trayIcon, bubble: () => bubble, bubbleBounds, isCollapsed: () => collapsed, show, hide, toggle, resetLayout, defaultPlace, openSettings, openTrayMenu, setCard, setScale, pointer, GRID, diag, layer: () => layer, card: (id) => cards.get(id), settings: () => settingsWin, menu: () => menuWin, prefs: () => prefs };
   app.on('window-all-closed', () => app.quit());
 }

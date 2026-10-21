@@ -3,7 +3,7 @@
 export type Layer = 'desktop' | 'normal' | 'top';
 export interface DesktopState {
   shortcut: string; shortcutOk: boolean; layer: Layer; pinsToDesktop: boolean; snap: boolean; scale: number; scales: number[];
-  cards: { id: Card; on: boolean }[]; startWithWindows: boolean; version: string; visible: boolean; bubble: boolean;
+  cards: { id: Card; on: boolean }[]; startWithWindows: boolean; version: string; visible: boolean; bubble: boolean; bubbleSize: number;
 }
 export interface Backdrop { image: string | null; screen: { x: number; y: number; width: number; height: number }; x: number; y: number; scale: number }
 /** The self-updater: 'dev' and 'portable' builds don't update themselves. */
@@ -11,7 +11,7 @@ export interface UpdateStatus { state: 'idle' | 'checking' | 'current' | 'downlo
 export interface Desktop {
   updates: { status: () => Promise<UpdateStatus>; check: () => void; install: () => void; on: (cb: (s: UpdateStatus) => void) => () => void };
   state: () => Promise<DesktopState>;
-  set: (p: Partial<Pick<DesktopState, 'shortcut' | 'layer' | 'startWithWindows' | 'snap' | 'scale' | 'bubble'>> & { card?: { id: Card; on: boolean } }) => Promise<DesktopState>;
+  set: (p: Partial<Pick<DesktopState, 'shortcut' | 'layer' | 'startWithWindows' | 'snap' | 'scale' | 'bubble' | 'bubbleSize'>> & { card?: { id: Card; on: boolean } }) => Promise<DesktopState>;
   hide: () => void;
   card: string;
   openSettings: () => void;
@@ -24,6 +24,8 @@ export interface Desktop {
   onEnter: (cb: (p: { delay: number; from?: { x: number; y: number } | null }) => void) => () => void;
   onLeave: (cb: (p: { to?: { x: number; y: number } | null }) => void) => () => void;
   bubbleClick: () => void;
+  bubbleWheel: (deltaY: number) => void;
+  onGuides: (cb: (g: import('../components/Guides').GuidesMsg) => void) => () => void;
   show: () => void;
   track: (kind: 'move' | 'resize', phase: 'start' | 'end') => void;
   menuSize: (width: number, height: number) => void;
@@ -49,5 +51,5 @@ export function accelerator(e: { key: string; code: string; ctrlKey: boolean; al
 }
 
 /** The card this window shows in the desktop app ('' on the website, where everything is one page). */
-export type Card = 'header' | 'tasks' | 'calendar' | 'week' | 'settings' | 'menu' | 'bubble';
+export type Card = 'header' | 'tasks' | 'calendar' | 'week' | 'settings' | 'menu' | 'bubble' | 'guides';
 export const card = (desktop?.card || '') as Card | '';

@@ -501,19 +501,24 @@ span.update-pill { background: none; border-color: transparent; }
 /* ---------- 1.7: Fluent glass, call-up animation, grid, date picker, tray menu, column widths ---------- */
 /* Windows 11 acrylic, done Esther's way: a pre-blurred copy of the wallpaper (worked out once, see lib/backdrop),
    slid into line with the real one, under the panel tint and a fine grain, with Fluent's hairline edge. */
-[data-card][data-wall] .app > :is(.card, .top) { isolation: isolate; overflow: hidden; background: none !important;
+[data-card][data-wall] .app > :is(.card, .top) { position: relative; z-index: 1; overflow: hidden; background: none !important;
   border: 1px solid color-mix(in srgb, var(--text) 9%, transparent) !important; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent) !important; }
-[data-card][data-wall] .app > :is(.card, .top)::before { content: ''; position: absolute; left: -1px; top: -1px; z-index: -2; pointer-events: none;
-  width: var(--wall-w); height: var(--wall-h); background: var(--wall) 0 0 / 100% 100% no-repeat;
-  transform: translate(var(--wall-x), var(--wall-y)); will-change: transform; }
-[data-card][data-wall] .app > :is(.card, .top)::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+/* The glass sits behind the card, the size of the card; the wallpaper on it is set directly by App (no CSS variables
+   on the page, so moving a card repaints only this element). */
+.glass { display: none; }
+[data-card][data-wall] .glass { display: block; position: absolute; inset: 0; z-index: 0; border-radius: 12px; overflow: hidden; pointer-events: none; background-repeat: no-repeat; }
+[data-card][data-wall][data-style='medieval'] .glass { border-radius: 6px; }
+[data-card][data-wall] .glass::after { content: ''; position: absolute; inset: 0;
   background: var(--noise), linear-gradient(color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent), color-mix(in srgb, var(--bg-2) var(--panel-alpha), transparent)); }
+[data-card] .app { position: relative; }
 
 /* Call-up when Esther is shown, fade-out when it's hidden: Esther's own, Windows' window animations are off. */
 @keyframes esther-in { from { opacity: 0; transform: translate(var(--from-x, 0px), var(--from-y, 10px)) scale(var(--from-s, .97)); } to { opacity: 1; transform: none; } }
 @keyframes esther-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate(var(--to-x, 0px), var(--to-y, 6px)) scale(var(--to-s, .98)); } }
-[data-card].entering .app > :is(.card, .top, .tray-menu) { animation: esther-in .26s cubic-bezier(.2, .9, .25, 1) var(--enter-delay, 0ms) both; }
-[data-card].leaving .app > :is(.card, .top, .tray-menu) { animation: esther-out .14s cubic-bezier(.4, 0, 1, 1) forwards; }
+/* The whole card window's content moves as one (the card and the glass behind it). */
+[data-card]:not([data-card='menu']).entering .app, [data-card='menu'].entering .app > .tray-menu { animation: esther-in .26s cubic-bezier(.2, .9, .25, 1) var(--enter-delay, 0ms) both; }
+[data-card]:not([data-card='menu']).leaving .app, [data-card='menu'].leaving .app > .tray-menu { animation: esther-out .14s cubic-bezier(.4, 0, 1, 1) forwards; }
+[data-card='bubble'] .app, [data-card='guides'] .app { animation: none !important; }
 [data-card='menu'].entering .app > .tray-menu { animation-duration: .16s; }
 [data-card].leaving .resize-grip { display: none; }
 @media (prefers-reduced-motion: reduce) { [data-card].entering .app > *, [data-card].leaving .app > * { animation-duration: .01s !important; } }
@@ -567,8 +572,8 @@ span.update-pill { background: none; border-color: transparent; }
 
 /* ---------- 1.8: the Esther bubble, a refined calendar, compact tasks, quicker menus ---------- */
 /* Into the bubble and out of it. */
-[data-card].fly-to.leaving .app > :is(.card, .top) { animation-duration: .3s; animation-timing-function: cubic-bezier(.55, 0, .75, .1); }
-[data-card].fly-from.entering .app > :is(.card, .top) { animation-duration: .44s; animation-timing-function: cubic-bezier(.16, 1, .3, 1); }
+[data-card].fly-to.leaving .app { animation-duration: .3s; animation-timing-function: cubic-bezier(.55, 0, .75, .1); }
+[data-card].fly-from.entering .app { animation-duration: .44s; animation-timing-function: cubic-bezier(.16, 1, .3, 1); }
 /* The bubble: just "Esther", in Instrument Serif italic; it scales with its window (big in the middle, small in the corner). */
 [data-card='bubble'] body, [data-card='bubble'] .app { background: transparent !important; overflow: hidden; }
 .bubble { position: fixed; inset: 0; display: grid; place-items: center; padding-bottom: 7vh; font: italic 400 74vh/1 'Instrument Serif', Georgia, serif; letter-spacing: -.01em;
@@ -614,3 +619,8 @@ span.update-pill { background: none; border-color: transparent; }
   .tab-sort { flex-wrap: nowrap !important; }
 }
 @container tasks (max-width: 560px) { .add-row > span:empty:not(:first-child) { display: none; } }
+
+/* ---------- 1.9: guides while dragging ---------- */
+[data-card='guides'] body, [data-card='guides'] .app { background: transparent !important; overflow: hidden; }
+.guides { position: fixed; inset: 0; width: 100vw; height: 100vh; opacity: 0; transition: opacity .14s; pointer-events: none; }
+.guides.on { opacity: 1; }

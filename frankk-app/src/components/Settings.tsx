@@ -119,7 +119,12 @@ function DesktopSection({ st, setSt }: { st: DesktopState; setSt: (s: DesktopSta
       <Row label="The Esther bubble" hint="“Esther” on the desktop: hiding gathers the cards into it in the middle of the screen; click it (or press the shortcut) and they come back out, and it moves to the bottom-left corner.">
         <Switch label="The Esther bubble" on={st.bubble} onChange={async (bubble) => setSt(await desktop!.set({ bubble }))} />
       </Row>
-      <Row label="Snap cards into line" hint="When you let go of a card, it lines up with the others and the screen edges, with even gaps.">
+      {st.bubble && (
+        <Row label="Bubble size" hint="How big “Esther” is in the middle of the screen. The mouse wheel over it changes it too.">
+          <input type="range" min={0.3} max={1.5} step={0.05} value={st.bubbleSize} aria-label="Bubble size" onChange={async (e) => setSt(await desktop!.set({ bubbleSize: Number(e.target.value) }))} /><output>{Math.round(st.bubbleSize * 100)}%</output>
+        </Row>
+      )}
+      <Row label="Snap cards into line" hint="While you move or resize a card, the grid shows, and the card snaps to the screen’s centre, middle and quarters and to the other cards’ edges, with guides that light up.">
         <Switch label="Snap cards into line" on={st.snap} onChange={async (snap) => setSt(await desktop!.set({ snap }))} />
       </Row>
       <Row label="Start with Windows" hint="Esther opens when you sign in.">
@@ -137,6 +142,7 @@ const CARD_LABEL: Record<Card, { label: string; hint: string }> = {
   settings: { label: 'Settings', hint: '' },
   menu: { label: 'Menu', hint: '' },
   bubble: { label: 'Bubble', hint: '' },
+  guides: { label: 'Guides', hint: '' },
 };
 
 function CardsSection({ st, setSt }: { st: DesktopState; setSt: (s: DesktopState) => void }) {

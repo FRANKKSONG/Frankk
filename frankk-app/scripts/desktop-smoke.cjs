@@ -71,13 +71,13 @@ app.whenReady().then(async () => {
   check('Clicking a task in the Week card opens it in the Tasks card', (await js('tasks', `document.querySelector('.task.open .task-title')?.textContent`)) === 'Synced across cards');
 
   // Esther's own blur, rounded corners.
-  check('Each card gets the wallpaper behind it for its own blur', (await js('calendar', `document.documentElement.dataset.wall === '1' && getComputedStyle(document.documentElement).getPropertyValue('--wall').startsWith('url("data:image/jpeg')`)));
-  check('The frosted copy is worked out once and slid into place (no live blur filter)', await js('calendar', `(() => { const b = getComputedStyle(document.querySelector('.app > .card'), '::before'); return b.backgroundImage.startsWith('url("data:image/jpeg') && b.filter === 'none' && b.transform !== 'none'; })()`));
-  check('Fluent grain and tint over the glass', (await js('calendar', `getComputedStyle(document.querySelector('.app > .card'), '::after').backgroundImage`)).includes('data:image/png'));
+  check('Each card gets the wallpaper behind it for its own blur', await js('calendar', `document.documentElement.dataset.wall === '1' && getComputedStyle(document.querySelector('.glass')).backgroundImage.startsWith('url("data:image/jpeg')`));
+  check('The frosted copy is worked out once and sits on its own element (no live blur, no page-wide variables)', await js('calendar', `(() => { const g = getComputedStyle(document.querySelector('.glass')); const r = getComputedStyle(document.documentElement); return g.filter === 'none' && r.getPropertyValue('--wall') === '' && r.getPropertyValue('--wall-x') === '' && r.getPropertyValue('--noise') === ''; })()`));
+  check('Fluent grain and tint over the glass', (await js('calendar', `getComputedStyle(document.querySelector('.glass'), '::after').backgroundImage`)).includes('data:image/png'));
   check('Cards have rounded corners', parseFloat(await js('tasks', `getComputedStyle(document.querySelector('.app > .card')).borderTopLeftRadius`)) >= 6);
-  const wx = await js('calendar', `getComputedStyle(document.documentElement).getPropertyValue('--wall-x')`);
+  const wx = await js('calendar', `getComputedStyle(document.querySelector('.glass')).backgroundPositionX`);
   C('calendar').setPosition(C('calendar').getBounds().x + 40, C('calendar').getBounds().y); await wait(500);
-  check('Moving a card keeps its blurred wallpaper lined up with the real one', parseFloat(await js('calendar', `getComputedStyle(document.documentElement).getPropertyValue('--wall-x')`)) !== parseFloat(wx));
+  check('Moving a card keeps its blurred wallpaper lined up with the real one', parseFloat(await js('calendar', `getComputedStyle(document.querySelector('.glass')).backgroundPositionX`)) === parseFloat(wx) - 40, String(wx));
 
   // Placing cards (snapping off for exact sizes; it has its own check below).
   await js('tasks', `window.estherDesktop.set({ snap: false })`);
@@ -104,7 +104,8 @@ app.whenReady().then(async () => {
   fake = { x: wk.x + 60 - 37, y: wk.y + 20 - 21 }; await wait(200);
   await js('week', `window.estherDesktop.track('move', 'end')`); await wait(200);
   const wk2 = C('week').getBounds();
-  check('Dragging a card by its title moves it with the mouse, onto the grid', (wk2.x - wa.x) % E.GRID === 0 && (wk2.y - wa.y) % E.GRID === 0 && Math.abs(wk2.x - (wk.x - 37)) <= 4 && Math.abs(wk2.y - (wk.y - 21)) <= 4, JSON.stringify({ wk, wk2, wa }));
+  // It lands on the grid, or on a guide (another card's edge, the screen's centre…) within 10 px.
+  check('Dragging a card by its title moves it with the mouse, onto the grid or a guide', Math.abs(wk2.x - (wk.x - 37)) <= 10 && Math.abs(wk2.y - (wk.y - 21)) <= 10 && (wk2.x !== wk.x - 37 || wk2.y !== wk.y - 21), JSON.stringify({ wk, wk2, wa }));
   fake = { x: wk2.x + wk2.width - 5, y: wk2.y + wk2.height - 5 };
   await js('week', `window.estherDesktop.track('resize', 'start')`); await wait(100);
   fake = { x: fake.x + 29, y: fake.y + 13 }; await wait(200);
@@ -113,6 +114,22 @@ app.whenReady().then(async () => {
   check('Resizing from the corner follows the mouse, edges on the grid', (wk3.x + wk3.width - wa.x) % E.GRID === 0 && (wk3.y + wk3.height - wa.y) % E.GRID === 0 && Math.abs(wk3.width - (wk2.width + 29)) <= 4, JSON.stringify({ wk2, wk3 }));
   fake = { x: 5, y: 5 }; await wait(100);
   check('Letting go stops following the mouse', C('week').getBounds().x === wk3.x);
+  // Guides: while dragging, the grid and the screen's centre and quarters show; near the centre, the card snaps to it.
+  {
+    const cb = C('calendar').getBounds();
+    const cx = wa.x + wa.width / 2;
+    fake = { x: cb.x + 30, y: cb.y + 20 };
+    await js('calendar', `window.estherDesktop.track('move', 'start')`); await wait(100);
+    const want = cx - cb.width / 2; // where the calendar's centre is on the screen's centre
+    fake = { x: cb.x + 30 + (want - cb.x) + 7, y: cb.y + 20 + 33 }; await wait(250);
+    const G = E.guides();
+    const drawn = G && G.isVisible() && (await G.webContents.executeJavaScript(`document.querySelector('canvas.guides.on') !== null`));
+    const cb2 = C('calendar').getBounds();
+    check('Dragging shows the grid and guides over the screen', !!drawn);
+    check('A card dragged near the screen\'s centre snaps to it', Math.abs(cb2.x + cb2.width / 2 - cx) <= 1, JSON.stringify({ cb2, cx }));
+    await js('calendar', `window.estherDesktop.track('move', 'end')`); await wait(300);
+    check('The guides go away when you let go', !E.guides().isVisible());
+  }
   check('Cards use no Windows title-bar dragging (buttons in them always click)', (await js('header', `[...document.querySelectorAll('*')].filter((e) => getComputedStyle(e).webkitAppRegion === 'drag').length`)) === 0);
   E.pointer.at = realPointer.at; E.pointer.down = realPointer.down;
   E.resetLayout(); await wait(500);
@@ -138,14 +155,17 @@ app.whenReady().then(async () => {
   await wait(450);
   {
     const bb = E.bubble().getBounds(), big = E.bubbleBounds(true);
+    E.setBubbleSize(0.5); await wait(100);
+    check('The bubble can be made smaller', E.bubble().getBounds().width === 260, JSON.stringify(E.bubble().getBounds()));
+    E.setBubbleSize(0.6); await wait(100);
     check('…and the bubble grows into "Esther" in the middle of the screen', E.isCollapsed() && E.bubble().isVisible() && bb.x === big.x && bb.y === big.y && bb.width === big.width, JSON.stringify({ bb, big }));
     check('The bubble is "Esther" in Instrument Serif italic', await E.bubble().webContents.executeJavaScript(`(() => { const s = getComputedStyle(document.querySelector('.bubble')); return document.querySelector('.bubble').textContent === 'Esther' && s.fontFamily.includes('Instrument Serif') && s.fontStyle === 'italic'; })()`));
   }
   check('Hide tucks every card away', IDS.every((id) => !C(id).isVisible()));
   E.toggle(); await wait(60);
-  check('The shortcut calls the cards up with an animation', await js('tasks', `document.documentElement.classList.contains('entering') && getComputedStyle(document.querySelector('.app > .card')).animationName === 'esther-in'`));
+  check('The shortcut calls the cards up with an animation', await js('tasks', `document.documentElement.classList.contains('entering') && getComputedStyle(document.querySelector('.app')).animationName === 'esther-in'`));
   await wait(700);
-  check('The shortcut brings every card back', IDS.every((id) => C(id).isVisible()) && (await js('tasks', `getComputedStyle(document.querySelector('.app > .card')).opacity`)) === '1');
+  check('The shortcut brings every card back', IDS.every((id) => C(id).isVisible()) && (await js('tasks', `getComputedStyle(document.querySelector('.app')).opacity`)) === '1');
   C('week').setBounds({ x: -5000, y: -5000, width: 360, height: 300 }); await wait(200); E.show(); await wait(400);
   E.hide(); await wait(500);
   await E.bubble().webContents.executeJavaScript(`document.querySelector('.bubble').click()`); await wait(80);

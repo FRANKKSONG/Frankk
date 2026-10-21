@@ -25,6 +25,10 @@ contextBridge.exposeInMainWorld('estherDesktop', {
   show: () => ipcRenderer.send('esther:show'),
   /** The Esther bubble on the desktop was clicked. */
   bubbleClick: () => ipcRenderer.send('esther:bubble'),
+  /** The mouse wheel over the big bubble makes it bigger or smaller. */
+  bubbleWheel: (deltaY) => ipcRenderer.send('esther:bubble-wheel', deltaY),
+  /** What the guides window should draw while a card is dragged. */
+  onGuides: (cb) => { const h = (_e, g) => cb(g); ipcRenderer.on('esther:guides', h); return () => ipcRenderer.removeListener('esther:guides', h); },
   /** Move the card (or resize it from its corner) with the mouse, from now until the button is let go. */
   track: (kind, phase) => ipcRenderer.send('esther:track', { kind, phase }),
   /** The tray menu's size, so it can open by the mouse; and closing it. */

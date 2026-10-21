@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArchEmblem, Initial } from './components/Ornaments';
 import { ListTabs } from './components/ListTabs';
 import { TaskTable } from './components/TaskTable';
@@ -10,6 +10,7 @@ import { card, desktop, prettyKeys, type Backdrop } from './lib/desktop';
 import { applyTheme, DEFAULT_GRAIN, DEFAULT_THEME, DEFAULT_WINDOW, type ThemePrefs } from './lib/theme';
 import { blurredWallpaper, noiseTile } from './lib/backdrop';
 import { TrayMenu } from './components/TrayMenu';
+import { Guides } from './components/Guides';
 import { greeting, longToday } from './lib/dates';
 import { lineFor } from './lib/greeting';
 import { useUi } from './ui';
@@ -47,6 +48,9 @@ export default function App() {
   }, [clearAfter, dispatch]);
   // Desktop: which card this is, Esther's own frosted glass, moving by the title area, and the call-up and fade-out.
   const [backdrop, setBackdrop] = useState<Backdrop | null>(null);
+  // The glass is one element behind the card, styled directly: changing where the wallpaper sits (as the card moves)
+  // repaints only that element. (As page-wide CSS variables, every move restyled every element in the card.)
+  const glass = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!desktop) return;
     const root = document.documentElement;
@@ -54,13 +58,12 @@ export default function App() {
     if (card) root.dataset.card = card;
     let scale = 1, screen = { x: 0, y: 0 };
     const place = (x: number, y: number) => {
-      root.style.setProperty('--wall-x', `${(screen.x - x) / scale}px`);
-      root.style.setProperty('--wall-y', `${(screen.y - y) / scale}px`);
+      const g = glass.current;
+      if (g) g.style.backgroundPosition = `${(screen.x - x) / scale}px ${(screen.y - y) / scale}px`;
     };
     const offBackdrop = desktop.onBackdrop((b) => {
       scale = b.scale || 1; screen = b.screen;
-      root.style.setProperty('--wall-w', `${b.screen.width / scale}px`);
-      root.style.setProperty('--wall-h', `${b.screen.height / scale}px`);
+      if (glass.current) glass.current.style.backgroundSize = `${b.screen.width / scale}px ${b.screen.height / scale}px`;
       place(b.x, b.y);
       setBackdrop(b);
     });
@@ -104,14 +107,16 @@ export default function App() {
     const t = window.setTimeout(() => {
       blurredWallpaper(backdrop.image!, backdrop.screen.width, backdrop.screen.height, blur).then((url) => {
         if (!live) return;
-        root.style.setProperty('--wall', `url("${url}")`);
-        root.style.setProperty('--noise', `url("${noiseTile(grain)}")`);
-        root.dataset.wall = '1';
+        const g = glass.current;
+        if (!g) return;
+        g.style.backgroundImage = `url("${url}")`;
+        g.style.setProperty('--noise', `url("${noiseTile(grain)}")`);
+        if (root.dataset.wall !== '1') root.dataset.wall = '1';
       }).catch(() => { delete root.dataset.wall; });
     }, 60);
     return () => { live = false; window.clearTimeout(t); };
   }, [backdrop, blur]);
-  useEffect(() => { if (desktop) document.documentElement.style.setProperty('--noise', `url("${noiseTile(grain)}")`); }, [grain]);
+  useEffect(() => { glass.current?.style.setProperty('--noise', `url("${noiseTile(grain)}")`); }, [grain]);
 
   const body = (() => {
     switch (card) {
@@ -120,7 +125,8 @@ export default function App() {
       case 'calendar': return <MonthCalendar />;
       case 'week': return <ThisWeek />;
       case 'menu': return <TrayMenu />;
-      case 'bubble': return <button className="bubble" aria-label="Esther: show or hide the cards" onClick={() => desktop!.bubbleClick()}>Esther</button>;
+      case 'bubble': return <button className="bubble" aria-label="Esther: show or hide the cards" onClick={() => desktop!.bubbleClick()} onWheel={(e) => desktop!.bubbleWheel(e.deltaY)}>Esther</button>;
+      case 'guides': return <Guides />;
       case 'settings': return (
         <section className="card settings-card" aria-label="Settings">
           <header className="card-head"><h2>Settings</h2><button className="icon-btn" aria-label="Close settings" onClick={() => desktop!.closeSettings()}><Icon name="close" size={16} /></button></header>
@@ -142,7 +148,8 @@ export default function App() {
   return (
     <div className={`app${card ? ` card-${card}` : ''}`}>
       {body}
-      {!['header', 'menu', 'bubble'].includes(card) && <ResizeGrip />}
+      {card && !['menu', 'bubble', 'guides'].includes(card) && <div ref={glass} className="glass" aria-hidden="true" />}
+      {!['header', 'menu', 'bubble', 'guides'].includes(card) && <ResizeGrip />}
       <div className={`toast${toast ? ' show' : ''}`} role="status" aria-live="polite">
         {toast?.msg}
         {toast?.undo && canUndo && <button className="toast-undo" onClick={() => { undo(); say('Undone.'); }}>Undo</button>}
