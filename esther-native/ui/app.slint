@@ -1,4 +1,6 @@
-// Esther's Tasks card, drawn natively with Slint: list tabs, To do / Done, the task table, right-click menus.
+// Esther's cards, drawn natively with Slint: the header with the greeting, the calendar, This week, and Tasks.
+// Each card is its own window (a `Card`, told which one it is by `kind`); what it shows and what it does goes
+// through the `Esther` global, which the program fills for every window from the one shared set of tasks.
 // The look follows Esther's "Gilded" theme: warm dark panels over the glass, gold highlights, Instrument Serif.
 import { ListView } from "std-widgets.slint";
 import "fonts/InstrumentSerif-Regular.ttf";
@@ -18,6 +20,10 @@ export struct TaskRow {
     subs: string,
     clears: string,
 }
+// A day on the calendar: its number, its date, open-task dots in their lists' colours.
+export struct CalDay { num: int, iso: string, today: bool, picked: bool, other: bool, marks: [color] }
+// A day in This week (or the "Still open from before" group), with its tasks.
+export struct WeekDay { label: string, small: string, today: bool, past: bool, late: bool, tasks: [TaskRow] }
 
 export global Look {
     out property <color> text: #f2ede3;
@@ -26,9 +32,78 @@ export global Look {
     out property <color> accent: #d9a63a;
     out property <color> accent-ink: #15110c;
     out property <color> danger: #e5604a;
+    out property <color> general: #e0694c;
+    out property <color> lapis: #6f93df;
     out property <color> panel: #191613;
     out property <color> edge: #ffffff14;
     in-out property <float> panel-alpha: 0.72;
+}
+
+// Everything a card shows and can do. Each window has its own copy; the program keeps them all in step.
+export global Esther {
+    // Tasks
+    in property <[ListTab]> tabs;
+    in property <string> tab: "all";
+    in property <int> show: 0;
+    in property <int> count-all;
+    in property <int> count-open;
+    in property <int> count-done;
+    in property <int> count-tab-all;
+    in property <[TaskRow]> rows;
+    in property <string> empty-text: "Nothing to do here. Add a task above.";
+    in property <string> add-list-name;
+    in property <color> add-list-color;
+    // False until the shared tasks file exists (written by the Esther app), so nothing here can overwrite your tasks.
+    in property <bool> can-add: true;
+    // Narrow (set from Rust as the card is resized): no column headings, the list as a dot.
+    in property <bool> compact;
+    // The day picked on the calendar ("" for every day), as shown on the Tasks card, and a task to point out.
+    in property <string> day-label;
+    in property <string> highlight;
+    // Header
+    in property <string> hello: "Good morning";
+    in property <string> hello-letter: "G";
+    in property <string> long-date;
+    in property <string> line;
+    // Calendar
+    in property <string> month-title;
+    in property <[CalDay]> days;
+    // This week
+    in property <string> week-range;
+    in property <[WeekDay]> week;
+
+    callback pick-tab(string);
+    callback pick-show(int);
+    callback add-task(string);
+    callback next-add-list();
+    callback toggle(string);
+    callback rename(string, string);
+    callback set-date(string, string);
+    callback move-to(string, string);
+    callback delete(string);
+    callback clear-day();
+    callback pick-day(string);
+    // -1 the month before, 1 the month after, 0 this month
+    callback month-step(int);
+    callback reveal(string);
+    callback reset-layout();
+    callback quit();
+
+    callback drag-start();
+    callback resize-start(string);
+    callback drag-by(length, length);
+    callback drag-end();
+    callback resize-by(string, length, length);
+    callback resize-end();
+}
+
+// The space a card is picked up and moved by.
+component DragArea inherits TouchArea {
+    moved => { if self.pressed { Esther.drag-by(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
+    pointer-event(e) => {
+        if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { Esther.drag-start(); }
+        if e.kind == PointerEventKind.up { Esther.drag-end(); }
+    }
 }
 
 component Dot inherits VerticalLayout {
@@ -46,6 +121,7 @@ component Pill inherits Rectangle {
     in property <bool> show-dot;
     in property <bool> on;
     in property <length> pad: 12px;
+    in property <length> font-size: 13.5px;
     callback clicked;
     height: 30px;
     border-radius: self.height / 2;
@@ -59,23 +135,24 @@ component Pill inherits Rectangle {
         padding-right: root.pad;
         spacing: 7px;
         if root.show-dot: Dot { color: root.dot; }
-        Text { text: root.text; color: root.on ? Look.text : Look.muted; vertical-alignment: center; font-size: 13.5px; }
+        Text { text: root.text; color: root.on ? Look.text : Look.muted; vertical-alignment: center; font-size: root.font-size; }
         if root.count != "": Text { text: root.count; color: root.on ? Look.text : Look.faint; vertical-alignment: center; font-size: 11.5px; }
     }
 }
 
 component Check inherits Rectangle {
     in property <bool> checked;
+    in property <length> size: 20px;
     callback toggled;
-    width: 20px;
-    height: 20px;
-    border-radius: 10px;
+    width: root.size;
+    height: root.size;
+    border-radius: root.size / 2;
     border-width: 1.5px;
     border-color: root.checked ? Look.accent : ta.has-hover ? Look.text : Look.faint;
     background: root.checked ? Look.accent : transparent;
     animate background, border-color { duration: 120ms; }
     ta := TouchArea { mouse-cursor: pointer; clicked => { root.toggled(); } }
-    if root.checked: Text { text: "✓"; color: Look.accent-ink; font-size: 12px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+    if root.checked: Text { text: "✓"; color: Look.accent-ink; font-size: root.size * 0.6; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
 }
 
 // Typing never looks like a text box: just the text, a caret, and a faint line under it while focused.
@@ -104,40 +181,42 @@ component Field inherits Rectangle {
     Rectangle { y: parent.height - 1px; height: 1px; background: input.has-focus ? Look.accent.with-alpha(0.6) : transparent; }
 }
 
+// Today / Tomorrow / Next week / No date, Move to a list, Delete: the right-click menu of a task, anywhere.
+component TaskMenu inherits ContextMenuArea {
+    in property <string> id;
+    Menu {
+        MenuItem { title: "Today"; activated => { Esther.set-date(root.id, "today"); } }
+        MenuItem { title: "Tomorrow"; activated => { Esther.set-date(root.id, "tomorrow"); } }
+        MenuItem { title: "Next week"; activated => { Esther.set-date(root.id, "next-week"); } }
+        MenuItem { title: "No date"; activated => { Esther.set-date(root.id, "none"); } }
+        MenuSeparator { }
+        Menu {
+            title: "Move to";
+            for l in Esther.tabs: MenuItem { title: l.name; activated => { Esther.move-to(root.id, l.id); } }
+        }
+        MenuSeparator { }
+        MenuItem { title: "Delete task"; activated => { Esther.delete(root.id); } }
+    }
+}
+
 // One task: tick, name (double-click to rename), list, subtasks, date. Right-click for the rest.
 component Row inherits Rectangle {
     in property <TaskRow> task;
     in property <bool> show-list;
     in property <bool> compact;
-    in property <[ListTab]> lists;
-    callback toggle(string);
-    callback rename(string, string);
-    callback set-date(string, string);
-    callback move-to(string, string);
-    callback delete(string);
     property <bool> editing;
     height: 42px;
-    background: hover.has-hover ? #ffffff0a : transparent;
+    border-radius: 8px;
+    background: Esther.highlight == root.task.id ? Look.accent.with-alpha(0.14) : hover.has-hover ? #ffffff0a : transparent;
+    animate background { duration: 200ms; }
     hover := TouchArea { }
-    ContextMenuArea {
-        Menu {
-            MenuItem { title: "Today"; activated => { root.set-date(root.task.id, "today"); } }
-            MenuItem { title: "Tomorrow"; activated => { root.set-date(root.task.id, "tomorrow"); } }
-            MenuItem { title: "Next week"; activated => { root.set-date(root.task.id, "next-week"); } }
-            MenuItem { title: "No date"; activated => { root.set-date(root.task.id, "none"); } }
-            MenuSeparator { }
-            Menu {
-                title: "Move to";
-                for l in root.lists: MenuItem { title: l.name; activated => { root.move-to(root.task.id, l.id); } }
-            }
-            MenuSeparator { }
-            MenuItem { title: "Delete task"; activated => { root.delete(root.task.id); } }
-        }
+    TaskMenu {
+        id: root.task.id;
         HorizontalLayout {
             padding-left: 8px;
             padding-right: 8px;
             spacing: 10px;
-            VerticalLayout { alignment: center; Check { checked: root.task.done; toggled => { root.toggle(root.task.id); } } }
+            VerticalLayout { alignment: center; Check { checked: root.task.done; toggled => { Esther.toggle(root.task.id); } } }
             // The name
             Rectangle {
                 horizontal-stretch: 1;
@@ -173,7 +252,7 @@ component Row inherits Rectangle {
                     y: (parent.height - self.height) / 2;
                     text: root.task.title;
                     init => { self.grab-focus(); self.select-all(); }
-                    accepted(t) => { root.rename(root.task.id, t); root.editing = false; }
+                    accepted(t) => { Esther.rename(root.task.id, t); root.editing = false; }
                     cancelled => { root.editing = false; }
                 }
             }
@@ -228,16 +307,424 @@ component Row inherits Rectangle {
     Rectangle { y: parent.height - 1px; height: 1px; background: Look.edge; }
 }
 
-export component TasksCard inherits Window {
-    title: "Esther · Tasks";
+// ---- The Tasks card ----
+component TasksBody inherits Rectangle {
+    VerticalLayout {
+        padding: 14px;
+        padding-bottom: 8px;
+        spacing: 10px;
+
+        // List tabs. The space around them moves the card. (Not while waiting: those wouldn't be your lists.)
+        Rectangle {
+            height: 32px;
+            opacity: Esther.can-add ? 1 : 0;
+            DragArea { }
+            Flickable {
+                content-width: max(tabs-row.preferred-width, self.width);
+                interactive: true;
+                tabs-row := HorizontalLayout {
+                    alignment: start;
+                    spacing: 6px;
+                    Pill { text: "All"; count: Esther.count-tab-all; on: Esther.tab == "all"; clicked => { Esther.pick-tab("all"); } }
+                    for l in Esther.tabs: Pill {
+                        text: l.name;
+                        count: l.open;
+                        show-dot: true;
+                        dot: l.color;
+                        on: Esther.tab == l.id;
+                        clicked => { Esther.pick-tab(l.id); }
+                    }
+                }
+            }
+        }
+
+        // All / To do / Done, the day picked on the calendar, and the drag area beside them.
+        Rectangle {
+            height: 30px;
+            opacity: Esther.can-add ? 1 : 0;
+            DragArea { }
+            HorizontalLayout {
+                alignment: start;
+                spacing: 8px;
+                Rectangle {
+                    border-radius: 8px;
+                    background: #ffffff0b;
+                    HorizontalLayout {
+                        padding: 2px;
+                        spacing: 2px;
+                        for s[i] in ["All", "To do", "Done"]: Rectangle {
+                            border-radius: 6px;
+                            background: Esther.show == i ? Look.accent.with-alpha(0.2) : seg.has-hover ? #ffffff0d : transparent;
+                            seg := TouchArea { mouse-cursor: pointer; clicked => { Esther.pick-show(i); } }
+                            HorizontalLayout {
+                                padding-left: 11px;
+                                padding-right: 11px;
+                                spacing: 6px;
+                                Text { text: s; color: Esther.show == i ? Look.text : Look.muted; font-size: 13px; vertical-alignment: center; }
+                                Text { text: i == 0 ? Esther.count-all : i == 1 ? Esther.count-open : Esther.count-done; color: Look.faint; font-size: 11.5px; vertical-alignment: center; }
+                            }
+                        }
+                    }
+                }
+                // Picked on the calendar: only that day. The × shows every day again.
+                if Esther.day-label != "": Pill {
+                    text: Esther.day-label + "   ×";
+                    on: true;
+                    pad: 11px;
+                    font-size: 13px;
+                    clicked => { Esther.clear-day(); }
+                }
+            }
+        }
+
+        // Column headings (not when narrow).
+        if !Esther.compact && Esther.can-add: HorizontalLayout {
+            padding-left: 46px;
+            padding-right: 8px;
+            spacing: 10px;
+            height: 24px;
+            Text { horizontal-stretch: 1; text: "TASK"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
+            if Esther.tab == "all": Text { width: 130px; text: "LIST"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
+            Text { width: 70px; text: "SUBTASKS"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
+            Text { width: 96px; text: "DATE"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
+        }
+
+        // Waiting for the shared tasks file (written by the Esther app, 2.2 or later).
+        if !Esther.can-add: Rectangle {
+            vertical-stretch: 1;
+            VerticalLayout {
+                alignment: center;
+                padding: 18px;
+                spacing: 10px;
+                Text { text: "Waiting for your tasks"; color: Look.text; font-family: "Instrument Serif"; font-size: 26px; horizontal-alignment: center; }
+                Text {
+                    text: "These cards show the same tasks as the Esther app. Update Esther to 2.2 or later (Settings → About → Check now, then Restart to update) and keep it running: your lists and tasks appear here by themselves.";
+                    color: Look.muted;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Until then nothing can be added here, so these cards can never overwrite your tasks.";
+                    color: Look.faint;
+                    font-size: 12px;
+                    font-italic: true;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        // Add a task.
+        if Esther.can-add: HorizontalLayout {
+            height: 40px;
+            padding-left: 8px;
+            padding-right: 8px;
+            spacing: 10px;
+            Text { width: 20px; text: "+"; color: Look.faint; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
+            add := Field {
+                y: 5px;
+                horizontal-stretch: 1;
+                placeholder: Esther.day-label != "" ? "Add a task for " + Esther.day-label + ", Enter" : "Add a task, Enter";
+                accepted(t) => { if t != "" && Esther.can-add { Esther.add-task(t); self.text = ""; } }
+            }
+            if Esther.tab == "all": Pill {
+                y: 5px;
+                horizontal-stretch: 0;
+                text: Esther.add-list-name;
+                show-dot: true;
+                dot: Esther.add-list-color;
+                pad: 10px;
+                clicked => { Esther.next-add-list(); }
+            }
+        }
+
+        // The tasks.
+        if Esther.can-add && Esther.rows.length > 0: ListView {
+            vertical-stretch: 1;
+            for t in Esther.rows: Row {
+                task: t;
+                show-list: Esther.tab == "all";
+                compact: Esther.compact;
+            }
+        }
+        if Esther.can-add && Esther.rows.length == 0: Rectangle {
+            vertical-stretch: 1;
+            Text { y: 18px; width: parent.width; text: Esther.empty-text; color: Look.faint; font-italic: true; font-size: 13px; horizontal-alignment: center; wrap: word-wrap; }
+        }
+
+        if !Esther.compact: Text { text: "Double-click a task to rename it · right-click for its date, list or delete"; color: Look.faint; font-size: 11.5px; }
+    }
+}
+
+// ---- The header: the emblem and name, the greeting, the date and the day's line ----
+
+// A pointed arch with a starred lapis sky and an "E": Esther's emblem (drawn like the app's SVG, 44 × 54).
+component Emblem inherits Rectangle {
+    width: 44px;
+    height: 54px;
+    Path { width: 100%; height: 100%; viewbox-width: 44; viewbox-height: 54; fill: Look.accent; stroke: #3a2a1c; stroke-width: 0.8px;
+        commands: "M3 53V22C3 10 14 2 22 1c8 1 19 9 19 21v31z"; }
+    Path { width: 100%; height: 100%; viewbox-width: 44; viewbox-height: 54; fill: Look.lapis;
+        commands: "M7 50V23C7 13 15 6 22 5c7 1 15 8 15 18v27z"; }
+    Path { width: 100%; height: 100%; viewbox-width: 44; viewbox-height: 54; fill: Look.accent;
+        commands: "M16 10.8L16.8 13.2 19.2 14 16.8 14.8 16 17.2 15.2 14.8 12.8 14 15.2 13.2zM27 6.8L27.8 9.2 30.2 10 27.8 10.8 27 13.2 26.2 10.8 23.8 10 26.2 9.2zM21 18.8L21.8 21.2 24.2 22 21.8 22.8 21 25.2 20.2 22.8 17.8 22 20.2 21.2zM11 22.8L11.8 25.2 14.2 26 11.8 26.8 11 29.2 10.2 26.8 7.8 26 10.2 25.2zM30 20.8L30.8 23.2 33.2 24 30.8 24.8 30 27.2 29.2 24.8 26.8 24 29.2 23.2z"; }
+    Rectangle { x: 7px; y: 42px; width: 30px; height: 8px; background: Look.general; }
+    Rectangle { x: 7px; y: 42px; width: 30px; height: 1px; background: Look.accent; }
+    Text { x: 7px; y: 42px; width: 30px; height: 8px; text: "E"; color: Look.accent; font-family: "Instrument Serif"; font-size: 8px; horizontal-alignment: center; vertical-alignment: center; }
+}
+
+// The greeting's first letter, gold on lapis in a vermilion frame, like a chapter opening.
+component Initial inherits Rectangle {
+    in property <string> letter;
+    width: 38px;
+    height: 38px;
+    background: Look.general;
+    Rectangle {
+        x: 3px;
+        y: 3px;
+        width: parent.width - 6px;
+        height: parent.height - 6px;
+        background: Look.lapis;
+        border-width: 1px;
+        border-color: Look.accent;
+    }
+    Text { text: root.letter; color: Look.accent; font-family: "Instrument Serif"; font-size: 27px; horizontal-alignment: center; vertical-alignment: center; }
+}
+
+component HeaderBody inherits Rectangle {
+    DragArea { }
+    ContextMenuArea {
+        Menu {
+            MenuItem { title: "Put every card back"; activated => { Esther.reset-layout(); } }
+            MenuSeparator { }
+            MenuItem { title: "Quit Esther"; activated => { Esther.quit(); } }
+        }
+        HorizontalLayout {
+            padding-left: 20px;
+            padding-right: 20px;
+            spacing: 20px;
+            // Double-click the emblem and name to put every card back where it started.
+            brand := TouchArea {
+                horizontal-stretch: 0;
+                double-clicked => { Esther.reset-layout(); }
+                pointer-event(e) => {
+                    if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { Esther.drag-start(); }
+                    if e.kind == PointerEventKind.up { Esther.drag-end(); }
+                }
+                moved => { if self.pressed { Esther.drag-by(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: center;
+                    VerticalLayout { alignment: center; Emblem { } }
+                    HorizontalLayout {
+                        Text { text: "E"; color: Look.accent; font-family: "Instrument Serif"; font-size: 30px; vertical-alignment: center; }
+                        Text { text: "sther"; color: Look.text; font-family: "Instrument Serif"; font-size: 30px; vertical-alignment: center; }
+                    }
+                }
+            }
+            VerticalLayout { padding-top: 22px; padding-bottom: 22px; Rectangle { width: 1px; background: Look.edge; } }
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                spacing: 16px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    horizontal-stretch: 0;
+                    VerticalLayout { alignment: center; Initial { letter: Esther.hello-letter; } }
+                    Text { text: Esther.hello; color: Look.text; font-family: "Instrument Serif"; font-size: 28px; vertical-alignment: center; }
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    spacing: 2px;
+                    Text { text: Esther.long-date; color: Look.muted; font-size: 13px; }
+                    Text { text: Esther.line; color: Look.text; font-family: "Instrument Serif"; font-italic: true; font-size: 17px; overflow: elide; }
+                }
+            }
+        }
+    }
+}
+
+// ---- The calendar: the month, open tasks as dots; click a day to see only that day on the Tasks card ----
+component NavButton inherits Rectangle {
+    in property <string> text;
+    callback clicked;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: ta.has-hover ? #ffffff14 : transparent;
+    ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+    Text { text: root.text; color: Look.muted; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
+}
+
+component DayCell inherits Rectangle {
+    in property <CalDay> day;
+    width: min(38px, self.slot-w);
+    height: min(38px, self.slot-h);
+    in property <length> slot-w: 38px;
+    in property <length> slot-h: 38px;
+    border-radius: 10px;
+    border-width: root.day.picked && root.day.today ? 0 : root.day.today ? 1.5px : root.day.picked ? 1px : 0;
+    border-color: root.day.today ? Look.accent : Look.accent.with-alpha(0.4);
+    background: root.day.picked && root.day.today ? Look.accent : root.day.picked ? Look.accent.with-alpha(0.2) : ta.has-hover ? #ffffff14 : transparent;
+    animate background { duration: 120ms; }
+    ta := TouchArea { mouse-cursor: pointer; clicked => { Esther.pick-day(root.day.iso); } }
+    Text {
+        y: (parent.height - self.height) / 2 - 1px;
+        text: root.day.num;
+        font-family: "Instrument Serif";
+        font-italic: true;
+        font-size: 18px;
+        horizontal-alignment: center;
+        color: root.day.picked && root.day.today ? Look.accent-ink : root.day.today ? Look.accent : root.day.other ? Look.faint : Look.text;
+    }
+    HorizontalLayout {
+        y: parent.height - 8px;
+        height: 4px;
+        alignment: center;
+        spacing: 3px;
+        for m[i] in root.day.marks: Rectangle {
+            width: 4px;
+            height: 4px;
+            border-radius: 2px;
+            background: root.day.picked && root.day.today ? Look.accent-ink : m;
+        }
+    }
+}
+
+component CalendarBody inherits Rectangle {
+    VerticalLayout {
+        padding: 16px;
+        spacing: 10px;
+        HorizontalLayout {
+            height: 30px;
+            spacing: 4px;
+            Rectangle {
+                horizontal-stretch: 1;
+                DragArea { }
+                Text { x: 0; text: Esther.month-title; color: Look.text; font-family: "Instrument Serif"; font-size: 22px; vertical-alignment: center; height: parent.height; }
+            }
+            NavButton { y: 1px; text: "‹"; clicked => { Esther.month-step(-1); } }
+            Pill { height: 28px; text: "Today"; pad: 10px; font-size: 12.5px; clicked => { Esther.month-step(0); } }
+            NavButton { y: 1px; text: "›"; clicked => { Esther.month-step(1); } }
+        }
+        HorizontalLayout {
+            height: 16px;
+            for d in ["M", "T", "W", "T", "F", "S", "S"]: Text { horizontal-stretch: 1; text: d; color: Look.faint; font-size: 11px; horizontal-alignment: center; }
+        }
+        grid := Rectangle {
+            vertical-stretch: 1;
+            property <int> weeks: max(1, Esther.days.length / 7);
+            property <length> cw: self.width / 7;
+            property <length> ch: self.height / self.weeks;
+            for d[i] in Esther.days: Rectangle {
+                x: mod(i, 7) * grid.cw;
+                y: floor(i / 7) * grid.ch;
+                width: grid.cw;
+                height: grid.ch;
+                DayCell { day: d; slot-w: grid.cw - 2px; slot-h: grid.ch - 2px; }
+            }
+        }
+    }
+}
+
+// ---- This week: Monday to Sunday, and anything still open from before ----
+
+// A task in This week: tick it, or click it to show it on the Tasks card.
+component Line inherits Rectangle {
+    in property <TaskRow> task;
+    in property <bool> show-date;
+    height: 26px;
+    border-radius: 6px;
+    background: ta.has-hover ? #ffffff0d : transparent;
+    TaskMenu {
+        id: root.task.id;
+        HorizontalLayout {
+            padding-left: 4px;
+            padding-right: 4px;
+            spacing: 8px;
+            VerticalLayout { alignment: center; Check { size: 15px; checked: root.task.done; toggled => { Esther.toggle(root.task.id); } } }
+            Rectangle {
+                horizontal-stretch: 1;
+                ta := TouchArea { mouse-cursor: pointer; clicked => { Esther.reveal(root.task.id); } }
+                t := Text {
+                    x: 0;
+                    width: parent.width;
+                    text: root.task.title;
+                    color: root.task.done ? Look.faint : ta.has-hover ? Look.accent : Look.text;
+                    font-size: 13.5px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                if root.task.done: Rectangle { x: 0; y: parent.height / 2; height: 1px; width: min(t.preferred-width, parent.width); background: Look.faint; }
+            }
+            if root.task.subs != "": Text { text: root.task.subs; color: Look.faint; font-size: 11.5px; vertical-alignment: center; }
+            if root.show-date && root.task.date != "": Text { text: root.task.date; color: root.task.date-kind == 2 ? Look.danger : Look.faint; font-size: 11.5px; vertical-alignment: center; }
+            Dot { color: root.task.list-color; }
+        }
+    }
+}
+
+component WeekBody inherits Rectangle {
+    VerticalLayout {
+        padding: 16px;
+        padding-right: 10px;
+        spacing: 8px;
+        Rectangle {
+            height: 30px;
+            DragArea { }
+            HorizontalLayout {
+                padding-right: 6px;
+                Text { text: "This week"; color: Look.text; font-family: "Instrument Serif"; font-size: 22px; vertical-alignment: center; }
+                Text { horizontal-stretch: 1; text: Esther.week-range; color: Look.faint; font-size: 12.5px; horizontal-alignment: right; vertical-alignment: center; }
+            }
+        }
+        Flickable {
+            vertical-stretch: 1;
+            content-height: days.preferred-height;
+            days := VerticalLayout {
+                padding-right: 6px;
+                spacing: 2px;
+                for d in Esther.week: Rectangle {
+                    border-radius: 8px;
+                    background: d.late ? Look.danger.with-alpha(0.08) : d.today ? Look.accent.with-alpha(0.1) : transparent;
+                    VerticalLayout {
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        padding-top: d.tasks.length > 0 || d.today ? 5px : 3px;
+                        padding-bottom: d.tasks.length > 0 || d.today ? 6px : 3px;
+                        spacing: 2px;
+                        HorizontalLayout {
+                            height: 18px;
+                            spacing: 8px;
+                            alignment: start;
+                            Text {
+                                text: d.label;
+                                font-size: 12.5px;
+                                font-weight: d.tasks.length > 0 || d.today ? 600 : 400;
+                                color: d.late ? Look.danger : d.today ? Look.accent : d.past || d.tasks.length == 0 ? Look.faint : Look.muted;
+                            }
+                            if d.small != "": Text { text: d.small; font-size: 12.5px; color: Look.faint; }
+                        }
+                        for t in d.tasks: Line { task: t; show-date: d.late; }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---- A card: one window, with the glass behind it, its body, and its edges to resize by ----
+export component Card inherits Window {
+    // "header", "tasks", "calendar" or "week"
+    in property <string> kind: "tasks";
+    title: root.kind == "header" ? "Esther" : root.kind == "calendar" ? "Esther · Calendar" : root.kind == "week" ? "Esther · This week" : "Esther · Tasks";
     no-frame: true;
     background: Look.panel;
     default-font-family: "Segoe UI Variable Text";
     default-font-size: 13px;
-    preferred-width: 560px;
-    preferred-height: 560px;
-    min-width: 300px;
-    min-height: 260px;
+    min-width: root.kind == "header" ? 420px : root.kind == "week" ? 280px : 300px;
+    min-height: root.kind == "header" ? 96px : root.kind == "calendar" ? 330px : root.kind == "week" ? 220px : 260px;
 
     // Glass: a blurred copy of the wallpaper, slid into line with the real one, under the panel tint.
     in property <bool> has-glass;
@@ -247,39 +734,6 @@ export component TasksCard inherits Window {
     in property <length> glass-w;
     in property <length> glass-h;
 
-    in property <[ListTab]> tabs;
-    in property <string> tab: "all";
-    in property <int> show: 0;
-    in property <int> count-all;
-    in property <int> count-open;
-    in property <int> count-done;
-    in property <int> count-tab-all;
-    in property <[TaskRow]> rows;
-    in property <string> empty-text: "Nothing to do here. Add a task above.";
-    in property <string> add-list-name;
-    in property <color> add-list-color;
-    // False until the shared tasks file exists (written by the Esther app), so nothing here can overwrite your tasks.
-    in property <bool> can-add: true;
-    // Narrow (set from Rust as the card is resized): no column headings, the list as a dot.
-    in property <bool> compact;
-
-    callback pick-tab(string);
-    callback pick-show(int);
-    callback add-task(string);
-    callback next-add-list();
-    callback toggle(string);
-    callback rename(string, string);
-    callback set-date(string, string);
-    callback move-to(string, string);
-    callback delete(string);
-    callback drag-start();
-    callback resize-start(string);
-    callback drag-by(length, length);
-    callback drag-end();
-    callback resize-by(string, length, length);
-    callback resize-end();
-
-    // The glass and the tint.
     Rectangle {
         clip: true;
         if root.has-glass: Image {
@@ -294,161 +748,10 @@ export component TasksCard inherits Window {
         Rectangle { border-width: 1px; border-color: Look.edge; }
     }
 
-    VerticalLayout {
-        padding: 14px;
-        padding-bottom: 8px;
-        spacing: 10px;
-
-        // List tabs. The space around them moves the card. (Not while waiting: those wouldn't be your lists.)
-        Rectangle {
-            height: 32px;
-            opacity: root.can-add ? 1 : 0;
-            TouchArea {
-                moved => { if self.pressed { root.drag-by(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
-                pointer-event(e) => {
-                    if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.drag-start(); }
-                    if e.kind == PointerEventKind.up { root.drag-end(); }
-                }
-            }
-            Flickable {
-                content-width: max(tabs-row.preferred-width, self.width);
-                interactive: true;
-              tabs-row := HorizontalLayout {
-                alignment: start;
-                spacing: 6px;
-                Pill { text: "All"; count: root.count-tab-all; on: root.tab == "all"; clicked => { root.pick-tab("all"); } }
-                for l in root.tabs: Pill {
-                    text: l.name;
-                    count: l.open;
-                    show-dot: true;
-                    dot: l.color;
-                    on: root.tab == l.id;
-                    clicked => { root.pick-tab(l.id); }
-                }
-              }
-            }
-        }
-
-        // All / To do / Done, and the drag area beside it.
-        Rectangle {
-            height: 30px;
-            opacity: root.can-add ? 1 : 0;
-            TouchArea {
-                moved => { if self.pressed { root.drag-by(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
-                pointer-event(e) => {
-                    if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.drag-start(); }
-                    if e.kind == PointerEventKind.up { root.drag-end(); }
-                }
-            }
-            HorizontalLayout {
-                alignment: start;
-                Rectangle {
-                    border-radius: 8px;
-                    background: #ffffff0b;
-                    HorizontalLayout {
-                        padding: 2px;
-                        spacing: 2px;
-                        for s[i] in ["All", "To do", "Done"]: Rectangle {
-                            border-radius: 6px;
-                            background: root.show == i ? Look.accent.with-alpha(0.2) : seg.has-hover ? #ffffff0d : transparent;
-                            seg := TouchArea { mouse-cursor: pointer; clicked => { root.pick-show(i); } }
-                            HorizontalLayout {
-                                padding-left: 11px;
-                                padding-right: 11px;
-                                spacing: 6px;
-                                Text { text: s; color: root.show == i ? Look.text : Look.muted; font-size: 13px; vertical-alignment: center; }
-                                Text { text: i == 0 ? root.count-all : i == 1 ? root.count-open : root.count-done; color: Look.faint; font-size: 11.5px; vertical-alignment: center; }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Column headings (not when narrow).
-        if !root.compact && root.can-add: HorizontalLayout {
-            padding-left: 46px;
-            padding-right: 8px;
-            spacing: 10px;
-            height: 24px;
-            Text { horizontal-stretch: 1; text: "TASK"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
-            if root.tab == "all": Text { width: 130px; text: "LIST"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
-            Text { width: 70px; text: "SUBTASKS"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
-            Text { width: 96px; text: "DATE"; color: Look.faint; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; vertical-alignment: center; }
-        }
-
-        // Waiting for the shared tasks file (written by the Esther app, 2.2 or later).
-        if !root.can-add: Rectangle {
-            vertical-stretch: 1;
-            VerticalLayout {
-                alignment: center;
-                padding: 18px;
-                spacing: 10px;
-                Text { text: "Waiting for your tasks"; color: Look.text; font-family: "Instrument Serif"; font-size: 26px; horizontal-alignment: center; }
-                Text {
-                    text: "This card shows the same tasks as the Esther app. Update Esther to 2.2 or later (Settings → About → Check now, then Restart to update) and keep it running: your lists and tasks appear here by themselves.";
-                    color: Look.muted;
-                    font-size: 13px;
-                    wrap: word-wrap;
-                    horizontal-alignment: center;
-                }
-                Text {
-                    text: "Until then nothing can be added here, so this card can never overwrite your tasks.";
-                    color: Look.faint;
-                    font-size: 12px;
-                    font-italic: true;
-                    wrap: word-wrap;
-                    horizontal-alignment: center;
-                }
-            }
-        }
-
-        // Add a task.
-        if root.can-add: HorizontalLayout {
-            height: 40px;
-            padding-left: 8px;
-            padding-right: 8px;
-            spacing: 10px;
-            Text { width: 20px; text: "+"; color: Look.faint; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
-            add := Field {
-                y: 5px;
-                horizontal-stretch: 1;
-                placeholder: "Add a task, Enter";
-                accepted(t) => { if t != "" && root.can-add { root.add-task(t); self.text = ""; } }
-            }
-            if root.tab == "all": Pill {
-                y: 5px;
-                horizontal-stretch: 0;
-                text: root.add-list-name;
-                show-dot: true;
-                dot: root.add-list-color;
-                pad: 10px;
-                clicked => { root.next-add-list(); }
-            }
-        }
-
-        // The tasks.
-        if root.can-add && root.rows.length > 0: ListView {
-            vertical-stretch: 1;
-            for t in root.rows: Row {
-                task: t;
-                show-list: root.tab == "all";
-                compact: root.compact;
-                lists: root.tabs;
-                toggle(id) => { root.toggle(id); }
-                rename(id, s) => { root.rename(id, s); }
-                set-date(id, d) => { root.set-date(id, d); }
-                move-to(id, l) => { root.move-to(id, l); }
-                delete(id) => { root.delete(id); }
-            }
-        }
-        if root.can-add && root.rows.length == 0: Rectangle {
-            vertical-stretch: 1;
-            Text { y: 18px; width: parent.width; text: root.empty-text; color: Look.faint; font-italic: true; font-size: 13px; horizontal-alignment: center; wrap: word-wrap; }
-        }
-
-        if !root.compact: Text { text: "Double-click a task to rename it · right-click for its date, list or delete"; color: Look.faint; font-size: 11.5px; }
-    }
+    if root.kind == "tasks": TasksBody { }
+    if root.kind == "header": HeaderBody { }
+    if root.kind == "calendar": CalendarBody { }
+    if root.kind == "week": WeekBody { }
 
     // Resize from any edge or corner (Esther lands it on the 8 px grid).
     for e in [
@@ -466,10 +769,10 @@ export component TasksCard inherits Window {
         width: e.w;
         height: e.h;
         mouse-cursor: e.c;
-        moved => { if self.pressed { root.resize-by(e.id, self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
+        moved => { if self.pressed { Esther.resize-by(e.id, self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
         pointer-event(ev) => {
-            if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.left { root.resize-start(e.id); }
-            if ev.kind == PointerEventKind.up { root.resize-end(); }
+            if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.left { Esther.resize-start(e.id); }
+            if ev.kind == PointerEventKind.up { Esther.resize-end(); }
         }
     }
 }

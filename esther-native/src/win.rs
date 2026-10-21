@@ -70,6 +70,21 @@ mod imp {
     pub fn screen_size() -> (u32, u32) {
         unsafe { (GetSystemMetrics(SM_CXSCREEN) as u32, GetSystemMetrics(SM_CYSCREEN) as u32) }
     }
+    /// The main screen without the taskbar: (x, y, width, height).
+    pub fn work_area() -> (i32, i32, i32, i32) {
+        unsafe {
+            let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            if SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut r as *mut RECT as _, 0) == 0 {
+                let (w, h) = screen_size();
+                return (0, 0, w as i32, h as i32);
+            }
+            (r.left, r.top, r.right - r.left, r.bottom - r.top)
+        }
+    }
+    /// How much bigger than 96 dpi the screen is drawn (1.25 at 125 %).
+    pub fn dpi_scale() -> f32 {
+        unsafe { windows_sys::Win32::UI::HiDpi::GetDpiForSystem() as f32 / 96.0 }
+    }
 
     // ---- The mouse and keys, for Esther's own moving and resizing (as in the Electron app). ----
     pub fn cursor() -> (i32, i32) {
@@ -109,8 +124,8 @@ mod imp {
             (corner, tool, owned)
         }
     }
-    /// For the test machine: minimise its console windows (they sit over the desktop), and bring the card forward.
-    pub fn clear_and_front(hwnd: isize) {
+    /// For the test machine: minimise its console windows (they sit over the desktop).
+    pub fn clear_consoles() {
         unsafe {
             for c in ["CASCADIA_HOSTING_WINDOW_CLASS", "ConsoleWindowClass"] {
                 for _ in 0..10 {
@@ -119,6 +134,11 @@ mod imp {
                     ShowWindow(h, SW_MINIMIZE);
                 }
             }
+        }
+    }
+    /// Bring a card forward and give it the keyboard (for the test machine's clicks and typing).
+    pub fn front(hwnd: isize) {
+        unsafe {
             SetWindowPos(hwnd as HWND, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
             SetForegroundWindow(hwnd as HWND);
         }
@@ -184,6 +204,12 @@ mod imp {
     }
     pub fn screen_size() -> (u32, u32) {
         (1920, 1080)
+    }
+    pub fn work_area() -> (i32, i32, i32, i32) {
+        (0, 0, 1920, 1040)
+    }
+    pub fn dpi_scale() -> f32 {
+        1.0
     }
     pub fn cursor() -> (i32, i32) { (0, 0) }
     pub fn button_down() -> bool { false }
