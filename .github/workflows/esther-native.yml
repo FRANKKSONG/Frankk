@@ -58,8 +58,9 @@ jobs:
             want(m.renamed_by_click, 'clicking a task name and typing over it did not rename it');
             want(m.list_after_pill_menu && m.list_after_pill_menu !== 'general', 'picking another list from the list pill menu left the list as ' + JSON.stringify(m.list_after_pill_menu));
             want(m.subtask_added, 'clicking the subtasks column and typing did not add a subtask');
-            want(m.date_from_menu === '2026-10-21', 'the date menu (Down, Enter) gave ' + JSON.stringify(m.date_from_menu) + ', not today');
-            want(m.date_from_picker === '2026-10-22', 'the date picker (Tomorrow) gave ' + JSON.stringify(m.date_from_picker));
+            want(m.date_from_picker_quick === '2026-10-22', 'the date picker Tomorrow gave ' + JSON.stringify(m.date_from_picker_quick));
+            want(m.date_from_picker_day === '2026-10-25', 'the date picker 25th gave ' + JSON.stringify(m.date_from_picker_day));
+            want(m.subtasks_closed_by_click, 'clicking the subtasks column again did not close them');
             want(m.list_renamed === 'Everyday', 'double-clicking a list tab and typing gave ' + JSON.stringify(m.list_renamed));
             want(m.list_added === 'Errands', 'the + for a new list gave ' + JSON.stringify(m.list_added));
             // The cards together

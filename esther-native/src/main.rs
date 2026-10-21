@@ -1262,30 +1262,26 @@ fn smoke_steps() -> Vec<Step> {
         if x.real.get() { x.click("subtasks again", "tasks", x.at("tasks", w - 198.0 + 12.0, row(x))) } else { x.g("tasks").set_open_task("".into()) }
     });
     step!(50, |x| x.note("subtasks_closed_by_click", x.g("tasks").get_open_task().is_empty()));
-    // Its date: click the date column, Down, Enter (Today).
-    step!(1800, |x| {
+    // Its date: click the date column (the date picker opens), then its Tomorrow; again, then the 25th.
+    fn picker_at(x: &Smoke, px: f32, py: f32) -> (i32, i32) {
         let (w, _) = x.size("tasks");
-        if x.real.get() {
-            x.later(100, move |m, dir| { m.insert("date_menu_open".into(), wait_menu().into()); shot_to(dir, "date-menu.png"); m.insert("date_menu_item_clicked".into(), click_menu_item(0).into()); });
-            x.click("date", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x)));
-        } else { x.g("tasks").invoke_set_date(x.first_row_id(), "today".into()) }
-    });
-    step!(50, |x| x.note("date_from_menu", x.first_task()["date"].clone()));
-    // The date picker: the menu's "Pick a date…", then its Tomorrow.
-    step!(1800, |x| {
-        let (w, _) = x.size("tasks");
-        if x.real.get() {
-            x.later(100, move |m, _| { m.insert("date_menu_open_again".into(), wait_menu().into()); m.insert("pick_item_clicked".into(), click_menu_item(3).into()); });
-            x.click("date again", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x)));
-        }
-    });
-    step!(100, |x| {
+        let compact = x.g("tasks").get_compact();
+        let left = if compact { w - 22.0 - 200.0 } else { w - 22.0 - 96.0 - 170.0 };
+        let top = spots::first_row(compact) - 21.0 + 9.0 + 24.0 + 4.0;
+        x.at("tasks", left + px, top + py)
+    }
+    step!(700, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("date", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x))) } });
+    step!(500, |x| {
         x.shot("date-picker.png");
-        let (w, _) = x.size("tasks");
-        let top = row(x) - 21.0 + 37.0;
-        if x.real.get() { x.click("picker: Tomorrow", "tasks", x.at("tasks", w - 22.0 - 96.0 - 170.0 + 107.0, top + 274.0)) } else { x.g("tasks").invoke_set_date(x.first_row_id(), "tomorrow".into()) }
+        if x.real.get() { x.click("picker: Tomorrow", "tasks", picker_at(x, 108.0, 60.0)) } else { x.g("tasks").invoke_set_date(x.first_row_id(), "tomorrow".into()) }
     });
-    step!(450, |x| x.note("date_from_picker", x.first_task()["date"].clone()));
+    step!(50, |x| x.note("date_from_picker_quick", x.first_task()["date"].clone()));
+    step!(700, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("date again", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x))) } });
+    step!(500, |x| {
+        // The 25th: October 2026 starts on a Thursday, so it's the 28th cell (row 4, column 7).
+        if x.real.get() { x.click("picker: the 25th", "tasks", picker_at(x, 12.0 + 6.5 * 240.0 / 7.0, 102.0 + 3.5 * 182.0 / 5.0)) } else { x.g("tasks").invoke_set_date(x.first_row_id(), "2026-10-25".into()) }
+    });
+    step!(50, |x| x.note("date_from_picker_day", x.first_task()["date"].clone()));
     // A list tab: double-click to rename, type, Enter.
     step!(300, |x| { if x.real.get() { let p = x.at("tasks", 14.0 + 58.0 + 6.0 + 22.0, 14.0 + 16.0); x.click("list tab", "tasks", p); win_input::down(); win_input::up(); } });
     step!(150, |x| { if x.real.get() { win_input::type_text("Everyday") } });

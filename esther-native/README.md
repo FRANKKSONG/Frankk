@@ -15,8 +15,8 @@ stage 3, Settings; stage 4, the installer and updater in place of Electron's.
   subtasks, date. Add a task with Enter (on All, click the list pill beside it to pick its list).
   - Click a task's name to edit it (Enter or clicking away saves, Esc cancels).
   - Click its list to move it to another list; click its subtasks (or "+ sub") to open them: tick, click to edit,
-    right-click to delete, and "Add a subtask"; click its date for Today / Tomorrow / Next week / No date or the date
-    picker. Right-click a task for all of that and Delete.
+    right-click to delete, and "Add a subtask"; click its date for the date picker (Today, Tomorrow, Next week, any
+    day of any month, or No date). Right-click a task for quick dates, its list, its subtasks, and Delete.
   - Lists: + (at the right of the tabs) for a new one; double-click a tab to rename it; right-click a tab for Rename,
     its colour, or Delete list (its tasks moved to another list, or deleted with it).
   - Finished tasks stay crossed out, "clears in N days", and clear themselves after a week. Narrower than 560 px it goes

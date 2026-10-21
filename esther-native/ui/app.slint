@@ -347,12 +347,13 @@ component WeekLetters inherits HorizontalLayout {
     for d in ["M", "T", "W", "T", "F", "S", "S"]: Text { horizontal-stretch: 1; text: d; color: Look.faint; font-size: 11px; horizontal-alignment: center; }
 }
 
-// The date picker: a small month, ‹ › to move, Today / Tomorrow / No date.
+// The date picker: Today / Tomorrow / Next week, a small month (‹ › to move), and No date.
 component DatePicker inherits Rectangle {
     in property <string> task;
+    in property <bool> has-date;
     callback done;
     width: 264px;
-    height: 300px;
+    height: 330px;
     background: Look.pop;
     border-radius: 12px;
     border-width: 1px;
@@ -369,6 +370,14 @@ component DatePicker inherits Rectangle {
             NavButton { text: "‹"; clicked => { Esther.picker-step(-1); } }
             NavButton { text: "›"; clicked => { Esther.picker-step(1); } }
         }
+        HorizontalLayout {
+            spacing: 6px;
+            height: 28px;
+            alignment: start;
+            Pill { height: 28px; text: "Today"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "today"); root.done(); } }
+            Pill { height: 28px; text: "Tomorrow"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "tomorrow"); root.done(); } }
+            Pill { height: 28px; text: "Next week"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "next-week"); root.done(); } }
+        }
         WeekLetters { }
         MonthGrid {
             vertical-stretch: 1;
@@ -377,12 +386,9 @@ component DatePicker inherits Rectangle {
             picked(iso) => { Esther.set-date(root.task, iso); root.done(); }
         }
         HorizontalLayout {
-            spacing: 6px;
             height: 28px;
-            Pill { height: 28px; text: "Today"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "today"); root.done(); } }
-            Pill { height: 28px; text: "Tomorrow"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "tomorrow"); root.done(); } }
-            Rectangle { horizontal-stretch: 1; }
-            Pill { height: 28px; text: "No date"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "none"); root.done(); } }
+            alignment: start;
+            if root.has-date: Pill { height: 28px; text: "No date"; pad: 10px; font-size: 12.5px; clicked => { Esther.set-date(root.task, "none"); root.done(); } }
         }
     }
 }
@@ -465,43 +471,33 @@ component Row inherits Rectangle {
                     height: parent.height;
                 }
             }
-            // The date: click for a quick date or the picker.
+            // The date: click for the date picker.
             Rectangle {
                 width: root.compact ? (root.task.date-kind != 0 ? chip.width : 0) : 96px;
-                date-menu := ContextMenuArea {
-                    Menu {
-                        MenuItem { title: "Today"; activated => { Esther.set-date(root.task.id, "today"); } }
-                        MenuItem { title: "Tomorrow"; activated => { Esther.set-date(root.task.id, "tomorrow"); } }
-                        MenuItem { title: "Next week"; activated => { Esther.set-date(root.task.id, "next-week"); } }
-                        MenuItem { title: "Pick a date…"; activated => { Esther.picker-open(root.task.iso); picker.show(); } }
-                        MenuSeparator { }
-                        MenuItem { title: "No date"; enabled: root.task.date-kind != 0; activated => { Esther.set-date(root.task.id, "none"); } }
+                chip := Rectangle {
+                    x: 0;
+                    width: chip-text.preferred-width + 18px;
+                    height: 24px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 12px;
+                    visible: root.task.date-kind != 0 || dt.has-hover;
+                    background: root.task.date-kind == 1 ? Look.accent.with-alpha(0.16) : root.task.date-kind == 2 ? Look.danger.with-alpha(0.15) : #ffffff10;
+                    chip-text := Text {
+                        text: root.task.date-kind != 0 ? root.task.date : "+ date";
+                        font-size: 12.5px;
+                        vertical-alignment: center;
+                        horizontal-alignment: center;
+                        color: root.task.date-kind == 1 ? Look.accent : root.task.date-kind == 2 ? Look.danger : Look.muted;
                     }
-                    chip := Rectangle {
-                        x: 0;
-                        width: chip-text.preferred-width + 18px;
-                        height: 24px;
-                        y: (parent.height - self.height) / 2;
-                        border-radius: 12px;
-                        visible: root.task.date-kind != 0 || dt.has-hover;
-                        background: root.task.date-kind == 1 ? Look.accent.with-alpha(0.16) : root.task.date-kind == 2 ? Look.danger.with-alpha(0.15) : #ffffff10;
-                        chip-text := Text {
-                            text: root.task.date-kind != 0 ? root.task.date : "+ date";
-                            font-size: 12.5px;
-                            vertical-alignment: center;
-                            horizontal-alignment: center;
-                            color: root.task.date-kind == 1 ? Look.accent : root.task.date-kind == 2 ? Look.danger : Look.muted;
-                        }
-                    }
-                    dt := TouchArea { mouse-cursor: pointer; clicked => { date-menu.show({ x: 0, y: chip.y + chip.height + 2px }); } }
                 }
+                dt := TouchArea { mouse-cursor: pointer; clicked => { Esther.picker-open(root.task.iso); picker.show(); } }
                 picker := PopupWindow {
                     x: root.compact ? -200px : -170px;
                     y: chip.y + chip.height + 4px;
                     width: 264px;
-                    height: 300px;
+                    height: 330px;
                     close-policy: close-on-click-outside;
-                    DatePicker { task: root.task.id; done => { picker.close(); } }
+                    DatePicker { task: root.task.id; has-date: root.task.date-kind != 0; done => { picker.close(); } }
                 }
             }
         }
