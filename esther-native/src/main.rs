@@ -917,6 +917,7 @@ fn show_all(app: &App) {
         fade(app, app.index(kind), true, n * 40.0, from_bubble);
         n += 1.0;
     }
+    if app.settings_open.get() { fade(app, app.index("settings"), true, n * 40.0, from_bubble); }
     if app.is_on("tasks") { shell::focus(app.card("tasks").hwnd.get()); }
     update_menu(app);
 }
@@ -1662,7 +1663,10 @@ fn smoke_steps() -> Vec<Step> {
         x.note("task_dragged_below_next", before.len() > 1 && after.len() > 1 && after[0] == before[1] && after[1] == before[0]);
     });
     // Drag the first list's tab to the right, past the next.
-    step!(50, |x| x.note("first_list_before_drag", x.file()["lists"][0]["id"].clone()));
+    step!(50, |x| {
+        let order: Vec<serde_json::Value> = x.file()["lists"].as_array().map(|l| l.iter().map(|l| l["id"].clone()).collect()).unwrap_or_default();
+        x.note("lists_before_drag", order);
+    });
     drag(&mut s, "list tab", "tasks", |x| x.at("tasks", 14.0 + 58.0 + 6.0 + 50.0, 14.0 + 16.0), |x| ((150.0 * x.k()) as i32, 0), 6, |x| x.shot("dragging-tab.png"));
     step!(50, |x| {
         if !x.real.get() {
@@ -1670,7 +1674,10 @@ fn smoke_steps() -> Vec<Step> {
             x.g("tasks").invoke_move_list(ids[0].clone().into(), ids[1].clone().into(), true);
         }
         let first = x.file()["lists"][0]["id"].clone();
-        x.note("tab_dragged", first != x.notes.borrow()["first_list_before_drag"] && first.is_string());
+        let _ = first;
+        let order: Vec<serde_json::Value> = x.file()["lists"].as_array().map(|l| l.iter().map(|l| l["id"].clone()).collect()).unwrap_or_default();
+        let moved = serde_json::Value::from(order) != x.notes.borrow()["lists_before_drag"];
+        x.note("tab_dragged", moved);
         x.note("tab_order", x.file()["lists"].as_array().map(|l| l.iter().map(|l| l["name"].clone()).collect::<Vec<_>>()).unwrap_or_default());
     });
     // Widen LIST by dragging its heading's left edge 40 px to the left.
@@ -2085,7 +2092,8 @@ fn main() {
     for w in &app.cards {
         let r = if w.kind == "bubble" { bubble_rect(false, app.prefs.borrow().bubble_size) } else { places.get(w.kind).copied().filter(|r| on_screen(*r)).unwrap_or_else(|| default_place(w.kind)) };
         set_rect(w, r);
-        if (w.kind == "bubble" && app.prefs.borrow().bubble) || app.is_on(w.kind) {
+        // (Settings too on Windows, so it is made and styled with the rest; it stays hidden until asked for.)
+        if (w.kind == "bubble" && app.prefs.borrow().bubble) || app.is_on(w.kind) || (w.kind == "settings" && cfg!(windows)) {
             w.ui.show().expect("show a card");
         }
         place_glass(w, r);
@@ -2126,6 +2134,7 @@ fn main() {
                         w.acrylic.set(acrylic);
                         if !acrylic.is_empty() { w.ui.set_has_glass(false); w.ui.set_acrylic(true); }
                         if w.kind != "bubble" { shell::set_alpha(h.hwnd.get(), 0); } // (they fade in below)
+                        if w.kind == "settings" && !a.settings_open.get() { shell::show(h.hwnd.get(), false); }
                         log(&format!("{} styled: {}; glass: {}", w.kind, w.styled.borrow(), if acrylic.is_empty() { "Esther's own" } else { acrylic }));
                         fresh.push(i);
                     }

@@ -321,9 +321,10 @@ component Field inherits Rectangle {
         vertical-alignment: center;
         selection-background-color: Look.accent.with-alpha(0.35);
         single-line: true;
-        accepted => { root.accepted(self.text); Esther.typing = self.has-focus && self.text != ""; }
+        // (Done with it: Enter or Esc. The field may go away now, without losing the keyboard first.)
+        accepted => { Esther.typing = false; root.accepted(self.text); }
         edited => { Esther.typing = self.text != ""; }
-        key-pressed(e) => { if e.text == Key.Escape { root.cancelled(); return accept; } reject }
+        key-pressed(e) => { if e.text == Key.Escape { Esther.typing = false; root.cancelled(); return accept; } reject }
         changed has-focus => { if !self.has-focus { root.left(self.text); } Esther.typing = self.has-focus && self.text != ""; }
     }
     Rectangle { y: parent.height - 1px; height: 1px; background: input.has-focus ? Look.accent.with-alpha(0.6) : transparent; }
