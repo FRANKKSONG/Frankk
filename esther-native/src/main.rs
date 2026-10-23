@@ -834,6 +834,7 @@ fn fade(app: &App, i: usize, show: bool, delay_ms: f32, fly: bool) {
     // pixel wider for a moment; the fade's next step, or a redraw, puts it back). The fade waits a frame for that.
     let start = if show { fly.map(|f| f.0).unwrap_or(home) } else { home };
     shell::set_alpha(w.hwnd.get(), if show { 0 } else { 254 });
+    draw_whole(w);
     set_rect(w, (start.0, start.1, start.2 + 1, start.3));
     if fly.is_none() { app.anims.borrow_mut().push(Anim::Redraw { i, home, wide: false }); }
     if show {
@@ -842,6 +843,11 @@ fn fade(app: &App, i: usize, show: bool, delay_ms: f32, fly: bool) {
     }
     let ms = match (show, fly.is_some()) { (true, true) => 300.0, (true, false) => 170.0, (false, true) => 220.0, (false, false) => 150.0 };
     app.anims.borrow_mut().push(Anim::Fade { i, from, to: 1.0 - from, start: Instant::now() + StdDuration::from_millis(delay_ms.max(25.0) as u64), ms, hide_after: !show, fly });
+}
+/// Windows threw the window's picture away (it started or stopped being see-through): draw it whole.
+fn draw_whole(w: &Win) {
+    i_slint_renderer_software::draw_whole_next_frame();
+    w.ui.window().request_redraw();
 }
 fn glide(app: &App, i: usize, to: Rect, ms: f32) {
     stop_anims(app, i);
@@ -870,6 +876,7 @@ fn anim_tick(app: &App) {
                     if *hide_after { shell::show(h, false); }
                     if let Some((_, home)) = fly { set_rect(w, *home); }
                     shell::set_alpha(h, 255);
+                    draw_whole(w);
                     if !*hide_after {
                         let home = fly.map(|f| f.1).unwrap_or_else(|| rect_of(w));
                         set_rect(w, (home.0, home.1, home.2 + 1, home.3));

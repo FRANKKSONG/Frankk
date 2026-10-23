@@ -432,6 +432,14 @@ impl<'a, T: TargetPixel> target_pixel_buffer::TargetPixelBuffer for TargetPixelS
     }
 }
 
+/// Esther: a request from the program that every window draws itself whole on its next frame (Windows throws a
+/// layered window's picture away when it starts or stops being see-through, which the dirty regions can't know).
+static WHOLE_FRAME: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+/// Esther: every window draws itself whole on its next frame.
+pub fn draw_whole_next_frame() {
+    WHOLE_FRAME.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+}
+
 /// A Renderer that do the rendering in software
 ///
 /// The renderer can remember what items needs to be redrawn from the previous iteration.
@@ -442,6 +450,8 @@ impl<'a, T: TargetPixel> target_pixel_buffer::TargetPixelBuffer for TargetPixelS
 ///     is only useful if the device does not have enough memory to render the whole window
 ///     in one single buffer
 pub struct SoftwareRenderer {
+    /// Esther: the last whole-frame request this window has drawn.
+    seen_whole_frame: Cell<usize>,
     repaint_buffer_type: Cell<RepaintBufferType>,
     /// This is the area which was dirty on the previous frame.
     /// Only used if repaint_buffer_type == RepaintBufferType::SwappedBuffers
@@ -457,6 +467,7 @@ pub struct SoftwareRenderer {
 impl Default for SoftwareRenderer {
     fn default() -> Self {
         Self {
+            seen_whole_frame: Default::default(),
             partial_rendering_state: Default::default(),
             prev_frame_dirty: Default::default(),
             maybe_window_adapter: Default::default(),
@@ -624,7 +635,13 @@ impl SoftwareRenderer {
             .draw_contents(|components, post_render| {
                 let logical_size = (size.cast() / factor).cast();
 
-                match self.repaint_buffer_type.get() {
+                // Esther: asked to draw the whole window (and, with swapped buffers, the other buffer next time).
+                let whole = WHOLE_FRAME.load(core::sync::atomic::Ordering::Relaxed);
+                let forced = self.seen_whole_frame.replace(whole) != whole;
+                if forced && self.repaint_buffer_type.get() == RepaintBufferType::SwappedBuffers {
+                    self.prev_frame_dirty.set(LogicalRect::from_size(logical_size).into());
+                }
+                match if forced { RepaintBufferType::NewBuffer } else { self.repaint_buffer_type.get() } {
                     RepaintBufferType::NewBuffer => {
                         renderer.dirty_region = LogicalRect::from_size(logical_size).into();
                         self.partial_rendering_state.clear_cache();
@@ -1489,7 +1506,13 @@ fn prepare_scene(
     window.draw_contents(|components, post_render| {
         let logical_size = (size.cast() / factor).cast();
 
-        match software_renderer.repaint_buffer_type.get() {
+        // Esther: asked to draw the whole window (and, with swapped buffers, the other buffer next time).
+        let whole = WHOLE_FRAME.load(core::sync::atomic::Ordering::Relaxed);
+        let forced = software_renderer.seen_whole_frame.replace(whole) != whole;
+        if forced && software_renderer.repaint_buffer_type.get() == RepaintBufferType::SwappedBuffers {
+            software_renderer.prev_frame_dirty.set(LogicalRect::from_size(logical_size).into());
+        }
+        match if forced { RepaintBufferType::NewBuffer } else { software_renderer.repaint_buffer_type.get() } {
             RepaintBufferType::NewBuffer => {
                 // NewBuffer always redraws the full screen, so skip dirty region
                 // tracking to avoid unbounded growth of the partial rendering cache.
