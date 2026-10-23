@@ -1820,9 +1820,10 @@ export component Card inherits Window {
         }
         if root.acrylic: Rectangle { background: Look.panel.with-alpha(Look.acrylic-tint); }
         if !root.has-glass && !root.acrylic: Rectangle { background: Look.panel; }
-        // A hairline of light along the top, as glass catches it.
-        if root.acrylic: Rectangle { y: 0; height: 1px; background: #ffffff1c; }
-        Rectangle { border-width: 1px; border-color: Look.edge; }
+        // A hairline of light along the top, as glass catches it, and the card's edge: both follow the corners Windows
+        // rounds (8 px, as Windows 11 does).
+        if root.acrylic: Rectangle { x: 8px; y: 0; width: parent.width - 16px; height: 1px; background: #ffffff1c; }
+        Shape { width: 100%; height: 100%; radius: 8px; fill: transparent; stroke: Look.edge; }
     }
 
     if root.kind == "tasks": TasksBody { }
