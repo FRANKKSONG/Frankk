@@ -723,9 +723,13 @@ fn fade(app: &App, i: usize, show: bool, delay_ms: f32, fly: bool) {
     let home = rect_of(w);
     let fly = fly.then(|| (away_from(app, home), home));
     let from = if show { 0.0 } else { 1.0 };
+    // Becoming see-through, the window's picture is thrown away too: so it is drawn again whole straight away (one
+    // pixel wider for a moment; the fade's next step, or a redraw, puts it back).
+    let start = if show { fly.map(|f| f.0).unwrap_or(home) } else { home };
+    shell::set_alpha(w.hwnd.get(), if show { 0 } else { 254 });
+    set_rect(w, (start.0, start.1, start.2 + 1, start.3));
+    if fly.is_none() { app.anims.borrow_mut().push(Anim::Redraw { i, home, wide: false }); }
     if show {
-        shell::set_alpha(w.hwnd.get(), 0);
-        if let Some((away, _)) = fly { set_rect(w, away); }
         shell::show(w.hwnd.get(), true);
         shell::raise(w.hwnd.get());
     }
@@ -1243,6 +1247,24 @@ impl Smoke {
     }
 }
 
+/// The spread of brightness inside `r` (less a margin) on a picture of the screen: text and lines make it large, a
+/// blank panel small.
+fn contrast(img: &image::RgbaImage, r: Rect, k: f32) -> f64 {
+    let m = (10.0 * k) as i32;
+    let mut v = vec![];
+    for yy in (r.1 + m)..(r.1 + r.3 - m) {
+        for xx in (r.0 + m)..(r.0 + r.2 - m) {
+            if xx >= 0 && yy >= 0 && (xx as u32) < img.width() && (yy as u32) < img.height() {
+                let p = img.get_pixel(xx as u32, yy as u32).0;
+                v.push(0.299 * p[0] as f64 + 0.587 * p[1] as f64 + 0.114 * p[2] as f64);
+            }
+        }
+    }
+    let n = v.len().max(1) as f64;
+    let mean = v.iter().sum::<f64>() / n;
+    ((v.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / n).sqrt() * 10.0).round() / 10.0
+}
+
 /// A picture of the whole screen (from any thread).
 fn shot_to(dir: &std::path::Path, name: &str) {
     if let Some(img) = shell::capture() { let _ = img.save(dir.join(name)); }
@@ -1479,7 +1501,13 @@ fn smoke_steps() -> Vec<Step> {
         let (bx, by, bw, bh) = rect_of(x.w("bubble"));
         if x.real.get() { win_input::clear_consoles(); x.click("bubble", "bubble", (bx + bw / 2, by + bh / 2)) } else { x.g("bubble").invoke_bubble_click() }
     });
-    step!(800, |x| x.shot("flying-out.png")); // (part way out of the bubble)
+    step!(800, |x| {
+        // (Part way out of the bubble: the header, first out, should already show its content as it flies.)
+        if let Some(img) = shell::capture() {
+            let _ = img.save(x.dir.join("flying-out.png"));
+            x.note("header_contrast_flying", contrast(&img, rect_of(x.w("header")), x.k()));
+        }
+    });
     step!(100, |x| {
         x.note("bubble_showed_cards", x.all_cards(true));
         let (bx, by, _, bh) = rect_of(x.w("bubble"));
@@ -1527,19 +1555,7 @@ fn smoke_steps() -> Vec<Step> {
         // doesn't.) The spread of brightness over its top part, where the tabs, the switch and the headings are.
         if let Some(img) = shell::capture() {
             let (l, t, w, _) = rect_of(x.w("tasks"));
-            let k = x.k();
-            let mut v = vec![];
-            for yy in (t + (10.0 * k) as i32)..(t + (130.0 * k) as i32) {
-                for xx in (l + (10.0 * k) as i32)..(l + w - (10.0 * k) as i32) {
-                    if xx >= 0 && yy >= 0 && (xx as u32) < img.width() && (yy as u32) < img.height() {
-                        let p = img.get_pixel(xx as u32, yy as u32).0;
-                        v.push(0.299 * p[0] as f64 + 0.587 * p[1] as f64 + 0.114 * p[2] as f64);
-                    }
-                }
-            }
-            let mean = v.iter().sum::<f64>() / v.len().max(1) as f64;
-            let sd = (v.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / v.len().max(1) as f64).sqrt();
-            x.note("tasks_content_contrast", (sd * 10.0).round() / 10.0);
+            x.note("tasks_content_contrast", contrast(&img, (l, t, w, (130.0 * x.k()) as i32), x.k()));
         }
     });
     s
