@@ -1,7 +1,8 @@
 # Esther native: Esther's cards, without Electron
 
 Esther's cards as one native Windows program, written in Rust with the [Slint](https://slint.dev) toolkit, to make
-Esther light. The Electron app uses about 250–300 MB; this aims for well under 40 MB.
+Esther light. The Electron app uses about 250–300 MB; this keeps under 25 MB in Task Manager (about 9 MB on the test
+machine), and its Windows test fails if it goes over.
 
 Stages 1 and 2 of the move are here: the four cards, each its own window, all showing the one set of tasks; the tray,
 the shortcut, starting with Windows, the bubble, and the grid and guides while you move and resize. Still to come:
@@ -33,14 +34,16 @@ screen's centre, middle and quarters dashed and the other cards outlined; the ca
 (the centre, a quarter, another card's edge or centre, or an even gap from it) it snaps to it and the guide lights up
 with its name. Where each card is is remembered (`esther-native.json` next to the tasks).
 
-Esther's glass sits behind every card: your wallpaper, blurred, with the panel's tint, made once at the screen's own
-size and shared by every card (so it is smooth, and quick to draw), and made again when the wallpaper changes. On
-Windows each card sits on the desktop like the Electron cards (owned by the desktop window), is a tool window (no
-taskbar button), has Windows' rounded corners, and no Windows window animations: Esther's own fades instead.
+Esther's glass: Windows' own acrylic behind every card (the acrylic accent docks and other desktop tools use), so
+Windows blurs whatever is behind the card, live, in its own compositor, and Esther draws only its warm tint over it.
+That costs Esther nothing. Where Windows won't give acrylic, Esther paints its own glass instead: your wallpaper,
+blurred, with the tint, made once at the screen's own size (made again when the wallpaper changes). On Windows each
+card sits on the desktop like the Electron cards (owned by the desktop window), is a tool window (no taskbar button),
+has Windows' rounded corners, and no Windows window animations: Esther's own instead.
 
 ## Showing and hiding
-- **Ctrl+Alt+E**, or a click on the tray icon (the "E"): if the cards are in front, they fade away into the bubble;
-  otherwise they come forward, one after another. Alt+F4 on a card hides Esther too.
+- **Ctrl+Alt+E**, or a click on the tray icon (the "E"): if the cards are in front, they fly into the bubble as they
+  fade; otherwise they fly out of it, one after another. Alt+F4 on a card hides Esther too.
 - **The bubble**: the word "Esther". While the cards are away it sits big in the middle of the screen (the mouse wheel
   over it makes it bigger or smaller); click it and they come back, and it goes small to the bottom left (click it
   there to hide them again).
@@ -66,6 +69,6 @@ turn its cards off in Settings → Cards) while you try this.
 - `SLINT_BACKEND=winit-femtovg` draws with the graphics card (OpenGL) instead of the processor, for comparison.
 
 ## Not here yet
-Settings (colours, looks, glass strength, the shortcut), Esther's undo, dragging to reorder lists and tasks, and the
-cards flying into the bubble (they fade instead). Fonts: Instrument Serif
+Settings (colours, looks, glass strength, the shortcut), Esther's undo, dragging to reorder lists and tasks. The cards
+fly and fade, but don't shrink as they go into the bubble (Electron's do). Fonts: Instrument Serif
 (SIL Open Font License, `ui/fonts/OFL.txt`).
