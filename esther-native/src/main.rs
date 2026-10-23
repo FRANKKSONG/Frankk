@@ -1472,8 +1472,10 @@ fn smoke_report(x: &Smoke) {
             "styled": w.styled.borrow().clone(),
         }));
     }
-    let (private, ws) = win::memory_kb();
+    let (private, ws, pws) = win::memory_kb();
+    let mb = |kb: u64| (kb as f64 / 1024.0 * 10.0).round() / 10.0;
     let mut report = serde_json::json!({
+        "task_manager_mb": mb(pws),
         "private_mb": (private as f64 / 1024.0 * 10.0).round() / 10.0,
         "working_set_mb": (ws as f64 / 1024.0 * 10.0).round() / 10.0,
         "windows": a.cards.len(),

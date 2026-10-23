@@ -95,8 +95,9 @@ jobs:
             want(m.startup_on && m.startup_off, 'Start with Windows did not write and remove its registry value');
             want(m.private_mb <= 40, 'private memory ' + m.private_mb + ' MB is over 40 MB');
             note.push('the Tasks card takes ' + m.tasks_card_draw_ms + ' ms to draw whole');
+            note.push('Task Manager would show ' + m.task_manager_mb + ' MB (private working set), after the whole test');
             for (const n of note) console.log('NOTE: ' + n);
-            console.log(fail.length ? 'FAIL:\n  ' + fail.join('\n  ') : 'PASS: ' + m.private_mb + ' MB private, ' + m.working_set_mb + ' MB working set');
+            console.log(fail.length ? 'FAIL:\n  ' + fail.join('\n  ') : 'PASS: Task Manager ' + m.task_manager_mb + ' MB; ' + m.private_mb + ' MB private, ' + m.working_set_mb + ' MB working set');
             process.exit(fail.length ? 1 : 0);"
       - name: Keep the test's pictures (also when it fails)
         if: always()

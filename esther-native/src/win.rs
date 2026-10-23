@@ -8,7 +8,7 @@ mod imp {
     use windows_sys::Win32::Foundation::{POINT, RECT};
     use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DwmSetWindowAttribute};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
-    use windows_sys::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX};
+    use windows_sys::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX2};
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
@@ -57,13 +57,14 @@ mod imp {
         }
     }
 
-    /// Memory, in KB: (private, working set).
-    pub fn memory_kb() -> (u64, u64) {
+    /// Memory, in KB: (private, working set, private working set). The last is what Task Manager's Processes tab
+    /// shows in its Memory column.
+    pub fn memory_kb() -> (u64, u64, u64) {
         unsafe {
-            let mut c: PROCESS_MEMORY_COUNTERS_EX = std::mem::zeroed();
-            c.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32;
+            let mut c: PROCESS_MEMORY_COUNTERS_EX2 = std::mem::zeroed();
+            c.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX2>() as u32;
             K32GetProcessMemoryInfo(GetCurrentProcess(), &mut c as *mut _ as *mut PROCESS_MEMORY_COUNTERS, c.cb);
-            ((c.PrivateUsage / 1024) as u64, (c.WorkingSetSize / 1024) as u64)
+            ((c.PrivateUsage / 1024) as u64, (c.WorkingSetSize / 1024) as u64, (c.PrivateWorkingSetSize / 1024) as u64)
         }
     }
 
@@ -224,11 +225,12 @@ mod imp {
     pub fn style(_hwnd: isize) -> String {
         "not on Windows".into()
     }
-    /// From /proc on Linux (for trying it out); (private ≈ RssAnon, working set = VmRSS), in KB.
-    pub fn memory_kb() -> (u64, u64) {
+    /// From /proc on Linux (for trying it out); (private ≈ RssAnon, working set = VmRSS, private working set ≈
+    /// RssAnon), in KB.
+    pub fn memory_kb() -> (u64, u64, u64) {
         let s = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
         let get = |k: &str| s.lines().find(|l| l.starts_with(k)).and_then(|l| l.split_whitespace().nth(1)).and_then(|v| v.parse().ok()).unwrap_or(0);
-        (get("RssAnon:"), get("VmRSS:"))
+        (get("RssAnon:"), get("VmRSS:"), get("RssAnon:"))
     }
     pub fn screen_size() -> (u32, u32) {
         (1920, 1080)
