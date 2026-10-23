@@ -148,6 +148,31 @@ component Dot inherits VerticalLayout {
     Rectangle { width: root.size; height: root.size; border-radius: root.size / 2; background: root.color; }
 }
 
+// A rounded rectangle (a pill or a circle when the radius is half its height) drawn as a path: the path drawing
+// smooths its edges properly at any display scale, where a plain rectangle's border looks ragged on the curves.
+component Shape inherits Path {
+    in property <length> radius: self.height / 2;
+    in property <length> line: 1px;
+    property <float> w: max(1, self.width / 1px);
+    property <float> h: max(1, self.height / 1px);
+    // (The outline runs half its width inside the edge, so none of it is cut off.)
+    property <float> i: self.line / 2px;
+    property <float> r: max(0, min(self.radius / 1px, min(self.w, self.h) / 2));
+    property <float> a: max(0, self.r - self.i);
+    viewbox-width: self.w;
+    viewbox-height: self.h;
+    stroke-width: self.line;
+    commands: "M" + self.r + " " + self.i
+        + " L" + (self.w - self.r) + " " + self.i
+        + " A" + self.a + " " + self.a + " 0 0 1 " + (self.w - self.i) + " " + self.r
+        + " L" + (self.w - self.i) + " " + (self.h - self.r)
+        + " A" + self.a + " " + self.a + " 0 0 1 " + (self.w - self.r) + " " + (self.h - self.i)
+        + " L" + self.r + " " + (self.h - self.i)
+        + " A" + self.a + " " + self.a + " 0 0 1 " + self.i + " " + (self.h - self.r)
+        + " L" + self.i + " " + self.r
+        + " A" + self.a + " " + self.a + " 0 0 1 " + self.r + " " + self.i + " Z";
+}
+
 // A pill: list tabs, the To do / Done switch, chips.
 component Pill inherits Rectangle {
     in property <string> text;
@@ -160,11 +185,13 @@ component Pill inherits Rectangle {
     callback clicked;
     callback double-clicked;
     height: 30px;
-    border-radius: self.height / 2;
-    background: root.on ? Look.accent.with-alpha(0.22) : ta.has-hover ? #ffffff17 : #ffffff0b;
-    border-width: 1px;
-    border-color: root.on ? Look.accent.with-alpha(0.5) : Look.edge;
-    animate background { duration: 120ms; }
+    Shape {
+        width: 100%;
+        height: 100%;
+        fill: root.on ? Look.accent.with-alpha(0.22) : ta.has-hover ? #ffffff17 : #ffffff0b;
+        stroke: root.on ? Look.accent.with-alpha(0.55) : #ffffff1f;
+        animate fill { duration: 120ms; }
+    }
     ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } double-clicked => { root.double-clicked(); } }
     HorizontalLayout {
         padding-left: root.pad;
@@ -182,13 +209,33 @@ component Check inherits Rectangle {
     callback toggled;
     width: root.size;
     height: root.size;
-    border-radius: root.size / 2;
-    border-width: 1.5px;
-    border-color: root.checked ? Look.accent : ta.has-hover ? Look.text : Look.faint;
-    background: root.checked ? Look.accent : transparent;
-    animate background, border-color { duration: 120ms; }
+    Shape {
+        width: 100%;
+        height: 100%;
+        line: 1.5px;
+        fill: root.checked ? Look.accent : transparent;
+        stroke: root.checked ? Look.accent : ta.has-hover ? Look.text : Look.faint;
+        animate fill, stroke { duration: 120ms; }
+    }
     ta := TouchArea { mouse-cursor: pointer; clicked => { root.toggled(); } }
     if root.checked: Text { text: "✓"; color: Look.accent-ink; font-size: root.size * 0.6; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+}
+
+// The + for a new list: a circle, and a plus drawn as two lines, in the middle.
+component AddButton inherits Rectangle {
+    callback clicked;
+    width: 30px;
+    height: 30px;
+    Shape {
+        width: 100%;
+        height: 100%;
+        fill: ta.has-hover ? #ffffff17 : #ffffff0b;
+        stroke: #ffffff1f;
+        animate fill { duration: 120ms; }
+    }
+    ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+    Rectangle { x: (parent.width - 12px) / 2; y: (parent.height - 1.5px) / 2; width: 12px; height: 1.5px; border-radius: 0.75px; background: ta.has-hover ? Look.text : Look.muted; }
+    Rectangle { x: (parent.width - 1.5px) / 2; y: (parent.height - 12px) / 2; width: 1.5px; height: 12px; border-radius: 0.75px; background: ta.has-hover ? Look.text : Look.muted; }
 }
 
 // Typing never looks like a text box: just the text, a caret, and a faint line under it while focused.
@@ -287,11 +334,15 @@ component DayCell inherits Rectangle {
     callback picked(string);
     width: min(38px, self.slot-w);
     height: min(38px, self.slot-h);
-    border-radius: 10px;
-    border-width: root.day.picked && root.day.today ? 0 : root.day.today ? 1.5px : root.day.picked ? 1px : 0;
-    border-color: root.day.today ? Look.accent : Look.accent.with-alpha(0.4);
-    background: root.day.picked && root.day.today ? Look.accent : root.day.picked ? Look.accent.with-alpha(0.2) : ta.has-hover ? #ffffff14 : transparent;
-    animate background { duration: 120ms; }
+    Shape {
+        width: 100%;
+        height: 100%;
+        radius: 10px;
+        line: root.day.today && !root.day.picked ? 1.5px : 1px;
+        fill: root.day.picked && root.day.today ? Look.accent : root.day.picked ? Look.accent.with-alpha(0.2) : ta.has-hover ? #ffffff14 : transparent;
+        stroke: root.day.picked && root.day.today ? transparent : root.day.today ? Look.accent : root.day.picked ? Look.accent.with-alpha(0.4) : transparent;
+        animate fill { duration: 120ms; }
+    }
     ta := TouchArea { mouse-cursor: pointer; clicked => { root.picked(root.day.iso); } }
     Text {
         y: (parent.height - self.height) / 2 - 1px;
@@ -358,10 +409,9 @@ component DatePicker inherits Rectangle {
     height: 330px;
     background: Look.pop;
     border-radius: 12px;
-    border-width: 1px;
-    border-color: Look.edge;
     drop-shadow-blur: 18px;
     drop-shadow-color: #00000080;
+    Shape { width: 100%; height: 100%; radius: 12px; fill: transparent; stroke: #ffffff1f; }
     TouchArea { } // (clicks on the picker's background stay in the picker)
     VerticalLayout {
         padding: 12px;
@@ -583,10 +633,7 @@ component ListPill inherits Rectangle {
         }
     }
     if Esther.renaming-list == root.list.id: Rectangle {
-        border-radius: 15px;
-        background: Look.accent.with-alpha(0.16);
-        border-width: 1px;
-        border-color: Look.accent.with-alpha(0.5);
+        Shape { width: 100%; height: 100%; fill: Look.accent.with-alpha(0.16); stroke: Look.accent.with-alpha(0.55); }
         name-field := Field {
             x: 12px;
             width: parent.width - 24px;
@@ -625,7 +672,7 @@ component TasksBody inherits Rectangle {
                     }
                 }
                 // A new list (always at the right, however many lists there are).
-                Pill { width: 30px; height: 30px; y: 1px; pad: 0; text: "+"; font-size: 16px; clicked => { Esther.add-list(); } }
+                AddButton { y: 1px; clicked => { Esther.add-list(); } }
             }
         }
 
@@ -955,19 +1002,40 @@ component WeekBody inherits Rectangle {
 
 // ---- The Esther bubble: the word "Esther". Click it to show or hide the cards; the mouse wheel sizes it. ----
 component BubbleBody inherits Rectangle {
+    // Just the word, as in the app: no box, a soft shadow under it so it reads on any wallpaper.
+    property <length> size: self.height * 0.74;
+    property <length> top: (self.height - self.size * 1.25) / 2 - self.height * 0.03;
     ta := TouchArea {
         mouse-cursor: pointer;
         clicked => { Esther.bubble-click(); }
         scroll-event(e) => { Esther.bubble-wheel(e.delta-y / 1px); accept }
     }
-    Text {
-        y: (parent.height - self.height) / 2 - parent.height * 0.05;
+    for o in [
+        { x: 0px, y: 4px, a: 0.10 }, { x: -2px, y: 3px, a: 0.08 }, { x: 2px, y: 3px, a: 0.08 }, { x: 0px, y: 6px, a: 0.06 },
+        { x: 0px, y: 1px, a: 0.35 },
+    ]: Text {
+        x: o.x;
+        y: root.top + o.y;
         width: parent.width;
+        height: root.size * 1.25;
         text: "Esther";
         font-family: "Instrument Serif";
         font-italic: true;
-        font-size: parent.height * 0.74;
+        font-size: root.size;
         horizontal-alignment: center;
+        vertical-alignment: center;
+        color: #000000.with-alpha(o.a);
+    }
+    Text {
+        y: root.top;
+        width: parent.width;
+        height: root.size * 1.25;
+        text: "Esther";
+        font-family: "Instrument Serif";
+        font-italic: true;
+        font-size: root.size;
+        horizontal-alignment: center;
+        vertical-alignment: center;
         color: ta.has-hover ? Look.accent : Look.text;
         animate color { duration: 150ms; }
     }
@@ -980,7 +1048,7 @@ export component Card inherits Window {
     title: root.kind == "header" ? "Esther" : root.kind == "calendar" ? "Esther · Calendar" : root.kind == "week" ? "Esther · This week" : root.kind == "bubble" ? "Esther bubble" : "Esther · Tasks";
     no-frame: true;
     // Over Windows' own acrylic the window is see-through, and only the tint is drawn.
-    background: root.acrylic ? transparent : Look.panel;
+    background: root.acrylic || root.kind == "bubble" ? transparent : Look.panel;
     default-font-family: "Segoe UI Variable Text";
     default-font-size: 13px;
     min-width: root.kind == "header" ? 420px : root.kind == "week" ? 280px : root.kind == "bubble" ? 40px : 300px;
@@ -997,7 +1065,7 @@ export component Card inherits Window {
     in property <length> glass-w;
     in property <length> glass-h;
 
-    Rectangle {
+    if root.kind != "bubble": Rectangle {
         clip: true;
         if root.has-glass: Image {
             source: root.glass;

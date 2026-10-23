@@ -905,7 +905,7 @@ fn reset_layout(app: &App) {
 /// Esther's own glass (the wallpaper, blurred, with the tint in it: one picture for every card that needs it), for the
 /// cards Windows' acrylic doesn't reach. When every card has acrylic, no picture is made at all.
 fn paint_glass(app: &App) {
-    let need: Vec<&Win> = app.cards.iter().filter(|w| w.acrylic.get().is_empty()).collect();
+    let need: Vec<&Win> = app.cards.iter().filter(|w| w.acrylic.get().is_empty() && w.kind != "bubble").collect();
     let (sw, sh) = win::screen_size();
     let img = if need.is_empty() { None } else { glass::glass(sw, sh, 28.0, [0x19, 0x16, 0x13], 0.72) };
     for w in &need {
@@ -1581,7 +1581,7 @@ fn smoke_report(x: &Smoke) {
             "visible": visible(w),
             "rect": rect_of(w),
             "styled": w.styled.borrow().clone(),
-            "glass": if w.acrylic.get().is_empty() { "Esther's own" } else { w.acrylic.get() },
+            "glass": if w.kind == "bubble" { "none (just the word)" } else if w.acrylic.get().is_empty() { "Esther's own" } else { w.acrylic.get() },
         }));
     }
     let (private, ws, pws) = win::memory_kb();
@@ -1772,7 +1772,8 @@ fn main() {
                     Ok(RawWindowHandle::Win32(h)) => {
                         w.hwnd.set(h.hwnd.get());
                         *w.styled.borrow_mut() = win::style(h.hwnd.get());
-                        let acrylic = win::acrylic(h.hwnd.get());
+                        // (The bubble is just the word: no glass behind it.)
+                        let acrylic = if w.kind == "bubble" { "" } else { win::acrylic(h.hwnd.get()) };
                         w.acrylic.set(acrylic);
                         if !acrylic.is_empty() { w.ui.set_has_glass(false); w.ui.set_acrylic(true); }
                         if w.kind != "bubble" { shell::set_alpha(h.hwnd.get(), 0); } // (they fade in below)
