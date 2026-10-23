@@ -10,6 +10,7 @@
 mod data;
 mod glass;
 mod guides;
+mod settings;
 mod shell;
 mod win;
 
@@ -31,8 +32,8 @@ const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Au
 const MONTHS_LONG: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/// The windows, in the order they are made: the four cards, then the bubble.
-const KINDS: [&str; 5] = ["header", "tasks", "calendar", "week", "bubble"];
+/// The windows, in the order they are made: the four cards, the bubble, and Settings (shown when asked for).
+const KINDS: [&str; 6] = ["header", "tasks", "calendar", "week", "bubble", "settings"];
 const CARD_NAMES: [&str; 4] = ["Header", "Tasks", "Calendar", "This week"];
 /// The order cards come back in.
 const CALL_ORDER: [&str; 4] = ["header", "calendar", "week", "tasks"];
@@ -87,6 +88,17 @@ struct Prefs {
     bubble_size: f32,
     /// The Tasks table's column widths (unscaled px): list, subtasks, date.
     cols: (f32, f32, f32),
+    /// The show/hide shortcut: (modifiers, virtual key), as Windows takes them.
+    keys: (u32, u32),
+    /// The look (one of the app's), and a panel and highlight colour of your own over it (None: the look's).
+    look: String,
+    panel: Option<u32>,
+    accent: Option<u32>,
+    /// How solid the panels are over the glass.
+    opacity: f32,
+    /// Esther's own glass (the blurred wallpaper) even where Windows' acrylic would do, and how blurred.
+    glass_own: bool,
+    blur: f32,
 }
 
 /// One window, and what Windows made of it.
@@ -134,6 +146,10 @@ struct App {
     lit: RefCell<Vec<Line>>,
     /// Your tasks as they were before each change (newest last), for Ctrl+Z.
     undo: RefCell<Vec<data::Data>>,
+    /// The Settings card is open (it comes back with the cards).
+    settings_open: Cell<bool>,
+    /// What saving a copy of the tasks last said.
+    copy_note: RefCell<String>,
 }
 
 impl App {
@@ -144,7 +160,7 @@ impl App {
         self.cards.iter().position(|w| w.kind == kind).expect("every card exists")
     }
     fn is_on(&self, kind: &str) -> bool {
-        kind != "bubble" && !self.prefs.borrow().hidden.iter().any(|h| h == kind)
+        kind != "bubble" && kind != "settings" && !self.prefs.borrow().hidden.iter().any(|h| h == kind)
     }
 }
 
@@ -234,13 +250,18 @@ fn hex(c: Color) -> String {
     format!("#{:02x}{:02x}{:02x}", c.red(), c.green(), c.blue())
 }
 
-/// "clears in 6 days": finished tasks stay crossed out for a week, then clear themselves.
+/// "clears in 6 days": finished tasks stay crossed out for a while (a week unless set otherwise), then clear
+/// themselves.
 fn clears(t: &Task) -> String {
     if !t.done {
         return String::new();
     }
     let Some(at) = t.done_at.as_deref().and_then(|s| OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok()) else { return String::new() };
-    let left = ((at + Duration::days(7)) - OffsetDateTime::now_utc()).whole_hours() as f64 / 24.0;
+    let days = settings::CLEAR_DAYS.load(std::sync::atomic::Ordering::Relaxed);
+    if days == 0 {
+        return String::new();
+    }
+    let left = ((at + Duration::days(days)) - OffsetDateTime::now_utc()).whole_hours() as f64 / 24.0;
     let left = left.ceil() as i64;
     match left {
         i64::MIN..=0 => "clears soon".into(),
@@ -505,7 +526,11 @@ fn change_task(app: &App, id: &str, f: impl FnOnce(&mut Task)) {
 
 /// Finished tasks clear themselves a week after they were ticked (as in the Electron app).
 fn clear_old(st: &mut State) {
-    let cutoff = OffsetDateTime::now_utc() - Duration::days(7);
+    let days = settings::CLEAR_DAYS.load(std::sync::atomic::Ordering::Relaxed);
+    if days == 0 {
+        return;
+    }
+    let cutoff = OffsetDateTime::now_utc() - Duration::days(days);
     let before = st.store.data.tasks.len();
     st.store.data.tasks.retain(|t| {
         !(t.done && t.done_at.as_deref().and_then(|s| OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok()).is_some_and(|at| at < cutoff))
@@ -525,7 +550,20 @@ fn place_path() -> std::path::PathBuf {
 /// prototype saved just { x, y, width, height }: that was the Tasks card.)
 fn load_saved() -> (std::collections::HashMap<String, Rect>, Prefs) {
     let mut places = std::collections::HashMap::new();
-    let mut prefs = Prefs { hidden: vec![], snap: true, bubble: true, bubble_size: 0.6, cols: (150.0, 110.0, 120.0) };
+    let mut prefs = Prefs {
+        hidden: vec![],
+        snap: true,
+        bubble: true,
+        bubble_size: 0.6,
+        cols: (150.0, 110.0, 120.0),
+        keys: (3, 'E' as u32), // Ctrl+Alt+E
+        look: "gilded".into(),
+        panel: None,
+        accent: None,
+        opacity: 0.5,
+        glass_own: false,
+        blur: 28.0,
+    };
     let Some(v) = std::fs::read_to_string(place_path()).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()) else { return (places, prefs) };
     let rect = |r: &serde_json::Value| Some((r["x"].as_i64()? as i32, r["y"].as_i64()? as i32, r["width"].as_i64()? as i32, r["height"].as_i64()? as i32));
     if let Some(cards) = v["cards"].as_object() {
@@ -539,6 +577,15 @@ fn load_saved() -> (std::collections::HashMap<String, Rect>, Prefs) {
     if let Some(b) = v["snap"].as_bool() { prefs.snap = b; }
     if let Some(b) = v["bubble"].as_bool() { prefs.bubble = b; }
     if let Some(k) = v["bubbleSize"].as_f64() { prefs.bubble_size = (k as f32).clamp(0.3, 1.5); }
+    if let Some(k) = v["shortcut"].as_str().and_then(settings::parse_keys) { prefs.keys = k; }
+    if let Some(l) = v["look"].as_str() { prefs.look = settings::look_def(l).id.into(); }
+    let hex = |k: &str| v[k].as_str().and_then(|s| u32::from_str_radix(s.trim_start_matches('#'), 16).ok());
+    prefs.panel = hex("panel");
+    prefs.accent = hex("accent");
+    if let Some(o) = v["opacity"].as_f64() { prefs.opacity = (o as f32).clamp(0.2, 1.0); }
+    if let Some(g) = v["glass"].as_str() { prefs.glass_own = g == "esther"; }
+    if let Some(b) = v["blur"].as_f64() { prefs.blur = (b as f32).clamp(0.0, 60.0); }
+    if let Some(d) = v["clearAfterDays"].as_i64() { settings::CLEAR_DAYS.store(d.clamp(0, 365), std::sync::atomic::Ordering::Relaxed); }
     if let Some(c) = v["columns"].as_array() {
         let w = |i: usize, d: f32| c.get(i).and_then(|x| x.as_f64()).map(|x| x as f32).unwrap_or(d);
         prefs.cols = (w(0, 150.0), w(1, 110.0), w(2, 120.0));
@@ -554,7 +601,15 @@ fn save_places(app: &App) {
     let p = app.prefs.borrow();
     let _ = std::fs::write(
         place_path(),
-        serde_json::json!({ "cards": cards, "hidden": p.hidden, "snap": p.snap, "bubble": p.bubble, "bubbleSize": p.bubble_size, "columns": [p.cols.0, p.cols.1, p.cols.2] }).to_string(),
+        serde_json::json!({
+            "cards": cards, "hidden": p.hidden, "snap": p.snap, "bubble": p.bubble, "bubbleSize": p.bubble_size,
+            "columns": [p.cols.0, p.cols.1, p.cols.2],
+            "shortcut": settings::keys_name(p.keys), "look": p.look,
+            "panel": p.panel.map(|c| format!("#{c:06x}")), "accent": p.accent.map(|c| format!("#{c:06x}")),
+            "opacity": p.opacity, "glass": if p.glass_own { "esther" } else { "acrylic" }, "blur": p.blur,
+            "clearAfterDays": settings::CLEAR_DAYS.load(std::sync::atomic::Ordering::Relaxed),
+        })
+        .to_string(),
     );
 }
 
@@ -565,6 +620,7 @@ fn min_size(kind: &str) -> (f32, f32) {
         "calendar" => (300.0, 330.0),
         "week" => (280.0, 220.0),
         "bubble" => (40.0, 20.0),
+        "settings" => (520.0, 400.0),
         _ => (300.0, 260.0),
     }
 }
@@ -579,6 +635,7 @@ fn default_place(kind: &str) -> Rect {
         "header" => (g, g, (w - 480.0).min(680.0), 112.0),
         "calendar" => (w - g - 360.0, g, 360.0, 400.0),
         "week" => (w - g - 360.0, g + 400.0 + g, 360.0, (h - 400.0 - 3.0 * g).max(240.0)),
+        "settings" => (((w - 640.0) / 2.0).max(g), ((h - 560.0) / 2.0).max(g), 640.0, 560.0f32.min(h - 2.0 * g)),
         _ => (g, g + 112.0 + g, (w * 0.55).round().min(1000.0), h - 112.0 - 3.0 * g),
     };
     let (mw, mh) = min_size(kind);
@@ -894,11 +951,13 @@ fn update_menu(app: &App) {
         snap: p.snap,
         bubble: p.bubble,
         startup: shell::startup(),
+        keys: settings::keys_name(p.keys),
     });
 }
 
 fn tray_tip(app: &App) -> String {
-    if app.hotkey_ok.get() { "Esther · Ctrl+Alt+E shows and hides".into() } else { "Esther (Ctrl+Alt+E is taken by another app; click here to show and hide)".into() }
+    let keys = settings::keys_name(app.prefs.borrow().keys);
+    if app.hotkey_ok.get() { format!("Esther · {keys} shows and hides") } else { format!("Esther ({keys} is taken by another app; click here to show and hide)") }
 }
 
 /// What the tray and the shortcut asked for.
@@ -938,6 +997,7 @@ fn on_shell(app: &App, ev: shell::Ev) {
             update_menu(app);
         }
         Ev::Command(CMD_STARTUP) => { shell::set_startup(!shell::startup()); update_menu(app) }
+        Ev::Command(CMD_SETTINGS) => settings::open(app),
         Ev::Command(CMD_QUIT) => { let _ = slint::quit_event_loop(); }
         Ev::Command(_) => {}
     }
@@ -953,7 +1013,9 @@ fn reset_layout(app: &App) {
 fn paint_glass(app: &App) {
     let need: Vec<&Win> = app.cards.iter().filter(|w| w.acrylic.get().is_empty() && w.kind != "bubble").collect();
     let (sw, sh) = win::screen_size();
-    let img = if need.is_empty() { None } else { glass::glass(sw, sh, 28.0, [0x19, 0x16, 0x13], 0.72) };
+    let p = app.prefs.borrow();
+    let (tint, _) = settings::panel_of(&p);
+    let img = if need.is_empty() { None } else { glass::glass(sw, sh, p.blur, [(tint >> 16) as u8, (tint >> 8) as u8, tint as u8], settings::own_glass_alpha(&p)) };
     for w in &need {
         match &img {
             Some(img) => { w.ui.set_glass(img.clone()); w.ui.set_has_glass(true); }
@@ -967,14 +1029,17 @@ fn paint_glass(app: &App) {
 /// Ctrl+Z on any card undoes Esther's last change (unless a text field with text in it has the keyboard: then it's
 /// the text's). Caught as the window gets it, so it works wherever the keyboard is on the card.
 fn undo_key(ui: &Card) {
-    use slint::winit_030::{winit::event::WindowEvent, winit::keyboard::{KeyCode, PhysicalKey}, EventResult, WinitWindowAccessor};
+    use slint::winit_030::{winit::event::WindowEvent, winit::keyboard::{Key, KeyCode, PhysicalKey}, EventResult, WinitWindowAccessor};
     let ctrl = Cell::new(false);
     let weak = ui.as_weak();
     ui.window().on_winit_window_event(move |_, ev| {
         match ev {
             WindowEvent::ModifiersChanged(m) => ctrl.set(m.state().control_key()),
             WindowEvent::KeyboardInput { event, .. }
-                if event.state.is_pressed() && !event.repeat && ctrl.get() && event.physical_key == PhysicalKey::Code(KeyCode::KeyZ) =>
+                if event.state.is_pressed()
+                    && !event.repeat
+                    && ctrl.get()
+                    && (event.physical_key == PhysicalKey::Code(KeyCode::KeyZ) || matches!(&event.logical_key, Key::Character(c) if c.eq_ignore_ascii_case("z"))) =>
             {
                 if let Some(ui) = weak.upgrade() {
                     let g = ui.global::<Esther>();
@@ -1165,6 +1230,18 @@ fn wire(app: &Rc<App>, i: usize) {
     }
     on!(on_reset_layout, |a| { reset_layout(a); show_all(a) });
     on!(on_hide_all, |a| hide_all(a));
+    on!(on_open_settings, |a| settings::open(a));
+    if w.kind == "settings" {
+        let s = w.ui.global::<Settings>();
+        let wk2 = wk.clone();
+        s.on_set(move |k, v| if let Some(a) = wk2.upgrade() { settings::set(&a, &k, &v) });
+        let wk2 = wk.clone();
+        s.on_record(move |on| if let Some(a) = wk2.upgrade() { settings::record(&a, on) });
+        let wk2 = wk.clone();
+        s.on_keys_pressed(move |t, c, al, sh, m| if let Some(a) = wk2.upgrade() { settings::keys_pressed(&a, &t, c, al, sh, m) });
+        let wk2 = wk.clone();
+        s.on_close(move || if let Some(a) = wk2.upgrade() { settings::close(&a) });
+    }
     g.on_quit(|| { let _ = slint::quit_event_loop(); });
     on!(on_bubble_click, |a| if a.collapsed.get() { show_all(a) } else { hide_all(a) });
     on!(on_bubble_wheel, |a, dy| {
@@ -1179,8 +1256,9 @@ fn wire(app: &Rc<App>, i: usize) {
     // Closing any card (Alt+F4) hides Esther (the tray and the shortcut bring it back; Quit is in the tray menu).
     {
         let wk = wk.clone();
+        let settings_card = w.kind == "settings";
         w.ui.window().on_close_requested(move || {
-            if let Some(a) = wk.upgrade() { hide_all(&a); }
+            if let Some(a) = wk.upgrade() { if settings_card { settings::close(&a) } else { hide_all(&a) } }
             slint::CloseRequestResponse::KeepWindowShown
         });
     }
@@ -1382,7 +1460,7 @@ impl Smoke {
         spots::columns(self.size("tasks").0, (g.get_col_list(), g.get_col_subs(), g.get_col_date()))
     }
     fn all_cards(&self, shown: bool) -> bool {
-        self.app.cards.iter().filter(|w| w.kind != "bubble").all(|w| visible(w) == shown)
+        self.app.cards.iter().filter(|w| w.kind != "bubble" && w.kind != "settings").all(|w| visible(w) == shown)
     }
 }
 
@@ -1480,7 +1558,6 @@ fn smoke_steps() -> Vec<Step> {
     step!(50, |x| x.note("renamed_by_click", x.first_task()["title"] == "Renamed on Windows"));
     // Its list: click the list pill, pick another list from the menu with the keyboard.
     step!(1800, |x| {
-        let (w, _) = x.size("tasks");
         if x.real.get() {
             x.later(100, move |m, dir| { m.insert("list_menu_open".into(), wait_menu().into()); shot_to(dir, "list-menu.png"); m.insert("list_menu_item_clicked".into(), click_menu_item(1).into()); });
             x.click("list pill", "tasks", x.at("tasks", x.cols().0 + 30.0, row(x)));
@@ -1651,6 +1728,54 @@ fn smoke_steps() -> Vec<Step> {
         x.note("ticked_in_week_done_in_tasks", x.g("tasks").get_rows().iter().find(|r| r.id.as_str() == id).is_some_and(|r| r.done));
         x.note("ticked_task_saved", x.file()["tasks"].as_array().is_some_and(|ts| ts.iter().any(|t| t["id"] == id.as_str() && t["done"] == true)));
     });
+
+    // ---- Settings: open it with the gear on the header, pick the Modern look, turn the header card off and on
+    // again, change the shortcut and change it back, close it. ----
+    fn on_settings(x: &Smoke, px: f32, py: f32) -> (i32, i32) { x.at("settings", px, py) }
+    step!(250, |x| { shell::raise(x.w("header").hwnd.get()); shell::focus(x.w("header").hwnd.get()); });
+    step!(1200, |x| { let (w, _) = x.size("header"); if x.real.get() { x.click("gear", "header", x.at("header", w - 58.0, 26.0)) } else { x.g("header").invoke_open_settings() } });
+    step!(100, |x| {
+        x.note("settings_open", visible(x.w("settings")));
+        x.shot("settings.png");
+        let s = x.w("settings").ui.global::<Settings>();
+        if x.real.get() { x.click("settings: Look", "settings", on_settings(x, 60.0, 142.0)) } else { s.set_section("look".into()) }
+    });
+    step!(400, |x| { if x.real.get() { x.click("settings: Modern", "settings", on_settings(x, 300.0, 204.0)) } else { x.w("settings").ui.global::<Settings>().invoke_set("look".into(), "modern".into()) } });
+    step!(400, |x| {
+        x.note("look_picked", x.app.prefs.borrow().look.clone());
+        x.note("tasks_panel_now", format!("{:?}", x.w("tasks").ui.global::<Look>().get_panel()));
+        x.shot("settings-look.png");
+        if x.real.get() { x.click("settings: Cards", "settings", on_settings(x, 60.0, 108.0)) } else { x.w("settings").ui.global::<Settings>().set_section("cards".into()) }
+    });
+    step!(500, |x| { let (w, _) = x.size("settings"); if x.real.get() { x.click("settings: Header off", "settings", on_settings(x, w - 41.0, 88.0)) } else { x.w("settings").ui.global::<Settings>().invoke_set("card".into(), "header".into()) } });
+    step!(600, |x| {
+        x.note("header_off_from_settings", !x.app.is_on("header") && !visible(x.w("header")));
+        let (w, _) = x.size("settings");
+        if x.real.get() { x.click("settings: Header on", "settings", on_settings(x, w - 41.0, 88.0)) } else { x.w("settings").ui.global::<Settings>().invoke_set("card".into(), "header".into()) }
+    });
+    step!(600, |x| {
+        x.note("header_on_again", x.app.is_on("header") && visible(x.w("header")));
+        if x.real.get() { x.click("settings: Desktop", "settings", on_settings(x, 60.0, 74.0)) } else { x.w("settings").ui.global::<Settings>().set_section("desktop".into()) }
+    });
+    // The shortcut: click the keys, press Ctrl+Alt+K; then again, Ctrl+Alt+E.
+    step!(400, |x| { let (w, _) = x.size("settings"); if x.real.get() { x.click("settings: keys", "settings", on_settings(x, w - 22.0 - 60.0, 88.0)) } else { settings::record(&x.app, true) } });
+    step!(400, |x| { x.note("recording_keys", x.w("settings").ui.global::<Settings>().get_recording()); if x.real.get() { win_input::keys(&[0x11, 0x12, 0x4B]) } else { settings::keys_pressed(&x.app, "k", true, true, false, false) } });
+    step!(400, |x| {
+        x.note("shortcut_changed_to", settings::keys_name(x.app.prefs.borrow().keys));
+        x.note("shortcut_note", x.w("settings").ui.global::<Settings>().get_keys_note().to_string());
+        x.shot("settings-keys.png");
+        let (w, _) = x.size("settings");
+        if x.real.get() { x.click("settings: keys again", "settings", on_settings(x, w - 22.0 - 60.0, 88.0)) } else { settings::record(&x.app, true) }
+    });
+    step!(400, |x| { if x.real.get() { win_input::keys(&[0x11, 0x12, 0x45]) } else { settings::keys_pressed(&x.app, "e", true, true, false, false) } });
+    step!(400, |x| {
+        x.note("shortcut_back_to", settings::keys_name(x.app.prefs.borrow().keys));
+        // Back to the Gilded look, and close Settings with its ×.
+        x.w("settings").ui.global::<Settings>().invoke_set("look".into(), "gilded".into());
+        let (w, _) = x.size("settings");
+        if x.real.get() { x.click("settings: close", "settings", on_settings(x, w - 30.0, 30.0)) } else { settings::close(&x.app) }
+    });
+    step!(500, |x| x.note("settings_closed", !visible(x.w("settings"))));
 
     // ---- Moving and resizing, with the grid and the guides ----
     step!(200, |x| { shell::raise(x.w("tasks").hwnd.get()); shell::focus(x.w("tasks").hwnd.get()); });
@@ -1896,8 +2021,8 @@ fn main() {
         sort_asc: true,
         add_date: None,
     };
-    if smoke.is_none() { clear_old(&mut state); } // (the test's tasks are fixed; "a week ago" moves on)
     let (places, prefs) = load_saved();
+    if smoke.is_none() { clear_old(&mut state); } // (the test's tasks are fixed; "a week ago" moves on)
     let app = Rc::new(App {
         cards,
         state: RefCell::new(state),
@@ -1907,6 +2032,8 @@ fn main() {
         anims: RefCell::new(vec![]),
         hotkey_ok: Cell::new(false),
         lit: RefCell::new(vec![]),
+        settings_open: Cell::new(false),
+        copy_note: RefCell::new(String::new()),
         undo: RefCell::new(vec![]),
     });
     for i in 0..app.cards.len() { wire(&app, i); }
@@ -1918,6 +2045,7 @@ fn main() {
         g.set_col_date(d);
     }
     refresh(&app);
+    settings::apply_look(&app);
 
     // Following the mouse, and Esther's animations, every 8 ms.
     let ticker = slint::Timer::default();
@@ -1948,6 +2076,7 @@ fn main() {
             }
             let now = glass::stamp();
             if now != wall { wall = now; paint_glass(&a); }
+            if a.settings_open.get() { a.card("settings").ui.global::<Settings>().set_memory(settings::memory_line().into()); }
         });
     }
 
@@ -1963,14 +2092,15 @@ fn main() {
     }
 
     // The tray icon and the shortcut.
-    app.hotkey_ok.set(shell::start(&tray_tip(&app)));
+    let (mods, vk) = app.prefs.borrow().keys;
+    app.hotkey_ok.set(shell::start(&tray_tip(&app), mods, vk));
     shell::set_tip(&tray_tip(&app));
     {
         let wk = Rc::downgrade(&app);
         shell::on_event(move |ev| if let Some(a) = wk.upgrade() { on_shell(&a, ev) });
     }
     update_menu(&app);
-    log(&format!("started; shortcut {}", if app.hotkey_ok.get() { "Ctrl+Alt+E" } else { "taken" }));
+    log(&format!("started; shortcut {} {}", settings::keys_name(app.prefs.borrow().keys), if app.hotkey_ok.get() { "registered" } else { "taken" }));
 
     // The Windows touches (desktop layer, rounded corners, no taskbar button, no animations). The native windows only
     // exist once the event loop runs, so this waits for them (doing it straight after show() did nothing). Then the
@@ -1979,32 +2109,44 @@ fn main() {
     {
         let wk = Rc::downgrade(&app);
         let tries = Cell::new(0);
+        let started = Cell::new(false);
         styler.start(slint::TimerMode::Repeated, StdDuration::from_millis(50), move || {
             use raw_window_handle::{HasWindowHandle, RawWindowHandle};
             let Some(a) = wk.upgrade() else { return };
             tries.set(tries.get() + 1);
-            let mut fresh = false;
-            for w in &a.cards {
+            let mut fresh = vec![];
+            for (i, w) in a.cards.iter().enumerate() {
                 if w.hwnd.get() != 0 || !w.ui.window().is_visible() { continue; }
                 match w.ui.window().window_handle().window_handle().map(|h| h.as_raw()) {
                     Ok(RawWindowHandle::Win32(h)) => {
                         w.hwnd.set(h.hwnd.get());
                         *w.styled.borrow_mut() = win::style(h.hwnd.get(), w.kind == "bubble");
                         // (The bubble is just the word: no glass behind it.)
-                        let acrylic = if w.kind == "bubble" { "" } else { win::acrylic(h.hwnd.get()) };
+                        let acrylic = if w.kind == "bubble" || a.prefs.borrow().glass_own { "" } else { win::acrylic(h.hwnd.get()) };
                         w.acrylic.set(acrylic);
                         if !acrylic.is_empty() { w.ui.set_has_glass(false); w.ui.set_acrylic(true); }
                         if w.kind != "bubble" { shell::set_alpha(h.hwnd.get(), 0); } // (they fade in below)
                         log(&format!("{} styled: {}; glass: {}", w.kind, w.styled.borrow(), if acrylic.is_empty() { "Esther's own" } else { acrylic }));
-                        fresh = true;
+                        fresh.push(i);
                     }
                     Ok(_) if tries.get() > 40 => { w.hwnd.set(-1); *w.styled.borrow_mut() = "not a Windows window".into(); }
                     _ => {}
                 }
             }
-            if fresh && a.cards.iter().all(|w| w.hwnd.get() != 0 || !w.ui.window().is_visible()) {
+            if fresh.is_empty() { return; }
+            if !started.get() {
+                if a.cards.iter().all(|w| w.hwnd.get() != 0 || !w.ui.window().is_visible()) {
+                    started.set(true);
+                    paint_glass(&a);
+                    show_all(&a);
+                }
+            } else {
+                // (A window shown later, the first time: Settings.)
                 paint_glass(&a);
-                show_all(&a);
+                for i in fresh {
+                    fade(&a, i, true, 0.0, false);
+                    shell::focus(a.cards[i].hwnd.get());
+                }
             }
         });
     }

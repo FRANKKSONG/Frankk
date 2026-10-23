@@ -70,6 +70,13 @@ mod imp {
     /// over it. Windows 11 22H2 and later have a documented way; before that, the way docks and other desktop tools
     /// use. Returns which one took ("" if neither: then Esther paints its own glass).
     pub fn acrylic(hwnd: isize) -> &'static str {
+        if accent(hwnd, 4) { "acrylic accent" } else { "" }
+    }
+    /// No acrylic (Esther's own glass instead).
+    pub fn acrylic_off(hwnd: isize) {
+        accent(hwnd, 0);
+    }
+    fn accent(hwnd: isize, state: u32) -> bool {
         // (Windows 11's documented backdrop needs the window's frame stretched over all of it, and on a frameless
         // card Windows then draws its own caption buttons and the card's content goes; so the accent, as docks do.)
         // SetWindowCompositionAttribute with an acrylic accent (Windows 10 1803 and later, Windows 11).
@@ -80,12 +87,13 @@ mod imp {
         let h = hwnd as HWND;
         unsafe {
             let user = windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(wide("user32.dll").as_ptr());
-            let Some(f) = windows_sys::Win32::System::LibraryLoader::GetProcAddress(user, c"SetWindowCompositionAttribute".as_ptr() as _) else { return "" };
+            let Some(f) = windows_sys::Win32::System::LibraryLoader::GetProcAddress(user, c"SetWindowCompositionAttribute".as_ptr() as _) else { return false };
             let set: unsafe extern "system" fn(HWND, *mut Data) -> i32 = std::mem::transmute(f);
-            // ACCENT_ENABLE_ACRYLICBLURBEHIND, with a nearly clear tint (AABBGGRR): Esther draws its own.
-            let mut accent = Accent { state: 4, flags: 0, gradient: 0x0113_1619, animation: 0 };
+            // ACCENT_ENABLE_ACRYLICBLURBEHIND (4), with a nearly clear tint (AABBGGRR): Esther draws its own; or
+            // ACCENT_DISABLED (0).
+            let mut accent = Accent { state, flags: 0, gradient: 0x0113_1619, animation: 0 };
             let mut data = Data { attrib: 19, data: &mut accent as *mut Accent as _, size: std::mem::size_of::<Accent>() };
-            if set(h, &mut data) != 0 { "acrylic accent" } else { "" }
+            set(h, &mut data) != 0
         }
     }
 
@@ -243,6 +251,8 @@ mod imp {
             let mut i: INPUT = unsafe { std::mem::zeroed() };
             i.r#type = INPUT_KEYBOARD;
             i.Anonymous.ki.wVk = vk;
+            // (With its scan code, as a keyboard sends it.)
+            i.Anonymous.ki.wScan = unsafe { MapVirtualKeyW(vk as u32, MAPVK_VK_TO_VSC) } as u16;
             i.Anonymous.ki.dwFlags = if up { KEYEVENTF_KEYUP } else { 0 };
             v.push(i);
         }
@@ -279,6 +289,7 @@ mod imp {
     pub fn acrylic(_hwnd: isize) -> &'static str {
         ""
     }
+    pub fn acrylic_off(_hwnd: isize) {}
     pub fn work_area() -> (i32, i32, i32, i32) {
         (0, 0, 1920, 1040)
     }

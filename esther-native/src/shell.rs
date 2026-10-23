@@ -26,6 +26,7 @@ pub const CMD_PUT_BACK: u32 = 20;
 pub const CMD_SNAP: u32 = 21;
 pub const CMD_BUBBLE: u32 = 22;
 pub const CMD_STARTUP: u32 = 23;
+pub const CMD_SETTINGS: u32 = 24;
 pub const CMD_QUIT: u32 = 99;
 
 /// What the tray menu shows (kept up to date by the program).
@@ -37,6 +38,8 @@ pub struct MenuState {
     pub snap: bool,
     pub bubble: bool,
     pub startup: bool,
+    /// The show/hide shortcut as shown ("Ctrl+Alt+E").
+    pub keys: String,
 }
 
 /// A string as Windows wants it (UTF-16, ending in 0).
@@ -85,7 +88,7 @@ mod imp {
     use windows_sys::Win32::Graphics::Gdi::*;
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
     use windows_sys::Win32::System::Registry::*;
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey, UnregisterHotKey, MOD_NOREPEAT};
     use windows_sys::Win32::UI::Shell::*;
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
@@ -202,7 +205,8 @@ mod imp {
                 let t = wide(text);
                 AppendMenuW(menu, MF_STRING | if checked { MF_CHECKED } else { MF_UNCHECKED }, id as usize, t.as_ptr());
             };
-            add(menu, CMD_SHOW_HIDE, if m.visible { "Hide Esther\tCtrl+Alt+E" } else { "Show Esther\tCtrl+Alt+E" }, false);
+            add(menu, CMD_SHOW_HIDE, &format!("{} Esther\t{}", if m.visible { "Hide" } else { "Show" }, m.keys), false);
+            add(menu, CMD_SETTINGS, "Settings…", false);
             AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
             let cards = CreatePopupMenu();
             for (i, (name, on)) in m.cards.iter().enumerate() { add(cards, CMD_CARD + i as u32, name, *on); }
@@ -253,8 +257,22 @@ mod imp {
         }
     }
 
-    /// Make the hidden window, the tray icon and the shortcut. Returns whether the shortcut was free.
-    pub fn start(tip: &str) -> bool {
+    /// The show/hide shortcut: `mods` (MOD_ALT 1, MOD_CONTROL 2, MOD_SHIFT 4, MOD_WIN 8) and a virtual key. False
+    /// if another app has those keys (then Esther has none: set the old ones again).
+    pub fn set_hotkey(mods: u32, vk: u32) -> bool {
+        let host = HOST.with(|h| h.get()) as HWND;
+        unsafe {
+            UnregisterHotKey(host, HOTKEY_ID);
+            RegisterHotKey(host, HOTKEY_ID, mods | MOD_NOREPEAT, vk) != 0
+        }
+    }
+    /// No shortcut for now (while new keys are being picked, so pressing the old ones doesn't hide Esther).
+    pub fn clear_hotkey() {
+        unsafe { UnregisterHotKey(HOST.with(|h| h.get()) as HWND, HOTKEY_ID); }
+    }
+
+    /// Make the hidden window, the tray icon and the shortcut (`mods`, `vk`). Returns whether the shortcut was free.
+    pub fn start(tip: &str, mods: u32, vk: u32) -> bool {
         follow_dark_mode();
         TIP.with(|t| *t.borrow_mut() = tip.to_string());
         unsafe {
@@ -271,7 +289,7 @@ mod imp {
             HOST.with(|h| h.set(host as isize));
             TASKBAR_CREATED.with(|t| t.set(RegisterWindowMessageW(wide("TaskbarCreated").as_ptr())));
             notify(NIM_ADD);
-            RegisterHotKey(host, HOTKEY_ID, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'E' as u32) != 0
+            RegisterHotKey(host, HOTKEY_ID, mods | MOD_NOREPEAT, vk) != 0
         }
     }
     pub fn set_tip(tip: &str) {
@@ -413,7 +431,9 @@ mod imp {
 
 #[cfg(not(windows))]
 mod imp {
-    pub fn start(_tip: &str) -> bool { false }
+    pub fn start(_tip: &str, _mods: u32, _vk: u32) -> bool { false }
+    pub fn set_hotkey(_mods: u32, _vk: u32) -> bool { false }
+    pub fn clear_hotkey() {}
     pub fn set_tip(_tip: &str) {}
     pub fn stop() {}
     pub fn host() -> isize { 0 }

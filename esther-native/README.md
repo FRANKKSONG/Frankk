@@ -4,9 +4,9 @@ Esther's cards as one native Windows program, written in Rust with the [Slint](h
 Esther light. The Electron app uses about 250–300 MB; this keeps under 25 MB in Task Manager (about 9 MB on the test
 machine), and its Windows test fails if it goes over.
 
-Stages 1 and 2 of the move are here: the four cards, each its own window, all showing the one set of tasks; the tray,
-the shortcut, starting with Windows, the bubble, and the grid and guides while you move and resize. Still to come:
-stage 3, Settings; stage 4, the installer and updater in place of Electron's.
+Stages 1 to 3 of the move are here: the four cards, each its own window, all showing the one set of tasks; the tray,
+the shortcut, starting with Windows, the bubble, and the grid and guides while you move and resize; and Settings.
+Still to come: stage 4, the installer and updater in place of Electron's.
 
 ## The cards
 - **Header**: Esther's arch emblem and name, the greeting by the time of day, the date and the day's line (the same line
@@ -47,13 +47,29 @@ blurred, with the tint, made once at the screen's own size (made again when the 
 card sits on the desktop like the Electron cards (owned by the desktop window), is a tool window (no taskbar button),
 has Windows' rounded corners, and no Windows window animations: Esther's own instead.
 
+## Settings
+The gear on the header (or right-click the header, or the tray menu's Settings…) opens Settings, a card of its own: drag
+it by its name, close it with ×. It comes back with the cards if it was open when they were hidden.
+- **Desktop**: the show/hide shortcut (click it and press new keys with Ctrl, Alt or the Windows key; if another app
+  has them, Esther says so and keeps the old ones), the bubble and its size, snapping, Start with Windows.
+- **Cards**: each card on or off, and Put the cards back.
+- **Look**: the Esther app's looks (Gilded, Nocturne, Modern, Illuminated), a panel colour of your own (the text turns
+  light or dark to stay readable), how solid the panels are, Windows' acrylic or Esther's own glass (and how blurred),
+  the highlight colour, and Reset.
+- **Tasks**: when finished tasks clear themselves (a day to a month, or never), and Save a copy (a new file in your
+  Documents folder; it never replaces one).
+- **About**: the version, the memory Esther is using right now as Task Manager counts it, and Quit.
+
+Not in Settings yet: the cards' size (Windows' display scale sets it), where the cards sit (on the desktop only), and
+loading a saved copy.
+
 ## Showing and hiding
-- **Ctrl+Alt+E**, or a click on the tray icon (the "E"): if the cards are in front, they fly into the bubble as they
+- **Ctrl+Alt+E** (or the keys set in Settings), or a click on the tray icon (the "E"): if the cards are in front, they fly into the bubble as they
   fade; otherwise they fly out of it, one after another. Alt+F4 on a card hides Esther too.
 - **The bubble**: the word "Esther", on nothing (no card, no glass, no Windows border or corners). While the cards are away it sits big in the middle of the screen (the mouse wheel
   over it makes it bigger or smaller); click it and they come back, and it goes small to the bottom left (click it
   there to hide them again).
-- **The tray menu** (right-click the "E"; Windows' own menu, light or dark with Windows): Show / Hide, Cards (which are
+- **The tray menu** (right-click the "E"; Windows' own menu, light or dark with Windows): Show / Hide, Settings…, Cards (which are
   on), Put the cards back, Snap to the grid and guides, The Esther bubble, Start with Windows, Quit Esther.
 
 ## Shares your tasks with Esther
@@ -68,7 +84,8 @@ turn its cards off in Settings → Cards) while you try this.
   keyboard: adds, renames, moves, dates (menu and picker) a task and gives it a subtask; renames and adds a list; picks a
   day on the calendar; points out and ticks a task from This week; resizes and drags cards with the guides showing and
   snaps one to the screen's centre; right-clicks a task and deletes it, brings it back with Ctrl+Z, sorts by date,
-  drags a task and a list tab to new places and widens a column; hides with Ctrl+Alt+E and comes back with the bubble; opens the tray menu and
+  drags a task and a list tab to new places and widens a column; opens Settings with the gear, picks a look, turns a
+  card off and on, changes the shortcut and back, and closes it; hides with Ctrl+Alt+E and comes back with the bubble; opens the tray menu and
   clicks elsewhere to close it; turns Start with Windows on and off. It saves pictures (of each card, and of the whole
   screen at the interesting moments) and the figures (`memory.json`), and quits. The Windows workflow
   (`.github/workflows/esther-native.yml`) runs this on every push and puts the program, the pictures and the figures on
@@ -82,5 +99,4 @@ Windows' contrast and gamma, in Segoe UI. That is a small change to Slint's soft
 values. Fonts: Instrument Serif (SIL Open Font License, `ui/fonts/OFL.txt`).
 
 ## Not here yet
-Settings (colours, looks, glass strength, the shortcut). The cards fly and fade, but don't shrink as they go into the
-bubble (Electron's do).
+The cards fly and fade, but don't shrink as they go into the bubble (Electron's do).

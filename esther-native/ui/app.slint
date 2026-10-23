@@ -30,27 +30,59 @@ export struct CalDay { num: int, iso: string, today: bool, picked: bool, other: 
 // A day in This week (or the "Still open from before" group), with its tasks.
 export struct WeekDay { label: string, small: string, today: bool, past: bool, late: bool, tasks: [TaskRow] }
 export struct Pigment { name: string, color: color }
+export struct Choice { id: string, label: string, hint: string, on: bool }
+export struct Swatch { color: color, on: bool }
+export struct LookChoice { id: string, label: string, blurb: string, swatches: [color], on: bool }
 
 export global Look {
-    out property <color> text: #f2ede3;
-    out property <color> muted: #b9af9d;
-    out property <color> faint: #82796a;
-    out property <color> accent: #d9a63a;
-    out property <color> accent-ink: #15110c;
+    in-out property <color> text: #f2ede3;
+    in-out property <color> muted: #b9af9d;
+    in-out property <color> faint: #82796a;
+    in-out property <color> accent: #d9a63a;
+    in-out property <color> accent-ink: #15110c;
     out property <color> danger: #e5604a;
     out property <color> general: #e0694c;
     out property <color> lapis: #6f93df;
-    out property <color> panel: #191613;
-    out property <color> pop: #1d1a16;
-    out property <color> edge: #ffffff14;
+    in-out property <color> panel: #191613;
+    in-out property <color> pop: #1d1a16;
+    in-out property <color> edge: #ffffff14;
     // How much of the panel colour lies over Windows' acrylic (the rest is the glass).
-    out property <float> acrylic-tint: 0.5;
+    in-out property <float> acrylic-tint: 0.5;
     // The colours a list can have (as in the app).
     out property <[Pigment]> pigments: [
         { name: "Vermilion", color: #c8553a }, { name: "Lapis", color: #4c6fb8 }, { name: "Verdigris", color: #3f9a80 },
         { name: "Orpiment", color: #d4a03c }, { name: "Madder", color: #b44a6e }, { name: "Tyrian", color: #8a4f8f },
         { name: "Azurite", color: #5a93c4 }, { name: "Malachite", color: #6aa452 },
     ];
+}
+
+// What the Settings card shows (set from the program) and what it asks for: `set(key, value)`.
+export global Settings {
+    in-out property <string> section: "desktop";
+    in property <string> keys: "Ctrl+Alt+E";
+    in property <string> keys-note;
+    in property <bool> recording;
+    in property <bool> bubble;
+    in property <float> bubble-size: 0.6;
+    in property <bool> snap;
+    in property <bool> startup;
+    in property <[Choice]> cards;
+    in property <[LookChoice]> looks;
+    in property <[Swatch]> panels;
+    in property <[Swatch]> accents;
+    in property <float> opacity: 0.5;
+    in property <bool> acrylic-ok;
+    in property <string> glass: "acrylic";
+    in property <float> blur: 24;
+    in property <[Choice]> clear-choices;
+    in property <string> copy-note;
+    in property <string> version;
+    in property <string> memory;
+    callback set(string, string);
+    // Picking new keys: started or stopped, and each key pressed meanwhile.
+    callback record(bool);
+    callback keys-pressed(string, bool, bool, bool, bool);
+    callback close();
 }
 
 // Everything a card shows and can do. Each window has its own copy; the program keeps them all in step.
@@ -147,6 +179,7 @@ export global Esther {
     in property <string> add-date-iso;
     callback reset-layout();
     callback hide-all();
+    callback open-settings();
     callback quit();
     callback bubble-click();
     callback bubble-wheel(float);
@@ -392,6 +425,27 @@ component DayCell inherits Rectangle {
             border-radius: 2px;
             background: root.day.picked && root.day.today ? Look.accent-ink : m;
         }
+    }
+}
+
+// The gear: Settings.
+component Gear inherits Rectangle {
+    callback clicked;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: gta.has-hover ? #ffffff14 : transparent;
+    gta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+    Path {
+        x: 6px;
+        y: 6px;
+        width: 16px;
+        height: 16px;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        stroke: gta.has-hover ? Look.text : Look.muted;
+        stroke-width: 1.4px;
+        commands: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0z";
     }
 }
 
@@ -876,7 +930,8 @@ component TasksBody inherits Rectangle {
                 Flickable {
                     horizontal-stretch: 1;
                     content-width: max(tabs-row.preferred-width, self.width);
-                    interactive: Esther.drag-list == "";
+                    // (Not by dragging with the mouse: that moves a tab. The mouse wheel scrolls the tabs.)
+                    mouse-drag-pan-enabled: false;
                     tabs-row := HorizontalLayout {
                         alignment: start;
                         spacing: 6px;
@@ -1106,6 +1161,7 @@ component HeaderBody inherits Rectangle {
     DragArea { }
     ContextMenuArea {
         Menu {
+            MenuItem { title: "Settings"; activated => { Esther.open-settings(); } }
             MenuItem { title: "Hide Esther"; activated => { Esther.hide-all(); } }
             MenuItem { title: "Put every card back"; activated => { Esther.reset-layout(); } }
             MenuSeparator { }
@@ -1152,11 +1208,13 @@ component HeaderBody inherits Rectangle {
                     Text { text: Esther.line; color: Look.text; font-family: "Instrument Serif"; font-italic: true; font-size: 17px; overflow: elide; }
                 }
             }
-            // Hide (the shortcut or the bubble brings Esther back).
-            VerticalLayout {
-                alignment: start;
+            // Settings, and hide (the shortcut or the bubble brings Esther back).
+            HorizontalLayout {
+                horizontal-stretch: 0;
                 padding-top: 12px;
-                NavButton { text: "×"; clicked => { Esther.hide-all(); } }
+                spacing: 2px;
+                VerticalLayout { alignment: start; Gear { clicked => { Esther.open-settings(); } } }
+                VerticalLayout { alignment: start; NavButton { text: "×"; clicked => { Esther.hide-all(); } } }
             }
         }
     }
@@ -1311,18 +1369,423 @@ component BubbleBody inherits Rectangle {
 }
 
 // ---- A card: one window, with the glass behind it, its body, and its edges to resize by ----
+// ---- Settings: its own card (the gear on the header, the header's right-click, or the tray menu) ----
+
+// On or off: a capsule with a knob.
+component Switch inherits Rectangle {
+    in property <bool> on;
+    callback toggled;
+    width: 38px;
+    height: 22px;
+    Shape {
+        width: 100%;
+        height: 100%;
+        fill: root.on ? Look.accent : ta.has-hover ? #ffffff1f : #ffffff12;
+        stroke: root.on ? Look.accent : #ffffff2a;
+        animate fill { duration: 120ms; }
+    }
+    Rectangle {
+        x: root.on ? parent.width - 19px : 3px;
+        y: 3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: root.on ? Look.accent-ink : Look.muted;
+        animate x { duration: 120ms; easing: ease-out; }
+    }
+    ta := TouchArea { mouse-cursor: pointer; clicked => { root.toggled(); } }
+}
+
+// A value along a line (drag the knob, or click the line), and the value as words beside it.
+component Slider inherits HorizontalLayout {
+    in property <float> value;
+    in property <float> min: 0;
+    in property <float> max: 1;
+    in property <string> shown;
+    // While dragging, and when let go.
+    callback moved-to(float);
+    callback done(float);
+    property <float> f: clamp((root.value - root.min) / (root.max - root.min), 0, 1);
+    spacing: 10px;
+    track := Rectangle {
+        width: 150px;
+        height: 22px;
+        Rectangle { y: (parent.height - 4px) / 2; height: 4px; border-radius: 2px; background: #ffffff1a; }
+        Rectangle { x: 0; y: (parent.height - 4px) / 2; height: 4px; width: parent.width * root.f; border-radius: 2px; background: Look.accent; }
+        Rectangle {
+            x: parent.width * root.f - 8px;
+            y: (parent.height - 16px) / 2;
+            width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            background: ta.pressed || ta.has-hover ? Look.text : Look.muted;
+        }
+        ta := TouchArea {
+            mouse-cursor: pointer;
+            pointer-event(e) => {
+                if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.moved-to(root.at(self.mouse-x)); }
+                if e.kind == PointerEventKind.up && e.button == PointerEventButton.left { root.done(root.at(self.mouse-x)); }
+            }
+            moved => { if self.pressed { root.moved-to(root.at(self.mouse-x)); } }
+        }
+    }
+    Text { width: 44px; text: root.shown; color: Look.muted; font-size: 12.5px; vertical-alignment: center; }
+    pure function at(x: length) -> float {
+        root.min + clamp(x / track.width, 0, 1) * (root.max - root.min)
+    }
+}
+
+// A button with words on it.
+component Button inherits Rectangle {
+    in property <string> text;
+    in property <bool> danger;
+    callback clicked;
+    width: t.preferred-width + 28px;
+    height: 30px;
+    Shape {
+        width: 100%;
+        height: 100%;
+        radius: 8px;
+        fill: ta.has-hover ? #ffffff17 : #ffffff0b;
+        stroke: #ffffff22;
+    }
+    t := Text { text: root.text; color: root.danger ? Look.danger : Look.text; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; }
+    ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+// Colours to pick from: round swatches, the picked one ringed.
+component Swatches inherits HorizontalLayout {
+    in property <[Swatch]> swatches;
+    callback picked(int);
+    spacing: 7px;
+    alignment: end;
+    for s[i] in root.swatches: Rectangle {
+        width: 22px;
+        height: 22px;
+        if s.on: Shape { width: 100%; height: 100%; fill: transparent; stroke: Look.text; line: 1.5px; }
+        Rectangle { x: 4px; y: 4px; width: 14px; height: 14px; border-radius: 7px; background: s.color; border-width: 1px; border-color: #ffffff26; }
+        TouchArea { mouse-cursor: pointer; clicked => { root.picked(i); } }
+    }
+}
+
+// One of a few choices, side by side.
+component Choices inherits Rectangle {
+    in property <[Choice]> choices;
+    callback picked(string);
+    border-radius: 8px;
+    background: #ffffff0b;
+    height: 30px;
+    width: row.preferred-width;
+    row := HorizontalLayout {
+        padding: 2px;
+        spacing: 2px;
+        for c in root.choices: Rectangle {
+            border-radius: 6px;
+            background: c.on ? Look.accent.with-alpha(0.22) : cta.has-hover ? #ffffff0d : transparent;
+            cta := TouchArea { mouse-cursor: pointer; clicked => { root.picked(c.id); } }
+            HorizontalLayout {
+                padding-left: 11px;
+                padding-right: 11px;
+                Text { text: c.label; color: c.on ? Look.text : Look.muted; font-size: 12.5px; vertical-alignment: center; }
+            }
+        }
+    }
+}
+
+// The keys that show and hide Esther: click, then press the new ones (with Ctrl, Alt or the Windows key).
+component KeysButton inherits Rectangle {
+    width: max(120px, t.preferred-width + 28px);
+    height: 30px;
+    Shape {
+        width: 100%;
+        height: 100%;
+        radius: 8px;
+        fill: Settings.recording ? Look.accent.with-alpha(0.2) : ta.has-hover ? #ffffff17 : #ffffff0b;
+        stroke: Settings.recording ? Look.accent.with-alpha(0.7) : #ffffff22;
+    }
+    t := Text { text: Settings.recording ? "Press keys…" : Settings.keys; color: Look.text; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; }
+    ta := TouchArea { mouse-cursor: pointer; clicked => { Settings.record(true); fs.focus(); } }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if !Settings.recording { return reject; }
+            if e.text == Key.Escape { Settings.record(false); return accept; }
+            Settings.keys-pressed(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta);
+            accept
+        }
+        changed has-focus => { if !self.has-focus && Settings.recording { Settings.record(false); } }
+    }
+}
+
+// A setting: its name and a line about it on the left, what changes it on the right (or underneath, `wide`).
+component SetRow inherits VerticalLayout {
+    in property <string> label;
+    in property <string> hint;
+    HorizontalLayout {
+        padding-top: 11px;
+        padding-bottom: 11px;
+        spacing: 18px;
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 3px;
+            Text { text: root.label; color: Look.text; font-size: 13.5px; font-weight: 600; }
+            if root.hint != "": Text { text: root.hint; color: Look.faint; font-size: 12px; wrap: word-wrap; }
+        }
+        VerticalLayout { alignment: center; horizontal-stretch: 0; @children }
+    }
+    Rectangle { height: 1px; background: Look.edge; }
+}
+component WideRow inherits VerticalLayout {
+    in property <string> label;
+    in property <string> hint;
+    VerticalLayout {
+        padding-top: 11px;
+        padding-bottom: 11px;
+        spacing: 8px;
+        VerticalLayout {
+            spacing: 3px;
+            Text { text: root.label; color: Look.text; font-size: 13.5px; font-weight: 600; }
+            if root.hint != "": Text { text: root.hint; color: Look.faint; font-size: 12px; wrap: word-wrap; }
+        }
+        HorizontalLayout { alignment: start; @children }
+    }
+    Rectangle { height: 1px; background: Look.edge; }
+}
+
+// A look: its colours, its name and a line about it; ringed when it's the one.
+component LookCard inherits Rectangle {
+    in property <LookChoice> look;
+    callback picked;
+    height: 52px;
+    Shape {
+        width: 100%;
+        height: 100%;
+        radius: 10px;
+        fill: root.look.on ? Look.accent.with-alpha(0.12) : lta.has-hover ? #ffffff0d : #ffffff06;
+        stroke: root.look.on ? Look.accent.with-alpha(0.6) : #ffffff1a;
+    }
+    lta := TouchArea { mouse-cursor: pointer; clicked => { root.picked(); } }
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 70px;
+                height: 24px;
+                border-radius: 6px;
+                clip: true;
+                border-width: 1px;
+                border-color: #ffffff1f;
+                HorizontalLayout { for c in root.look.swatches: Rectangle { background: c; } }
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 1px;
+            Text { text: root.look.label; color: Look.text; font-size: 13.5px; font-weight: 600; }
+            Text { text: root.look.blurb; color: Look.faint; font-size: 12px; }
+        }
+    }
+}
+
+// A section in the list on the left.
+component NavItem inherits Rectangle {
+    in property <string> id;
+    in property <string> text;
+    height: 32px;
+    border-radius: 8px;
+    background: Settings.section == root.id ? Look.accent.with-alpha(0.18) : nta.has-hover ? #ffffff0d : transparent;
+    nta := TouchArea { mouse-cursor: pointer; clicked => { Settings.section = root.id; } }
+    Text { x: 12px; text: root.text; color: Settings.section == root.id ? Look.text : Look.muted; font-size: 13.5px; vertical-alignment: center; height: parent.height; }
+}
+
+component SettingsBody inherits Rectangle {
+    VerticalLayout {
+        padding: 16px;
+        padding-top: 12px;
+        spacing: 10px;
+        // Its name (drag here to move it) and × to close it.
+        HorizontalLayout {
+            height: 36px;
+            spacing: 6px;
+            Rectangle {
+                horizontal-stretch: 1;
+                DragArea { }
+                Text { x: 2px; text: "Settings"; color: Look.text; font-family: "Instrument Serif"; font-size: 26px; vertical-alignment: center; height: parent.height; }
+            }
+            VerticalLayout { alignment: center; NavButton { text: "×"; clicked => { Settings.close(); } } }
+        }
+        HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: 14px;
+            VerticalLayout {
+                width: 128px;
+                spacing: 2px;
+                alignment: start;
+                NavItem { id: "desktop"; text: "Desktop"; }
+                NavItem { id: "cards"; text: "Cards"; }
+                NavItem { id: "look"; text: "Look"; }
+                NavItem { id: "tasks"; text: "Tasks"; }
+                NavItem { id: "about"; text: "About"; }
+            }
+            Rectangle { width: 1px; background: Look.edge; }
+            fl := Flickable {
+                horizontal-stretch: 1;
+                content-width: self.width;
+                content-height: max(self.height, page.preferred-height);
+                page := VerticalLayout {
+                    width: fl.width;
+                    padding-right: 6px;
+                    alignment: start;
+                    if Settings.section == "desktop": VerticalLayout {
+                        SetRow {
+                            label: "Show and hide";
+                            hint: Settings.keys-note;
+                            KeysButton { }
+                        }
+                        SetRow {
+                            label: "The Esther bubble";
+                            hint: "“Esther” on the desktop: hiding gathers the cards into it; click it and they come back out.";
+                            Switch { on: Settings.bubble; toggled => { Settings.set("bubble", Settings.bubble ? "0" : "1"); } }
+                        }
+                        if Settings.bubble: SetRow {
+                            label: "Bubble size";
+                            hint: "How big “Esther” is in the middle of the screen. The mouse wheel over it changes it too.";
+                            Slider {
+                                value: Settings.bubble-size;
+                                min: 0.3;
+                                max: 1.5;
+                                shown: round(Settings.bubble-size * 100) + "%";
+                                moved-to(v) => { Settings.set("bubble-size", v); }
+                                done(v) => { Settings.set("bubble-size", v); }
+                            }
+                        }
+                        SetRow {
+                            label: "Snap cards into line";
+                            hint: "While you move or resize a card, the grid shows and the card snaps to the guides.";
+                            Switch { on: Settings.snap; toggled => { Settings.set("snap", Settings.snap ? "0" : "1"); } }
+                        }
+                        SetRow {
+                            label: "Start with Windows";
+                            hint: "Esther opens when you sign in.";
+                            Switch { on: Settings.startup; toggled => { Settings.set("startup", Settings.startup ? "0" : "1"); } }
+                        }
+                    }
+                    if Settings.section == "cards": VerticalLayout {
+                        for c in Settings.cards: SetRow {
+                            label: c.label;
+                            hint: c.hint;
+                            Switch { on: c.on; toggled => { Settings.set("card", c.id); } }
+                        }
+                        SetRow {
+                            label: "Put the cards back";
+                            hint: "Every card goes back to where it started. Double-clicking the Esther logo does this too.";
+                            Button { text: "Put back"; clicked => { Settings.set("put-back", ""); } }
+                        }
+                    }
+                    if Settings.section == "look": VerticalLayout {
+                        VerticalLayout {
+                            padding-top: 4px;
+                            padding-bottom: 8px;
+                            spacing: 6px;
+                            for l in Settings.looks: LookCard { look: l; picked => { Settings.set("look", l.id); } }
+                        }
+                        SetRow {
+                            label: "Panel colour";
+                            hint: "Text turns light or dark by itself to stay readable.";
+                            Swatches { swatches: Settings.panels; picked(i) => { Settings.set("panel", i); } }
+                        }
+                        SetRow {
+                            label: "Opacity";
+                            hint: "How solid the panels are.";
+                            Slider {
+                                value: Settings.opacity;
+                                min: 0.2;
+                                max: 1;
+                                shown: round(Settings.opacity * 100) + "%";
+                                moved-to(v) => { Settings.set("opacity", v); }
+                                done(v) => { Settings.set("opacity-done", v); }
+                            }
+                        }
+                        if Settings.acrylic-ok: WideRow {
+                            label: "Glass";
+                            hint: Settings.glass == "acrylic" ? "Windows blurs whatever is behind each card, live, like its own menus." : "Esther blurs a copy of your wallpaper, and you choose how much.";
+                            Choices {
+                                choices: [{ id: "acrylic", label: "Windows acrylic", on: Settings.glass == "acrylic" }, { id: "esther", label: "Esther’s own", on: Settings.glass == "esther" }];
+                                picked(id) => { Settings.set("glass", id); }
+                            }
+                        }
+                        if Settings.glass == "esther": SetRow {
+                            label: "Blur behind the cards";
+                            hint: "How much the wallpaper behind each card is blurred. 0 shows it sharp.";
+                            Slider {
+                                value: Settings.blur;
+                                min: 0;
+                                max: 60;
+                                shown: round(Settings.blur) + " px";
+                                moved-to(v) => { Settings.set("blur-moving", v); }
+                                done(v) => { Settings.set("blur", v); }
+                            }
+                        }
+                        SetRow {
+                            label: "Highlight colour";
+                            hint: "Today, the picked tab, ticks and buttons.";
+                            Swatches { swatches: Settings.accents; picked(i) => { Settings.set("accent", i); } }
+                        }
+                        SetRow {
+                            label: "Start over";
+                            hint: "The look’s own panel, highlight, opacity and glass.";
+                            Button { text: "Reset"; clicked => { Settings.set("reset-look", ""); } }
+                        }
+                    }
+                    if Settings.section == "tasks": VerticalLayout {
+                        WideRow {
+                            label: "Finished tasks";
+                            hint: "They stay crossed out, then clear themselves.";
+                            Choices { choices: Settings.clear-choices; picked(id) => { Settings.set("clear-days", id); } }
+                        }
+                        SetRow {
+                            label: "Save a copy";
+                            hint: Settings.copy-note;
+                            Button { text: "Save"; clicked => { Settings.set("save-copy", ""); } }
+                        }
+                    }
+                    if Settings.section == "about": VerticalLayout {
+                        SetRow {
+                            label: "Esther " + Settings.version;
+                            hint: "A to-do list that lives on your desktop. This build doesn’t update itself yet: new ones come from the Esther native release page.";
+                        }
+                        SetRow {
+                            label: "Memory";
+                            hint: Settings.memory;
+                        }
+                        SetRow {
+                            label: "Quit Esther";
+                            hint: "Closes every card. The tray icon by the clock has these settings too.";
+                            Button { text: "Quit"; danger: true; clicked => { Settings.set("quit", ""); } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 export component Card inherits Window {
     // "header", "tasks", "calendar", "week" or "bubble"
     in property <string> kind: "tasks";
-    title: root.kind == "header" ? "Esther" : root.kind == "calendar" ? "Esther · Calendar" : root.kind == "week" ? "Esther · This week" : root.kind == "bubble" ? "Esther bubble" : "Esther · Tasks";
+    title: root.kind == "header" ? "Esther" : root.kind == "calendar" ? "Esther · Calendar" : root.kind == "week" ? "Esther · This week" : root.kind == "bubble" ? "Esther bubble" : root.kind == "settings" ? "Esther · Settings" : "Esther · Tasks";
     no-frame: true;
     // Over Windows' own acrylic the window is see-through, and only the tint is drawn.
     background: root.acrylic || root.kind == "bubble" ? transparent : Look.panel;
     // (Windows' own UI font, as the Esther app falls back to.)
     default-font-family: "Segoe UI";
     default-font-size: 13px;
-    min-width: root.kind == "header" ? 420px : root.kind == "week" ? 280px : root.kind == "bubble" ? 40px : 300px;
-    min-height: root.kind == "header" ? 96px : root.kind == "calendar" ? 330px : root.kind == "week" ? 220px : root.kind == "bubble" ? 20px : 260px;
+    min-width: root.kind == "header" ? 420px : root.kind == "week" ? 280px : root.kind == "bubble" ? 40px : root.kind == "settings" ? 520px : 300px;
+    min-height: root.kind == "header" ? 96px : root.kind == "calendar" ? 330px : root.kind == "week" ? 220px : root.kind == "bubble" ? 20px : root.kind == "settings" ? 400px : 260px;
 
     // Glass. Where Windows can, its own acrylic (live, blurred, done by Windows): `acrylic`. Otherwise Esther's: the
     // blurred wallpaper with the panel's tint already in it, at the screen's own size, slid into line with the real
@@ -1357,6 +1820,7 @@ export component Card inherits Window {
     if root.kind == "calendar": CalendarBody { }
     if root.kind == "week": WeekBody { }
     if root.kind == "bubble": BubbleBody { }
+    if root.kind == "settings": SettingsBody { }
 
     // Resize from any edge or corner (Esther lands it on the grid and the guides).
     if root.kind != "bubble": Rectangle {

@@ -48,7 +48,7 @@ jobs:
             const fail = [], note = [];
             const want = (ok, what) => { if (!ok) fail.push(what); };
             want(m.real_input, 'the windows never became Windows windows (no real input)');
-            want(m.windows === 5, 'expected 4 cards and the bubble, got ' + m.windows + ' windows');
+            want(m.windows === 6, 'expected 4 cards, the bubble and Settings, got ' + m.windows + ' windows');
             for (const [k, c] of Object.entries(m.cards)) {
               want(c.screenshot, k + ': no picture');
               want(c.corners_as_meant, k + ': Windows was not asked for its corners (rounded cards, a bare bubble)');
@@ -65,6 +65,14 @@ jobs:
             want(m.subtasks_closed_by_click, 'clicking the subtasks column again did not close them');
             want(m.list_renamed === 'Everyday', 'double-clicking a list tab and typing gave ' + JSON.stringify(m.list_renamed));
             want(m.list_added === 'Errands', 'the + for a new list gave ' + JSON.stringify(m.list_added));
+            // Settings
+            want(m.settings_open, 'the gear on the header did not open Settings');
+            want(m.look_picked === 'modern', 'clicking Modern in Settings, Look gave ' + JSON.stringify(m.look_picked));
+            want(m.header_off_from_settings && m.header_on_again, 'the Header switch in Settings, Cards did not turn the header off and on');
+            want(m.recording_keys, 'clicking the shortcut in Settings did not start picking new keys');
+            want(m.shortcut_changed_to === 'Ctrl+Alt+K', 'pressing Ctrl+Alt+K in Settings gave ' + JSON.stringify(m.shortcut_changed_to) + ' (' + m.shortcut_note + ')');
+            want(m.shortcut_back_to === 'Ctrl+Alt+E', 'changing the shortcut back gave ' + JSON.stringify(m.shortcut_back_to));
+            want(m.settings_closed, 'the × on Settings did not close it');
             // The table
             want(m.task_menu_open, 'right-clicking a task did not open its menu');
             want(m.deleted_by_right_click, 'right-click, Delete task did not delete it');

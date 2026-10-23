@@ -1,6 +1,6 @@
 [package]
 name = "esther-native"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Esther's cards (header, calendar, This week, Tasks) as a native program: how light Esther can be without Electron."
 license = "MIT"
