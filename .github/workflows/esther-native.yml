@@ -97,6 +97,7 @@ jobs:
             want(m.startup_on && m.startup_off, 'Start with Windows did not write and remove its registry value');
             want(m.private_mb <= 40, 'private memory ' + m.private_mb + ' MB is over 40 MB');
             want(m.task_manager_mb <= 25, 'Task Manager would show ' + m.task_manager_mb + ' MB, over the 25 MB Esther keeps to');
+            want(m.tasks_content_contrast >= 15, 'the Tasks card looks blank on the screen (brightness spread ' + m.tasks_content_contrast + ')');
             note.push('glass: ' + Object.entries(m.cards).map(([k, c]) => k + ' ' + c.glass).join(', '));
             note.push('the Tasks card takes ' + m.tasks_card_draw_ms + ' ms to draw whole');
             note.push('Task Manager would show ' + m.task_manager_mb + ' MB (private working set), after the whole test');

@@ -1501,6 +1501,24 @@ fn smoke_steps() -> Vec<Step> {
         for _ in 0..5 { let _ = x.w("tasks").ui.window().take_snapshot(); }
         x.note("tasks_card_draw_ms", (t0.elapsed().as_secs_f64() * 1000.0 / 5.0 * 10.0).round() / 10.0);
         x.shot("desktop.png");
+        // Is the Tasks card's content really on the screen? (Its text makes the light vary a lot; a blank panel
+        // doesn't.) The spread of brightness over its top part, where the tabs, the switch and the headings are.
+        if let Some(img) = shell::capture() {
+            let (l, t, w, _) = rect_of(x.w("tasks"));
+            let k = x.k();
+            let mut v = vec![];
+            for yy in (t + (10.0 * k) as i32)..(t + (130.0 * k) as i32) {
+                for xx in (l + (10.0 * k) as i32)..(l + w - (10.0 * k) as i32) {
+                    if xx >= 0 && yy >= 0 && (xx as u32) < img.width() && (yy as u32) < img.height() {
+                        let p = img.get_pixel(xx as u32, yy as u32).0;
+                        v.push(0.299 * p[0] as f64 + 0.587 * p[1] as f64 + 0.114 * p[2] as f64);
+                    }
+                }
+            }
+            let mean = v.iter().sum::<f64>() / v.len().max(1) as f64;
+            let sd = (v.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / v.len().max(1) as f64).sqrt();
+            x.note("tasks_content_contrast", (sd * 10.0).round() / 10.0);
+        }
     });
     s
 }
