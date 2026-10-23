@@ -43,8 +43,8 @@ mod imp {
         }
     }
 
-    /// Make the card a desktop widget: on the desktop, rounded, no taskbar button, no Windows animations. A bare
-    /// window (the bubble: just the word) gets no corners and no border from Windows either, so nothing shows round it.
+    /// Make the card a desktop widget: on the desktop, rounded, no taskbar button, no Windows animations, and no
+    /// border from Windows (Esther draws its own edge). A bare window (the bubble: just the word) isn't rounded either.
     pub fn style(hwnd: isize, bare: bool) -> String {
         let hwnd = hwnd as HWND;
         unsafe {
@@ -52,10 +52,10 @@ mod imp {
             let a = DwmSetWindowAttribute(hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &one as *const u32 as _, 4);
             let round = if bare { DWMWCP_DONOTROUND } else { DWMWCP_ROUND };
             let b = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &round as *const u32 as _, 4);
-            if bare {
-                let none = DWMWA_COLOR_NONE;
-                DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &none as *const u32 as _, 4);
-            }
+            // No border from Windows: the cards draw their own edge (a second line beside it looked doubled), and the
+            // bubble is just the word.
+            let none = DWMWA_COLOR_NONE;
+            DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &none as *const u32 as _, 4);
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW as isize) & !(WS_EX_APPWINDOW as isize));
             let desk = desktop_window();

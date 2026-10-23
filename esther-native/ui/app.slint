@@ -162,15 +162,38 @@ export global Esther {
     callback unsort();
     // A text field with text in it has the keyboard (then Ctrl+Z is the text's, not Esther's).
     in-out property <bool> typing;
+    // Dragging a task: which, the mouse (in the window) now and when pressed, where the task was and its height, and
+    // where it would go (the place it's over: its index, top and height); then the one settling into its new place.
     in-out property <string> drag-task;
     in-out property <length> drag-y;
-    in-out property <string> drop-task;
-    in-out property <bool> drop-after;
+    in-out property <length> drag-y0;
+    in-out property <length> drag-from-y;
+    in-out property <length> drag-h;
+    in-out property <int> drag-from;
+    in-out property <int> drop-index;
+    in-out property <length> drop-y;
+    in-out property <length> drop-h;
+    in-out property <string> settle-task;
+    in-out property <length> settle-dy;
+    // (Where the dragged task was on the card when picked up, and its width: for its lifted copy.)
+    in-out property <length> drag-row-x;
+    in-out property <length> drag-row-y;
+    in-out property <length> drag-row-w;
     callback move-task(string, string, bool);
+    // Dragging a list tab, the same way, sideways.
     in-out property <string> drag-list;
     in-out property <length> drag-x;
-    in-out property <string> drop-list;
-    in-out property <bool> drop-list-after;
+    in-out property <length> drag-x0;
+    in-out property <length> drag-from-x;
+    in-out property <length> drag-w;
+    in-out property <int> drag-list-from;
+    in-out property <int> drop-list-index;
+    in-out property <length> drop-x;
+    in-out property <length> drop-w;
+    in-out property <string> settle-list;
+    in-out property <length> settle-dx;
+    in-out property <length> drag-tab-x;
+    in-out property <length> drag-tab-y;
     callback move-list(string, string, bool);
     callback undo();
     // The new task's list and date (chosen in the add row).
@@ -259,7 +282,11 @@ component Pill inherits Rectangle {
         spacing: 7px;
         if root.show-dot: Dot { color: root.dot; }
         Text { text: root.text; color: root.on ? Look.text : Look.muted; vertical-alignment: center; font-size: root.font-size; }
-        if root.count != "": Text { text: root.count; color: root.on ? Look.text : Look.faint; vertical-alignment: center; font-size: 11.5px; }
+        // (The count a little lower, so it sits on the name's line.)
+        if root.count != "": Rectangle {
+            width: count.preferred-width;
+            count := Text { y: 1px; height: parent.height; text: root.count; color: root.on ? Look.text : Look.faint; vertical-alignment: center; font-size: 11.5px; }
+        }
     }
 }
 
@@ -282,6 +309,20 @@ component Check inherits Rectangle {
 }
 
 // The + for a new list: a circle, and a plus drawn as two lines, in the middle.
+// A plus, drawn as two soft lines with round ends.
+component Plus inherits Path {
+    in property <length> size: 12px;
+    in property <color> ink: Look.muted;
+    width: root.size;
+    height: root.size;
+    viewbox-width: 12;
+    viewbox-height: 12;
+    stroke: root.ink;
+    stroke-width: 1.5px;
+    stroke-line-cap: round;
+    commands: "M6 1 L6 11 M1 6 L11 6";
+}
+
 component AddButton inherits Rectangle {
     callback clicked;
     width: 30px;
@@ -294,8 +335,7 @@ component AddButton inherits Rectangle {
         animate fill { duration: 120ms; }
     }
     ta := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
-    Rectangle { x: (parent.width - 12px) / 2; y: (parent.height - 1.5px) / 2; width: 12px; height: 1.5px; border-radius: 0.75px; background: ta.has-hover ? Look.text : Look.muted; }
-    Rectangle { x: (parent.width - 1.5px) / 2; y: (parent.height - 12px) / 2; width: 1.5px; height: 12px; border-radius: 0.75px; background: ta.has-hover ? Look.text : Look.muted; }
+    Plus { x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2; ink: ta.has-hover ? Look.text : Look.muted; }
 }
 
 // Typing never looks like a text box: just the text, a caret, and a faint line under it while focused.
@@ -628,188 +668,225 @@ component Heading inherits Rectangle {
 // count; click to open), date (click to pick). Right-click anywhere on it for the rest.
 component Row inherits Rectangle {
     in property <TaskRow> task;
+    // Its place in the list (for dragging).
+    in property <int> index;
     in property <bool> show-list;
     in property <bool> compact;
+    // The lifted copy of the task being dragged (drawn above everything, following the mouse).
+    in property <bool> ghost;
     property <bool> open: Esther.open-task == root.task.id;
     property <length> line-h: 42px;
-    property <bool> dragged: Esther.drag-task == root.task.id;
-    // Where a dragged task would land: 1 above this one, 2 below.
-    property <int> zone: Esther.drag-task == "" || root.dragged ? 0 : Esther.drag-y < root.y ? 0 : Esther.drag-y < root.y + root.height / 2 ? 1 : Esther.drag-y < root.y + root.height ? 2 : 0;
-    changed zone => { if self.zone != 0 { Esther.drop-task = root.task.id; Esther.drop-after = self.zone == 2; } }
+    // Dragging, as on a Mac: the task lifts and follows the mouse, the others slide aside to make room, and let go,
+    // it settles into its place.
+    property <bool> dragged: !root.ghost && Esther.drag-task == root.task.id;
+    property <bool> dragging: !root.ghost && Esther.drag-task != "";
+    // (Where the dragged task's middle is now, in the list; over this task's place, this is where it would go.)
+    property <length> drag-mid: Esther.drag-from-y + Esther.drag-h / 2 + Esther.drag-y - Esther.drag-y0;
+    property <bool> under: root.dragging && root.drag-mid >= root.y && root.drag-mid < root.y + root.height;
+    changed under => { if self.under { Esther.drop-index = root.index; Esther.drop-y = root.y; Esther.drop-h = root.height; } }
+    property <length> shift: root.dragged ? Esther.drag-y - Esther.drag-y0
+        : !root.dragging ? 0px
+        : Esther.drag-from < root.index && root.index <= Esther.drop-index ? -Esther.drag-h
+        : Esther.drop-index <= root.index && root.index < Esther.drag-from ? Esther.drag-h
+        : 0px;
+    // (Just put in its new place: it glides there from where it was let go.)
+    property <bool> settling: !root.ghost && Esther.settle-task == root.task.id;
     height: root.open ? root.line-h + root.task.subtasks.length * 32px + 40px : root.line-h;
-    border-radius: 8px;
-    opacity: root.dragged ? 0.45 : 1;
-    background: Esther.highlight == root.task.id ? Look.accent.with-alpha(0.14) : root.open ? #ffffff08 : hover.has-hover ? #ffffff0a : transparent;
-    animate background { duration: 200ms; }
-    hover := TouchArea { }
-    HorizontalLayout {
-        y: 0;
-        height: root.line-h;
-        padding-left: 0px;
-        padding-right: 8px;
-        spacing: 8px;
-        // ⠿ (not while sorted: then the order is the sort's)
-        grip := Rectangle {
-            width: 16px;
-            Grip { height: parent.height; shown: hover.has-hover && Esther.sort-col == ""; hot: gta.has-hover || gta.pressed; }
-            gta := TouchArea {
-                enabled: Esther.sort-col == "";
-                mouse-cursor: self.pressed ? MouseCursor.grabbing : MouseCursor.grab;
-                pointer-event(e) => {
-                    if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
-                        Esther.drop-task = "";
-                        Esther.drag-y = root.y + self.mouse-y;
-                        Esther.drag-task = root.task.id;
-                    }
-                    if e.kind == PointerEventKind.up {
-                        if Esther.drop-task != "" && Esther.drop-task != root.task.id { Esther.move-task(root.task.id, Esther.drop-task, Esther.drop-after); }
-                        Esther.drag-task = "";
-                        Esther.drop-task = "";
-                    }
-                }
-                moved => { if self.pressed { Esther.drag-y = root.y + self.mouse-y; } }
-            }
-        }
-        VerticalLayout { alignment: center; Check { checked: root.task.done; toggled => { Esther.toggle(root.task.id); } } }
-        // The name: › for subtasks, the list as a dot when narrow, the name, and "clears in N days".
-        HorizontalLayout {
-            horizontal-stretch: 1;
-            spacing: 6px;
-            Rectangle {
-                width: 14px;
-                cta := TouchArea { mouse-cursor: pointer; clicked => { Esther.open-task = root.open ? "" : root.task.id; } }
-                Chevron { x: 1px; y: (parent.height - self.height) / 2; open: root.open; ink: cta.has-hover || root.open ? Look.text : Look.faint; }
-            }
-            if root.compact && root.show-list: Dot { color: root.task.list-color; }
-            Editable {
-                horizontal-stretch: 1;
-                text: root.task.title;
-                struck: root.task.done;
-                ink: root.task.done ? Look.faint : Look.text;
-                saved(s) => { Esther.rename(root.task.id, s); }
-            }
-            if root.task.clears != "": Text { text: root.task.clears; color: Look.faint; font-size: 11.5px; font-italic: true; vertical-alignment: center; }
-        }
-        // The list: click for the lists.
-        if root.show-list && !root.compact: Rectangle {
-            width: Esther.col-list;
-            list-menu := ContextMenuArea {
-                enabled: false;
-                Menu {
-                    for l in Esther.tabs: MenuItem { title: l.name; checkable: true; checked: l.id == root.task.list-id; activated => { Esther.move-to(root.task.id, l.id); } }
-                }
-            }
-            list-pill := Rectangle {
-                x: 0;
-                width: min(parent.width, lp-row.preferred-width + 18px);
-                height: 24px;
-                y: (parent.height - self.height) / 2;
-                border-radius: 12px;
-                background: root.task.list-color.with-alpha(lp.has-hover ? 0.28 : 0.18);
-                lp-row := HorizontalLayout {
-                    x: 9px;
-                    width: parent.width - 18px;
-                    spacing: 6px;
-                    Dot { color: root.task.list-color; }
-                    Text { text: root.task.list-name; color: Look.text; font-size: 12.5px; vertical-alignment: center; overflow: elide; }
-                }
-                lp := TouchArea { mouse-cursor: pointer; clicked => { list-menu.show({ x: 0, y: list-pill.y + list-pill.height + 2px }); } }
-            }
-        }
-        // Subtasks: a bar and n/m; click to open them (or "+ sub" to add the first).
-        if root.task.subs != "" || !root.compact: Rectangle {
-            width: root.compact ? subs-row.preferred-width + 6px : Esther.col-subs;
-            subs-ta := TouchArea { mouse-cursor: pointer; clicked => { Esther.open-task = root.open ? "" : root.task.id; } }
-            subs-row := HorizontalLayout {
-                x: 0;
-                spacing: 8px;
-                alignment: start;
-                if root.task.subtasks.length > 0: VerticalLayout {
-                    alignment: center;
-                    Rectangle {
-                        width: 46px;
-                        height: 4px;
-                        border-radius: 2px;
-                        background: #ffffff1a;
-                        Rectangle { x: 0; width: parent.width * root.task.subs-done / max(1, root.task.subtasks.length); border-radius: 2px; background: Look.accent; }
-                    }
-                }
-                Text {
-                    text: root.task.subs != "" ? root.task.subs : subs-ta.has-hover || root.open ? "+ sub" : "—";
-                    color: root.open || subs-ta.has-hover ? Look.accent : root.task.subs != "" ? Look.text : Look.faint;
-                    font-size: 12.5px;
-                    vertical-alignment: center;
-                }
-            }
-        }
-        // The date: click for the date picker.
-        Rectangle {
-            width: root.compact ? (root.task.date-kind != 0 ? chip.width : 0) : Esther.col-date;
-            chip := DateChip { x: 0; y: (parent.height - self.height) / 2; label: root.task.date; kind: root.task.date-kind; hover: dt.has-hover; }
-            dt := TouchArea { mouse-cursor: pointer; clicked => { Esther.picker-open(root.task.iso); picker.show(); } }
-            picker := PopupWindow {
-                x: root.compact ? -200px : min(0px, parent.width - 264px);
-                y: chip.y + chip.height + 4px;
-                width: 264px;
-                height: 330px;
-                close-policy: close-on-click-outside;
-                DatePicker { task: root.task.id; has-date: root.task.date-kind != 0; done => { picker.close(); } }
-            }
-        }
+    animate height { duration: 220ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+    settle := Timer {
+        interval: 16ms;
+        running: root.settling;
+        triggered => { root.settling = false; Esther.settle-task = ""; }
     }
-    // Subtasks, when open: tick, click to edit, right-click to delete; add one with Enter.
-    if root.open: VerticalLayout {
-        y: root.line-h;
-        height: root.height - root.line-h;
-        padding-left: 66px;
-        padding-right: 8px;
-        padding-bottom: 6px;
-        for s in root.task.subtasks: Rectangle {
-            height: 32px;
+    function drop() {
+        if Esther.drop-index != root.index {
+            Esther.settle-dy = Esther.drag-from-y + Esther.drag-y - Esther.drag-y0
+                - (Esther.drop-index > root.index ? Esther.drop-y + Esther.drop-h - root.height : Esther.drop-y);
+            Esther.settle-task = root.task.id;
+            Esther.move-task(root.task.id, Esther.rows[Esther.drop-index].id, Esther.drop-index > root.index);
+        }
+        Esther.drag-task = "";
+    }
+    body := Rectangle {
+        y: root.settling ? Esther.settle-dy : root.shift;
+        height: root.height;
+        clip: true;
+        animate y { duration: root.dragged ? 0ms : 240ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+        // (While it's dragged, the lifted copy shows instead; this one keeps the mouse.)
+        opacity: root.dragged ? 0 : 1;
+        border-radius: 8px;
+        background: root.ghost ? Look.pop : Esther.highlight == root.task.id ? Look.accent.with-alpha(0.14) : root.open ? #ffffff08 : hover.has-hover ? #ffffff0a : transparent;
+        animate background { duration: 200ms; }
+        drop-shadow-blur: root.ghost ? 18px : 0px;
+        drop-shadow-offset-y: root.ghost ? 6px : 0px;
+        drop-shadow-color: #00000070;
+        hover := TouchArea { }
+        HorizontalLayout {
+            y: 0;
+            height: root.line-h;
+            padding-left: 0px;
+            padding-right: 8px;
+            spacing: 8px;
+            // ⠿ (not while sorted: then the order is the sort's)
+            grip := Rectangle {
+                width: 16px;
+                Grip { height: parent.height; shown: hover.has-hover && Esther.sort-col == ""; hot: gta.has-hover || gta.pressed; }
+                gta := TouchArea {
+                    enabled: Esther.sort-col == "";
+                    mouse-cursor: self.pressed ? MouseCursor.grabbing : MouseCursor.grab;
+                    pointer-event(e) => {
+                        if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
+                            Esther.drag-from = root.index;
+                            Esther.drag-from-y = root.y;
+                            Esther.drag-h = root.height;
+                            Esther.drag-y0 = self.absolute-position.y + self.mouse-y;
+                            Esther.drag-y = Esther.drag-y0;
+                            Esther.drop-index = root.index;
+                            Esther.drop-y = root.y;
+                            Esther.drop-h = root.height;
+                            Esther.drag-row-x = body.absolute-position.x;
+                            Esther.drag-row-y = body.absolute-position.y;
+                            Esther.drag-row-w = root.width;
+                            Esther.drag-task = root.task.id;
+                        }
+                        if e.kind == PointerEventKind.up && root.dragged { root.drop(); }
+                    }
+                    moved => { if self.pressed && root.dragged { Esther.drag-y = self.absolute-position.y + self.mouse-y; } }
+                }
+            }
+            VerticalLayout { alignment: center; Check { checked: root.task.done; toggled => { Esther.toggle(root.task.id); } } }
+            // The name: › for subtasks, the list as a dot when narrow, the name, and "clears in N days".
             HorizontalLayout {
-                spacing: 10px;
-                VerticalLayout { alignment: center; Check { size: 16px; checked: s.done; toggled => { Esther.sub-toggle(root.task.id, s.id); } } }
+                horizontal-stretch: 1;
+                spacing: 6px;
+                Rectangle {
+                    width: 14px;
+                    cta := TouchArea { mouse-cursor: pointer; clicked => { Esther.open-task = root.open ? "" : root.task.id; } }
+                    Chevron { x: 1px; y: (parent.height - self.height) / 2; open: root.open; ink: cta.has-hover || root.open ? Look.text : Look.faint; }
+                }
+                if root.compact && root.show-list: Dot { color: root.task.list-color; }
                 Editable {
                     horizontal-stretch: 1;
-                    text: s.text;
-                    font-size: 13.5px;
-                    struck: s.done;
-                    ink: s.done ? Look.faint : Look.muted;
-                    saved(t) => { Esther.sub-rename(root.task.id, s.id, t); }
+                    text: root.task.title;
+                    struck: root.task.done;
+                    ink: root.task.done ? Look.faint : Look.text;
+                    saved(s) => { Esther.rename(root.task.id, s); }
+                }
+                if root.task.clears != "": Text { text: root.task.clears; color: Look.faint; font-size: 11.5px; font-italic: true; vertical-alignment: center; }
+            }
+            // The list: click for the lists.
+            if root.show-list && !root.compact: Rectangle {
+                width: Esther.col-list;
+                list-menu := ContextMenuArea {
+                    enabled: false;
+                    Menu {
+                        for l in Esther.tabs: MenuItem { title: l.name; checkable: true; checked: l.id == root.task.list-id; activated => { Esther.move-to(root.task.id, l.id); } }
+                    }
+                }
+                list-pill := Rectangle {
+                    x: 0;
+                    width: min(parent.width, lp-row.preferred-width + 18px);
+                    height: 24px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 12px;
+                    background: root.task.list-color.with-alpha(lp.has-hover ? 0.28 : 0.18);
+                    lp-row := HorizontalLayout {
+                        x: 9px;
+                        width: parent.width - 18px;
+                        spacing: 6px;
+                        Dot { color: root.task.list-color; }
+                        Text { text: root.task.list-name; color: Look.text; font-size: 12.5px; vertical-alignment: center; overflow: elide; }
+                    }
+                    lp := TouchArea { mouse-cursor: pointer; clicked => { list-menu.show({ x: 0, y: list-pill.y + list-pill.height + 2px }); } }
                 }
             }
-            // (On top, so a right-click anywhere on the subtask reaches it; other clicks pass through.)
-            ContextMenuArea { Menu { MenuItem { title: "Delete subtask"; activated => { Esther.sub-delete(root.task.id, s.id); } } } }
-        }
-        HorizontalLayout {
-            height: 34px;
-            spacing: 10px;
+            // Subtasks: a bar and n/m; click to open them (or "+ sub" to add the first).
+            if root.task.subs != "" || !root.compact: Rectangle {
+                width: root.compact ? subs-row.preferred-width + 6px : Esther.col-subs;
+                subs-ta := TouchArea { mouse-cursor: pointer; clicked => { Esther.open-task = root.open ? "" : root.task.id; } }
+                subs-row := HorizontalLayout {
+                    x: 0;
+                    spacing: 8px;
+                    alignment: start;
+                    if root.task.subtasks.length > 0: VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 46px;
+                            height: 4px;
+                            border-radius: 2px;
+                            background: #ffffff1a;
+                            Rectangle { x: 0; width: parent.width * root.task.subs-done / max(1, root.task.subtasks.length); border-radius: 2px; background: Look.accent; }
+                        }
+                    }
+                    Text {
+                        text: root.task.subs != "" ? root.task.subs : subs-ta.has-hover || root.open ? "+ sub" : "—";
+                        color: root.open || subs-ta.has-hover ? Look.accent : root.task.subs != "" ? Look.text : Look.faint;
+                        font-size: 12.5px;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+            // The date: click for the date picker.
             Rectangle {
-                width: 16px;
-                Rectangle { x: 3px; y: (parent.height - 1.5px) / 2; width: 10px; height: 1.5px; background: Look.faint; }
-                Rectangle { x: 7.25px; y: (parent.height - 10px) / 2; width: 1.5px; height: 10px; background: Look.faint; }
-            }
-            sub-add := Field {
-                y: 2px;
-                horizontal-stretch: 1;
-                font-size: 13.5px;
-                placeholder: "Add a subtask, Enter";
-                accepted(t) => { if t != "" { Esther.sub-add(root.task.id, t); self.text = ""; } }
-                init => { if root.task.subtasks.length == 0 { self.grab-focus(); } }
+                width: root.compact ? (root.task.date-kind != 0 ? chip.width : 0) : Esther.col-date;
+                chip := DateChip { x: 0; y: (parent.height - self.height) / 2; label: root.task.date; kind: root.task.date-kind; hover: dt.has-hover; }
+                dt := TouchArea { mouse-cursor: pointer; clicked => { Esther.picker-open(root.task.iso); picker.show(); } }
+                picker := PopupWindow {
+                    x: root.compact ? -200px : min(0px, parent.width - 264px);
+                    y: chip.y + chip.height + 4px;
+                    width: 264px;
+                    height: 330px;
+                    close-policy: close-on-click-outside;
+                    DatePicker { task: root.task.id; has-date: root.task.date-kind != 0; done => { picker.close(); } }
+                }
             }
         }
+        // Subtasks, when open: tick, click to edit, right-click to delete; add one with Enter.
+        if root.open: VerticalLayout {
+            y: root.line-h;
+            height: root.height - root.line-h;
+            padding-left: 66px;
+            padding-right: 8px;
+            padding-bottom: 6px;
+            for s in root.task.subtasks: Rectangle {
+                height: 32px;
+                HorizontalLayout {
+                    spacing: 10px;
+                    VerticalLayout { alignment: center; Check { size: 16px; checked: s.done; toggled => { Esther.sub-toggle(root.task.id, s.id); } } }
+                    Editable {
+                        horizontal-stretch: 1;
+                        text: s.text;
+                        font-size: 13.5px;
+                        struck: s.done;
+                        ink: s.done ? Look.faint : Look.muted;
+                        saved(t) => { Esther.sub-rename(root.task.id, s.id, t); }
+                    }
+                }
+                // (On top, so a right-click anywhere on the subtask reaches it; other clicks pass through.)
+                ContextMenuArea { Menu { MenuItem { title: "Delete subtask"; activated => { Esther.sub-delete(root.task.id, s.id); } } } }
+            }
+            HorizontalLayout {
+                height: 34px;
+                spacing: 10px;
+                Rectangle {
+                    width: 16px;
+                    Plus { size: 10px; x: 3px; y: (parent.height - self.height) / 2; ink: Look.faint; }
+                }
+                sub-add := Field {
+                    y: 2px;
+                    horizontal-stretch: 1;
+                    font-size: 13.5px;
+                    placeholder: "Add a subtask, Enter";
+                    accepted(t) => { if t != "" { Esther.sub-add(root.task.id, t); self.text = ""; } }
+                    init => { if root.task.subtasks.length == 0 { self.grab-focus(); } }
+                }
+            }
+        }
+        Rectangle { y: root.line-h - 1px; height: 1px; background: Look.edge; }
+        // Right-click anywhere on the task (on top, so the name and the rest don't keep the right button to themselves;
+        // left clicks pass through to them).
+        TaskMenu { id: root.task.id; list-id: root.task.list-id; has-subtasks: root.task.subtasks.length > 0; y: 0; height: root.line-h; }
     }
-    Rectangle { y: root.line-h - 1px; height: 1px; background: Look.edge; }
-    // Where a dragged task will land.
-    if Esther.drag-task != "" && Esther.drop-task == root.task.id: Rectangle {
-        y: Esther.drop-after ? root.height - 2px : 0px;
-        height: 2px;
-        border-radius: 1px;
-        background: Look.accent;
-    }
-    // Right-click anywhere on the task (on top, so the name and the rest don't keep the right button to themselves;
-    // left clicks pass through to them).
-    TaskMenu { id: root.task.id; list-id: root.task.list-id; has-subtasks: root.task.subtasks.length > 0; y: 0; height: root.line-h; }
 }
 
 // ---- The Tasks card ----
@@ -820,57 +897,102 @@ component ListPill inherits Rectangle {
     // (Its width, from the name and the count, as the pill lays them out.)
     property <length> name-w: name-measure.preferred-width;
     property <length> count-w: count-measure.preferred-width;
-    property <bool> dragged: Esther.drag-list == root.list.id;
+    // Its place among the lists (for dragging).
+    in property <int> index;
+    // The lifted copy of the tab being dragged (drawn above everything, following the mouse).
+    in property <bool> ghost;
     // (Pressed and moved: a drag, not a click.)
     property <bool> moved-it;
-    property <int> zone: Esther.drag-list == "" || root.dragged ? 0 : Esther.drag-x < root.x ? 0 : Esther.drag-x < root.x + root.width / 2 ? 1 : Esther.drag-x < root.x + root.width ? 2 : 0;
-    changed zone => { if self.zone != 0 { Esther.drop-list = root.list.id; Esther.drop-list-after = self.zone == 2; } }
-    width: Esther.renaming-list == root.list.id ? max(120px, root.name-w + 40px) : 6px + 14px + 7px + 7px + root.name-w + 7px + root.count-w + 12px;
+    // Dragging, as on a Mac (and as tasks are dragged): it lifts and follows the mouse, the others slide aside, and
+    // let go, it settles into its place.
+    property <bool> dragged: !root.ghost && Esther.drag-list == root.list.id;
+    property <bool> dragging: !root.ghost && Esther.drag-list != "";
+    property <length> drag-mid: Esther.drag-from-x + Esther.drag-w / 2 + Esther.drag-x - Esther.drag-x0;
+    property <bool> under: root.dragging && root.drag-mid >= root.x && root.drag-mid < root.x + root.width;
+    changed under => { if self.under { Esther.drop-list-index = root.index; Esther.drop-x = root.x; Esther.drop-w = root.width; } }
+    property <length> shift: root.dragged ? Esther.drag-x - Esther.drag-x0
+        : !root.dragging ? 0px
+        : Esther.drag-list-from < root.index && root.index <= Esther.drop-list-index ? -(Esther.drag-w + 6px)
+        : Esther.drop-list-index <= root.index && root.index < Esther.drag-list-from ? Esther.drag-w + 6px
+        : 0px;
+    property <bool> settling: !root.ghost && Esther.settle-list == root.list.id;
+    settle := Timer {
+        interval: 16ms;
+        running: root.settling;
+        triggered => { root.settling = false; Esther.settle-list = ""; }
+    }
+    function drop() {
+        if Esther.drop-list-index != root.index {
+            Esther.settle-dx = Esther.drag-from-x + Esther.drag-x - Esther.drag-x0
+                - (Esther.drop-list-index > root.index ? Esther.drop-x + Esther.drop-w - root.width : Esther.drop-x);
+            Esther.settle-list = root.list.id;
+            Esther.move-list(root.list.id, Esther.tabs[Esther.drop-list-index].id, Esther.drop-list-index > root.index);
+        }
+        Esther.drag-list = "";
+    }
+    // (Even space either side: the dot, the name and the count, centred.)
+    width: Esther.renaming-list == root.list.id ? max(120px, root.name-w + 40px) : 12px + 7px + 7px + root.name-w + 6px + root.count-w + 12px;
     height: 30px;
-    opacity: root.dragged ? 0.45 : 1;
     name-measure := Text { visible: false; text: root.list.name; font-size: 13.5px; }
     count-measure := Text { visible: false; text: root.list.open; font-size: 11.5px; }
     if Esther.renaming-list != root.list.id: Rectangle {
-        Shape {
-            width: 100%;
-            height: 100%;
-            fill: Esther.tab == root.list.id ? Look.accent.with-alpha(0.22) : pta.has-hover ? #ffffff17 : #ffffff0b;
-            stroke: Esther.tab == root.list.id ? Look.accent.with-alpha(0.55) : #ffffff1f;
+        // (What moves when dragged: the pill itself; the place you click stays put.)
+        Rectangle {
+            x: root.settling ? Esther.settle-dx : root.shift;
+            animate x { duration: root.dragged ? 0ms : 240ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+            opacity: root.dragged ? 0 : 1;
+            border-radius: 15px;
+            background: root.ghost ? Look.pop : transparent;
+            drop-shadow-blur: root.ghost ? 14px : 0px;
+            drop-shadow-offset-y: root.ghost ? 4px : 0px;
+            drop-shadow-color: #00000070;
+            Shape {
+                width: 100%;
+                height: 100%;
+                fill: Esther.tab == root.list.id ? Look.accent.with-alpha(0.22) : pta.has-hover || root.ghost ? #ffffff17 : #ffffff0b;
+                stroke: Esther.tab == root.list.id ? Look.accent.with-alpha(0.55) : #ffffff1f;
+            }
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 7px;
+                Dot { color: root.list.color; }
+                Text { text: root.list.name; color: Esther.tab == root.list.id ? Look.text : Look.muted; vertical-alignment: center; font-size: 13.5px; }
+                // (The count a little lower, so it sits on the name's line.)
+                Rectangle {
+                    width: count.preferred-width;
+                    count := Text { y: 1px; height: parent.height; text: root.list.open; color: Esther.tab == root.list.id ? Look.text : Look.faint; vertical-alignment: center; font-size: 11.5px; }
+                }
+            }
         }
         // Click to show it, double-click to rename; drag it (anywhere on it) to put it elsewhere.
         pta := TouchArea {
+            enabled: !root.ghost;
             mouse-cursor: root.dragged ? MouseCursor.grabbing : MouseCursor.pointer;
             clicked => { if !root.moved-it { Esther.pick-tab(root.list.id); } }
             double-clicked => { Esther.renaming-list = root.list.id; }
             pointer-event(e) => {
                 if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.moved-it = false; }
-                if e.kind == PointerEventKind.up {
-                    if root.dragged && Esther.drop-list != "" && Esther.drop-list != root.list.id { Esther.move-list(root.list.id, Esther.drop-list, Esther.drop-list-after); }
-                    if root.dragged { Esther.drag-list = ""; Esther.drop-list = ""; }
-                }
+                if e.kind == PointerEventKind.up && root.dragged { root.drop(); }
             }
             moved => {
                 if self.pressed {
                     if Esther.drag-list == "" && abs(self.mouse-x - self.pressed-x) > 4px {
                         root.moved-it = true;
-                        Esther.drop-list = "";
+                        Esther.drag-list-from = root.index;
+                        Esther.drag-from-x = root.x;
+                        Esther.drag-w = root.width;
+                        Esther.drag-x0 = root.x + self.pressed-x;
+                        Esther.drop-list-index = root.index;
+                        Esther.drop-x = root.x;
+                        Esther.drop-w = root.width;
+                        Esther.drag-tab-x = root.absolute-position.x;
+                        Esther.drag-tab-y = root.absolute-position.y;
                         Esther.drag-list = root.list.id;
                     }
                     if root.dragged { Esther.drag-x = root.x + self.mouse-x; }
                 }
             }
-        }
-        HorizontalLayout {
-            padding-left: 6px;
-            padding-right: 12px;
-            spacing: 7px;
-            Rectangle {
-                width: 14px;
-                Grip { x: -1px; height: parent.height; shown: pta.has-hover || root.dragged; hot: root.dragged; }
-            }
-            Dot { color: root.list.color; }
-            Text { text: root.list.name; color: Esther.tab == root.list.id ? Look.text : Look.muted; vertical-alignment: center; font-size: 13.5px; }
-            Text { text: root.list.open; color: Esther.tab == root.list.id ? Look.text : Look.faint; vertical-alignment: center; font-size: 11.5px; }
         }
         // (On top, so a right-click anywhere on the tab reaches it.)
         ContextMenuArea {
@@ -904,13 +1026,6 @@ component ListPill inherits Rectangle {
             cancelled => { Esther.renaming-list = ""; }
         }
     }
-    // Where a dragged list will land.
-    if Esther.drag-list != "" && Esther.drop-list == root.list.id: Rectangle {
-        x: Esther.drop-list-after ? root.width + 1px : -4px;
-        width: 2px;
-        border-radius: 1px;
-        background: Look.accent;
-    }
 }
 
 component TasksBody inherits Rectangle {
@@ -937,7 +1052,7 @@ component TasksBody inherits Rectangle {
                         alignment: start;
                         spacing: 6px;
                         Pill { text: "All"; count: Esther.count-tab-all; on: Esther.tab == "all"; clicked => { Esther.pick-tab("all"); } }
-                        for l in Esther.tabs: ListPill { list: l; }
+                        for l[i] in Esther.tabs: ListPill { list: l; index: i; }
                     }
                 }
                 // A new list (always at the right, however many lists there are).
@@ -1055,8 +1170,7 @@ component TasksBody inherits Rectangle {
                 Rectangle { width: 16px; }
                 Rectangle {
                     width: 20px;
-                    Rectangle { x: (parent.width - 12px) / 2; y: (parent.height - 1.5px) / 2; width: 12px; height: 1.5px; background: Look.faint; }
-                    Rectangle { x: (parent.width - 1.5px) / 2; y: (parent.height - 12px) / 2; width: 1.5px; height: 12px; background: Look.faint; }
+                    Plus { x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2; ink: Look.faint; }
                 }
                 Rectangle { width: 14px; }
                 add := Field {
@@ -1103,8 +1217,9 @@ component TasksBody inherits Rectangle {
         // The tasks.
         if Esther.can-add && Esther.rows.length > 0: ListView {
             vertical-stretch: 1;
-            for t in Esther.rows: Row {
+            for t[i] in Esther.rows: Row {
                 task: t;
+                index: i;
                 show-list: Esther.tab == "all";
                 compact: Esther.compact;
             }
@@ -1114,12 +1229,24 @@ component TasksBody inherits Rectangle {
             Text { y: 18px; width: parent.width; text: Esther.empty-text; color: Look.faint; font-italic: true; font-size: 13px; horizontal-alignment: center; wrap: word-wrap; }
         }
 
-        if !Esther.compact: Text {
-            text: "Click a column to sort · drag ⠿ to reorder · right-click a row for more · Ctrl+Z undoes";
-            color: Look.faint;
-            font-size: 11.5px;
-            overflow: elide;
-        }
+    }
+    // What's being dragged, lifted above everything, following the mouse.
+    if Esther.drag-task != "" && Esther.drag-from < Esther.rows.length: Row {
+        ghost: true;
+        task: Esther.rows[Esther.drag-from];
+        index: Esther.drag-from;
+        show-list: Esther.tab == "all";
+        compact: Esther.compact;
+        x: Esther.drag-row-x - root.absolute-position.x;
+        y: Esther.drag-row-y - root.absolute-position.y + Esther.drag-y - Esther.drag-y0;
+        width: Esther.drag-row-w;
+    }
+    if Esther.drag-list != "" && Esther.drag-list-from < Esther.tabs.length: ListPill {
+        ghost: true;
+        list: Esther.tabs[Esther.drag-list-from];
+        index: Esther.drag-list-from;
+        x: Esther.drag-tab-x - root.absolute-position.x + Esther.drag-x - Esther.drag-x0;
+        y: Esther.drag-tab-y - root.absolute-position.y;
     }
 }
 

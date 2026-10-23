@@ -16,7 +16,9 @@ Still to come: stage 4, the installer and updater in place of Electron's.
   name, list, subtasks (a bar and n/m), date. Add a task with Enter; beside it pick its list (on All) and its date.
   - Click a heading (TASK, LIST, SUBTASKS, DATE) to sort by it, again for the other way; "Back to my order" undoes it.
     Drag a heading's left edge to make its column wider or narrower (remembered).
-  - Drag a task by its ⠿ to put it elsewhere (not while sorted); drag a list tab along the tabs the same way.
+  - Drag a task by its ⠿ to put it elsewhere (not while sorted); drag a list tab along the tabs the same way. As on a
+    Mac, what you drag lifts and follows the mouse, the others slide aside to make room, and it settles into its
+    place when you let go.
   - Ctrl+Z undoes the last change (a delete, a move, a tick, a rename…), up to 100 back; in a field with text in it,
     it undoes the typing instead.
   - Click a task's name to edit it (Enter or clicking away saves, Esc cancels).
@@ -93,8 +95,9 @@ turn its cards off in Settings → Cards) while you try this.
 - `SLINT_BACKEND=winit-femtovg` draws with the graphics card (OpenGL) instead of the processor, for comparison.
 
 ## Text
-Letters are drawn the way Windows draws them, not Slint's usual soft way: fitted to the pixel grid (hinted), with
-Windows' contrast and gamma, in Segoe UI. That is a small change to Slint's software renderer, kept in
+Letters are drawn soft and even, as a Mac draws them: their true shapes (not fitted to the pixel grid), with a gentle
+contrast lift so they read solid, in Segoe UI. Every outline (pills, ticks, the +, the card's edge) is drawn as a
+smoothed path. That is a small change to Slint's software renderer, kept in
 `vendor/i-slint-renderer-software` (see its `ESTHER.md`); `ESTHER_TEXT_CONTRAST` and `ESTHER_TEXT_GAMMA` try other
 values. Fonts: Instrument Serif (SIL Open Font License, `ui/fonts/OFL.txt`).
 

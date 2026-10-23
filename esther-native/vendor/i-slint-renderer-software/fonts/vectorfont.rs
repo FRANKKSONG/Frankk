@@ -202,8 +202,9 @@ impl VectorFont {
                 let mut scaler = ctx
                     .builder(font_ref)
                     .size(self.pixel_size.get() as f32)
-                    // Esther: hinted, so stems sit on whole pixels and small text is crisp (as Windows draws it).
-                    .hint(true)
+                    // Esther: not fitted to the pixel grid, so letters keep their true shapes and come out soft and
+                    // even, as a Mac draws them (ESTHER_TEXT_HINT=1 fits them, as Windows does).
+                    .hint(text_hinted())
                     .normalized_coords(&self.normalized_coords)
                     .build();
                 let image = swash::scale::Render::new(&[swash::scale::Source::Outline])
@@ -236,13 +237,20 @@ impl VectorFont {
     }
 }
 
+/// Esther: whether letters are fitted to the pixel grid (ESTHER_TEXT_HINT=1); by default they aren't, as on a Mac.
+fn text_hinted() -> bool {
+    static HINT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *HINT.get_or_init(|| std::env::var("ESTHER_TEXT_HINT").is_ok_and(|v| v == "1"))
+}
+
 /// Esther: the curve applied to a letter's coverage: a contrast lift (as DirectWrite's "enhanced contrast" and Skia's
 /// do), then a gamma. Tunable with ESTHER_TEXT_CONTRAST and ESTHER_TEXT_GAMMA, for comparing.
 fn text_curve() -> &'static [u8; 256] {
     static CURVE: std::sync::OnceLock<[u8; 256]> = std::sync::OnceLock::new();
     CURVE.get_or_init(|| {
         let var = |name: &str, default: f32| std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default);
-        let (contrast, gamma) = (var("ESTHER_TEXT_CONTRAST", 0.7), var("ESTHER_TEXT_GAMMA", 0.8));
+        // (Gentler than Windows' own: with the letters' true shapes, a little lift is enough for them to read solid.)
+        let (contrast, gamma) = (var("ESTHER_TEXT_CONTRAST", 0.4), var("ESTHER_TEXT_GAMMA", 0.85));
         let mut lut = [0u8; 256];
         for (i, v) in lut.iter_mut().enumerate() {
             let a = i as f32 / 255.0;
