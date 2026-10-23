@@ -108,6 +108,9 @@ enum Anim {
     /// going out (and is put back at `home` once hidden).
     Fade { i: usize, from: f32, to: f32, start: Instant, ms: f32, hide_after: bool, fly: Option<(Rect, Rect)> },
     Glide { i: usize, from: Rect, to: Rect, start: Instant, ms: f32 },
+    /// After a fade: the window's picture is thrown away when it stops being see-through, so it is drawn again whole
+    /// (one pixel wider for a moment, which makes Slint draw everything, then back).
+    Redraw { i: usize, home: Rect, wide: bool },
 }
 
 struct App {
@@ -680,13 +683,23 @@ fn set_visible(w: &Win, on: bool) {
 }
 fn stop_anims(app: &App, i: usize) {
     // (A card stopped mid-flight goes home first.)
-    let home = app.anims.borrow().iter().find_map(|a| match a { Anim::Fade { i: j, fly: Some((_, home)), .. } if *j == i => Some(*home), _ => None });
-    app.anims.borrow_mut().retain(|a| match a { Anim::Fade { i: j, .. } | Anim::Glide { i: j, .. } => *j != i });
+    let home = app.anims.borrow().iter().find_map(|a| match a {
+        Anim::Fade { i: j, fly: Some((_, home)), .. } | Anim::Redraw { i: j, home, .. } if *j == i => Some(*home),
+        _ => None,
+    });
+    app.anims.borrow_mut().retain(|a| match a { Anim::Fade { i: j, .. } | Anim::Glide { i: j, .. } | Anim::Redraw { i: j, .. } => *j != i });
     if let Some(home) = home { set_rect(&app.cards[i], home); }
 }
 /// Where a card belongs (its place, even while it is flying in or out).
 fn home_of(app: &App, i: usize) -> Rect {
-    app.anims.borrow().iter().find_map(|a| match a { Anim::Fade { i: j, fly: Some((_, home)), .. } if *j == i => Some(*home), _ => None }).unwrap_or_else(|| rect_of(&app.cards[i]))
+    app.anims
+        .borrow()
+        .iter()
+        .find_map(|a| match a {
+            Anim::Fade { i: j, fly: Some((_, home)), .. } | Anim::Redraw { i: j, home, .. } if *j == i => Some(*home),
+            _ => None,
+        })
+        .unwrap_or_else(|| rect_of(&app.cards[i]))
 }
 /// Where a card flies from (coming out of the bubble) or to (going into it): towards the big bubble in the middle of
 /// the screen, as far as 42 % of its own size (as the app does it).
@@ -746,6 +759,11 @@ fn anim_tick(app: &App) {
                     if *hide_after { shell::show(h, false); }
                     if let Some((_, home)) = fly { set_rect(w, *home); }
                     shell::set_alpha(h, 255);
+                    if !*hide_after {
+                        let home = fly.map(|f| f.1).unwrap_or_else(|| rect_of(w));
+                        set_rect(w, (home.0, home.1, home.2 + 1, home.3));
+                        keep.push(Anim::Redraw { i: *i, home, wide: true });
+                    }
                 } else {
                     if let Some((away, home)) = fly {
                         let (a, b) = if *hide_after { (*home, *away) } else { (*away, *home) };
@@ -755,6 +773,10 @@ fn anim_tick(app: &App) {
                     shell::set_alpha(h, ((from + (to - from) * e) * 255.0).round().clamp(0.0, 254.0) as u8);
                     keep.push(a);
                 }
+            }
+            Anim::Redraw { i, home, wide } => {
+                // (Give Slint a frame at the wider size, then put it back.)
+                if *wide { keep.push(Anim::Redraw { i: *i, home: *home, wide: false }); } else { set_rect(&app.cards[*i], *home); }
             }
             Anim::Glide { i, from, to, start, ms } => {
                 let t = ((now - *start).as_secs_f32() * 1000.0 / ms).min(1.0);
