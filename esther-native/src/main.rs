@@ -724,7 +724,7 @@ fn fade(app: &App, i: usize, show: bool, delay_ms: f32, fly: bool) {
     let fly = fly.then(|| (away_from(app, home), home));
     let from = if show { 0.0 } else { 1.0 };
     // Becoming see-through, the window's picture is thrown away too: so it is drawn again whole straight away (one
-    // pixel wider for a moment; the fade's next step, or a redraw, puts it back).
+    // pixel wider for a moment; the fade's next step, or a redraw, puts it back). The fade waits a frame for that.
     let start = if show { fly.map(|f| f.0).unwrap_or(home) } else { home };
     shell::set_alpha(w.hwnd.get(), if show { 0 } else { 254 });
     set_rect(w, (start.0, start.1, start.2 + 1, start.3));
@@ -734,7 +734,7 @@ fn fade(app: &App, i: usize, show: bool, delay_ms: f32, fly: bool) {
         shell::raise(w.hwnd.get());
     }
     let ms = match (show, fly.is_some()) { (true, true) => 300.0, (true, false) => 170.0, (false, true) => 220.0, (false, false) => 150.0 };
-    app.anims.borrow_mut().push(Anim::Fade { i, from, to: 1.0 - from, start: Instant::now() + StdDuration::from_millis(delay_ms as u64), ms, hide_after: !show, fly });
+    app.anims.borrow_mut().push(Anim::Fade { i, from, to: 1.0 - from, start: Instant::now() + StdDuration::from_millis(delay_ms.max(25.0) as u64), ms, hide_after: !show, fly });
 }
 fn glide(app: &App, i: usize, to: Rect, ms: f32) {
     stop_anims(app, i);
