@@ -1747,7 +1747,7 @@ fn smoke_steps() -> Vec<Step> {
     step!(1200, |x| { let (w, _) = x.size("header"); if x.real.get() { x.click("gear", "header", x.at("header", w - 58.0, 26.0)) } else { x.g("header").invoke_open_settings() } });
     step!(100, |x| {
         x.note("settings_open", visible(x.w("settings")));
-        x.shot("settings.png");
+        x.shot("settings-open.png");
         let s = x.w("settings").ui.global::<Settings>();
         if x.real.get() { x.click("settings: Look", "settings", on_settings(x, 60.0, 142.0)) } else { s.set_section("look".into()) }
     });

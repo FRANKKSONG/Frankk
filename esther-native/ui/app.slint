@@ -1160,17 +1160,10 @@ component Initial inherits Rectangle {
 
 component HeaderBody inherits Rectangle {
     DragArea { }
-    ContextMenuArea {
-        Menu {
-            MenuItem { title: "Settings"; activated => { Esther.open-settings(); } }
-            MenuItem { title: "Hide Esther"; activated => { Esther.hide-all(); } }
-            MenuItem { title: "Put every card back"; activated => { Esther.reset-layout(); } }
-            MenuSeparator { }
-            MenuItem { title: "Quit Esther"; activated => { Esther.quit(); } }
-        }
+    Rectangle {
         HorizontalLayout {
             padding-left: 20px;
-            padding-right: 14px;
+            padding-right: 14px + 58px + 12px;
             spacing: 20px;
             // Double-click the emblem and name to put every card back where it started.
             brand := TouchArea {
@@ -1205,18 +1198,32 @@ component HeaderBody inherits Rectangle {
                     horizontal-stretch: 1;
                     alignment: center;
                     spacing: 2px;
-                    Text { text: Esther.long-date; color: Look.muted; font-size: 13px; }
+                    Text { text: Esther.long-date; color: Look.muted; font-size: 13px; overflow: elide; }
                     Text { text: Esther.line; color: Look.text; font-family: "Instrument Serif"; font-italic: true; font-size: 17px; overflow: elide; }
                 }
             }
-            // Settings, and hide (the shortcut or the bubble brings Esther back).
-            HorizontalLayout {
-                horizontal-stretch: 0;
-                padding-top: 12px;
-                spacing: 2px;
-                VerticalLayout { alignment: start; Gear { clicked => { Esther.open-settings(); } } }
-                VerticalLayout { alignment: start; NavButton { text: "×"; clicked => { Esther.hide-all(); } } }
-            }
+        }
+        // Settings, and hide (the shortcut or the bubble brings Esther back): always at the top right, however
+        // narrow the header (the greeting and the date give way).
+        HorizontalLayout {
+            x: parent.width - 14px - self.width;
+            y: 12px;
+            width: self.preferred-width;
+            height: 28px;
+            spacing: 2px;
+            Gear { clicked => { Esther.open-settings(); } }
+            NavButton { text: "×"; clicked => { Esther.hide-all(); } }
+        }
+    }
+    // Right-click anywhere on the header (on top, so the logo and the rest don't keep the right button; left
+    // clicks pass through).
+    ContextMenuArea {
+        Menu {
+            MenuItem { title: "Settings"; activated => { Esther.open-settings(); } }
+            MenuItem { title: "Hide Esther"; activated => { Esther.hide-all(); } }
+            MenuItem { title: "Put every card back"; activated => { Esther.reset-layout(); } }
+            MenuSeparator { }
+            MenuItem { title: "Quit Esther"; activated => { Esther.quit(); } }
         }
     }
 }
