@@ -15,6 +15,9 @@ mod imp {
     const DWMWA_TRANSITIONS_FORCEDISABLED: u32 = 3;
     const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
     const DWMWCP_ROUND: u32 = 2;
+    const DWMWCP_DONOTROUND: u32 = 1;
+    const DWMWA_BORDER_COLOR: u32 = 34;
+    const DWMWA_COLOR_NONE: u32 = 0xFFFF_FFFE;
 
     fn wide(s: &str) -> Vec<u16> {
         s.encode_utf16().chain(std::iter::once(0)).collect()
@@ -40,14 +43,19 @@ mod imp {
         }
     }
 
-    /// Make the card a desktop widget: on the desktop, rounded, no taskbar button, no Windows animations.
-    pub fn style(hwnd: isize) -> String {
+    /// Make the card a desktop widget: on the desktop, rounded, no taskbar button, no Windows animations. A bare
+    /// window (the bubble: just the word) gets no corners and no border from Windows either, so nothing shows round it.
+    pub fn style(hwnd: isize, bare: bool) -> String {
         let hwnd = hwnd as HWND;
         unsafe {
             let one: u32 = 1;
             let a = DwmSetWindowAttribute(hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &one as *const u32 as _, 4);
-            let round = DWMWCP_ROUND;
+            let round = if bare { DWMWCP_DONOTROUND } else { DWMWCP_ROUND };
             let b = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &round as *const u32 as _, 4);
+            if bare {
+                let none = DWMWA_COLOR_NONE;
+                DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &none as *const u32 as _, 4);
+            }
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | WS_EX_TOOLWINDOW as isize) & !(WS_EX_APPWINDOW as isize));
             let desk = desktop_window();
@@ -206,6 +214,15 @@ mod imp {
         i.Anonymous.mi.dwFlags = if down { MOUSEEVENTF_LEFTDOWN } else { MOUSEEVENTF_LEFTUP };
         send(&[i]);
     }
+    /// A right-click where the mouse is.
+    pub fn right_click() {
+        let mut v: [INPUT; 2] = unsafe { std::mem::zeroed() };
+        for (i, f) in v.iter_mut().zip([MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP]) {
+            i.r#type = INPUT_MOUSE;
+            i.Anonymous.mi.dwFlags = f;
+        }
+        send(&v);
+    }
     pub fn type_text(s: &str) {
         let mut v = Vec::new();
         for c in s.encode_utf16() {
@@ -246,7 +263,7 @@ mod imp {
 
 #[cfg(not(windows))]
 mod imp {
-    pub fn style(_hwnd: isize) -> String {
+    pub fn style(_hwnd: isize, _bare: bool) -> String {
         "not on Windows".into()
     }
     /// From /proc on Linux (for trying it out); (private ≈ RssAnon, working set = VmRSS, private working set ≈

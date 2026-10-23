@@ -51,7 +51,7 @@ jobs:
             want(m.windows === 5, 'expected 4 cards and the bubble, got ' + m.windows + ' windows');
             for (const [k, c] of Object.entries(m.cards)) {
               want(c.screenshot, k + ': no picture');
-              want(c.rounded_corners_asked, k + ': rounded corners were not asked of Windows');
+              want(c.corners_as_meant, k + ': Windows was not asked for its corners (rounded cards, a bare bubble)');
               want(c.tool_window, k + ': not a tool window (it would have a taskbar button)');
               want(c.on_the_desktop, k + ': not attached to the desktop window');
             }
@@ -65,6 +65,14 @@ jobs:
             want(m.subtasks_closed_by_click, 'clicking the subtasks column again did not close them');
             want(m.list_renamed === 'Everyday', 'double-clicking a list tab and typing gave ' + JSON.stringify(m.list_renamed));
             want(m.list_added === 'Errands', 'the + for a new list gave ' + JSON.stringify(m.list_added));
+            // The table
+            want(m.task_menu_open, 'right-clicking a task did not open its menu');
+            want(m.deleted_by_right_click, 'right-click, Delete task did not delete it');
+            want(m.undo_brought_it_back, 'Ctrl+Z did not bring the deleted task back');
+            want(m.sorted_by === 'date' && m.dates_in_order, 'clicking DATE did not sort by date (' + JSON.stringify(m.sorted_by) + ')');
+            want(m.task_dragged_below_next, 'dragging a task by its grip did not move it below the next');
+            want(m.tab_dragged, 'dragging a list tab did not move it (' + JSON.stringify(m.tab_order) + ')');
+            want(m.list_column_after > m.list_column_before + 20 && m.columns_saved === m.list_column_after, 'dragging the LIST heading edge gave ' + m.list_column_before + ' -> ' + m.list_column_after + ' (saved ' + m.columns_saved + ')');
             // The cards together
             want(m.rows_before_day === 6, 'expected 6 tasks before picking a day, got ' + m.rows_before_day);
             want(m.rows_on_the_23rd === 1, 'picking the 23rd on the calendar should leave 1 task on the Tasks card, got ' + m.rows_on_the_23rd);

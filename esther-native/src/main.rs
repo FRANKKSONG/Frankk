@@ -72,6 +72,11 @@ struct State {
     /// The date picker: its month, and the day it marks.
     picker_month: Date,
     picker_day: Option<Date>,
+    /// The Tasks table sorted by a column ("" for your own order), and which way.
+    sort_col: String,
+    sort_asc: bool,
+    /// The date chosen for the next task in the add row.
+    add_date: Option<Date>,
 }
 
 /// What you set: which cards are off, snapping, the bubble and its size. Kept with the cards' places.
@@ -80,6 +85,8 @@ struct Prefs {
     snap: bool,
     bubble: bool,
     bubble_size: f32,
+    /// The Tasks table's column widths (unscaled px): list, subtasks, date.
+    cols: (f32, f32, f32),
 }
 
 /// One window, and what Windows made of it.
@@ -125,6 +132,8 @@ struct App {
     hotkey_ok: Cell<bool>,
     /// The guides lit up during the last move or resize (for the test).
     lit: RefCell<Vec<Line>>,
+    /// Your tasks as they were before each change (newest last), for Ctrl+Z.
+    undo: RefCell<Vec<data::Data>>,
 }
 
 impl App {
@@ -256,6 +265,7 @@ fn task_row(t: &Task, st: &State, today: Date) -> TaskRow {
         iso: t.date.clone().unwrap_or_default().into(),
         date_kind: kind,
         subs: if t.subtasks.is_empty() { SharedString::new() } else { format!("{}/{}", subs_done, t.subtasks.len()).into() },
+        subs_done: subs_done as i32,
         subtasks: model(t.subtasks.iter().map(|s| SubRow { id: s.id.clone().into(), text: s.text.clone().into(), done: s.done }).collect()),
         clears: clears(t).into(),
     }
@@ -279,8 +289,8 @@ impl Same for Color { fn same(&self, o: &Self) -> bool { self == o } }
 impl Same for TaskRow {
     fn same(&self, o: &Self) -> bool {
         let v: Vec<SubRow> = o.subtasks.iter().collect();
-        (&self.id, &self.title, self.done, &self.list_id, &self.list_name, self.list_color, &self.date, &self.iso, self.date_kind, &self.subs, &self.clears)
-            == (&o.id, &o.title, o.done, &o.list_id, &o.list_name, o.list_color, &o.date, &o.iso, o.date_kind, &o.subs, &o.clears)
+        (&self.id, &self.title, self.done, &self.list_id, &self.list_name, self.list_color, &self.date, &self.iso, self.date_kind, &self.subs, self.subs_done, &self.clears)
+            == (&o.id, &o.title, o.done, &o.list_id, &o.list_name, o.list_color, &o.date, &o.iso, o.date_kind, &o.subs, o.subs_done, &o.clears)
             && same_list(&self.subtasks, &v)
     }
 }
@@ -311,7 +321,32 @@ fn fill_tasks(g: &Esther, st: &State, today: Date) {
     let tab = if tab_valid { st.tab.clone() } else { "all".to_string() };
     let day = st.day.map(iso);
     let in_tab: Vec<&Task> = d.tasks.iter().filter(|t| (tab == "all" || t.list_id == tab) && (day.is_none() || t.date == day)).collect();
-    let rows: Vec<TaskRow> = in_tab.iter().filter(|t| st.show == 0 || (st.show == 2) == t.done).map(|t| task_row(t, st, today)).collect();
+    let mut shown: Vec<&Task> = in_tab.iter().copied().filter(|t| st.show == 0 || (st.show == 2) == t.done).collect();
+    // Sorted by a column (click its heading), or in your own order.
+    if !st.sort_col.is_empty() {
+        let list_name = |t: &Task| d.lists.iter().find(|l| l.id == t.list_id).map(|l| l.name.to_lowercase()).unwrap_or_default();
+        let subs = |t: &Task| if t.subtasks.is_empty() { -1.0 } else { t.subtasks.iter().filter(|s| s.done).count() as f32 / t.subtasks.len() as f32 };
+        shown.sort_by(|a, b| {
+            let o = match st.sort_col.as_str() {
+                "title" => a.title.to_lowercase().cmp(&b.title.to_lowercase()),
+                "list" => list_name(a).cmp(&list_name(b)),
+                "subs" => subs(a).partial_cmp(&subs(b)).unwrap_or(std::cmp::Ordering::Equal),
+                // (Tasks without a date go last either way.)
+                _ => match (&a.date, &b.date) {
+                    (Some(x), Some(y)) => x.cmp(y),
+                    (Some(_), None) => return std::cmp::Ordering::Less,
+                    (None, Some(_)) => return std::cmp::Ordering::Greater,
+                    _ => std::cmp::Ordering::Equal,
+                },
+            };
+            if st.sort_asc { o } else { o.reverse() }
+        });
+    }
+    let rows: Vec<TaskRow> = shown.iter().map(|t| task_row(t, st, today)).collect();
+    g.set_sort_col(st.sort_col.clone().into());
+    g.set_sort_asc(st.sort_asc);
+    g.set_add_date_label(st.add_date.map(|d| date_label(&iso(d), today).0).unwrap_or_default().into());
+    g.set_add_date_iso(st.add_date.map(iso).unwrap_or_default().into());
     g.set_tab(tab.into());
     g.set_show(st.show);
     g.set_count_tab_all(d.tasks.iter().filter(|t| !t.done).count() as i32);
@@ -449,7 +484,14 @@ fn refresh(app: &App) {
 fn change(app: &App, f: impl FnOnce(&mut State)) {
     {
         let mut st = app.state.borrow_mut();
+        let before = st.store.data.clone();
         f(&mut st);
+        // (Kept for Ctrl+Z when the tasks themselves changed, not just what's shown.)
+        if st.store.data != before {
+            let mut u = app.undo.borrow_mut();
+            u.push(before);
+            if u.len() > 100 { u.remove(0); }
+        }
         st.store.save();
     }
     refresh(app);
@@ -483,7 +525,7 @@ fn place_path() -> std::path::PathBuf {
 /// prototype saved just { x, y, width, height }: that was the Tasks card.)
 fn load_saved() -> (std::collections::HashMap<String, Rect>, Prefs) {
     let mut places = std::collections::HashMap::new();
-    let mut prefs = Prefs { hidden: vec![], snap: true, bubble: true, bubble_size: 0.6 };
+    let mut prefs = Prefs { hidden: vec![], snap: true, bubble: true, bubble_size: 0.6, cols: (150.0, 110.0, 120.0) };
     let Some(v) = std::fs::read_to_string(place_path()).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()) else { return (places, prefs) };
     let rect = |r: &serde_json::Value| Some((r["x"].as_i64()? as i32, r["y"].as_i64()? as i32, r["width"].as_i64()? as i32, r["height"].as_i64()? as i32));
     if let Some(cards) = v["cards"].as_object() {
@@ -497,6 +539,10 @@ fn load_saved() -> (std::collections::HashMap<String, Rect>, Prefs) {
     if let Some(b) = v["snap"].as_bool() { prefs.snap = b; }
     if let Some(b) = v["bubble"].as_bool() { prefs.bubble = b; }
     if let Some(k) = v["bubbleSize"].as_f64() { prefs.bubble_size = (k as f32).clamp(0.3, 1.5); }
+    if let Some(c) = v["columns"].as_array() {
+        let w = |i: usize, d: f32| c.get(i).and_then(|x| x.as_f64()).map(|x| x as f32).unwrap_or(d);
+        prefs.cols = (w(0, 150.0), w(1, 110.0), w(2, 120.0));
+    }
     (places, prefs)
 }
 fn save_places(app: &App) {
@@ -508,7 +554,7 @@ fn save_places(app: &App) {
     let p = app.prefs.borrow();
     let _ = std::fs::write(
         place_path(),
-        serde_json::json!({ "cards": cards, "hidden": p.hidden, "snap": p.snap, "bubble": p.bubble, "bubbleSize": p.bubble_size }).to_string(),
+        serde_json::json!({ "cards": cards, "hidden": p.hidden, "snap": p.snap, "bubble": p.bubble, "bubbleSize": p.bubble_size, "columns": [p.cols.0, p.cols.1, p.cols.2] }).to_string(),
     );
 }
 
@@ -918,6 +964,32 @@ fn paint_glass(app: &App) {
 }
 
 // ---- What the cards do ----
+/// Ctrl+Z on any card undoes Esther's last change (unless a text field with text in it has the keyboard: then it's
+/// the text's). Caught as the window gets it, so it works wherever the keyboard is on the card.
+fn undo_key(ui: &Card) {
+    use slint::winit_030::{winit::event::WindowEvent, winit::keyboard::{KeyCode, PhysicalKey}, EventResult, WinitWindowAccessor};
+    let ctrl = Cell::new(false);
+    let weak = ui.as_weak();
+    ui.window().on_winit_window_event(move |_, ev| {
+        match ev {
+            WindowEvent::ModifiersChanged(m) => ctrl.set(m.state().control_key()),
+            WindowEvent::KeyboardInput { event, .. }
+                if event.state.is_pressed() && !event.repeat && ctrl.get() && event.physical_key == PhysicalKey::Code(KeyCode::KeyZ) =>
+            {
+                if let Some(ui) = weak.upgrade() {
+                    let g = ui.global::<Esther>();
+                    if !g.get_typing() {
+                        g.invoke_undo();
+                        return EventResult::PreventDefault;
+                    }
+                }
+            }
+            _ => {}
+        }
+        EventResult::Propagate
+    });
+}
+
 fn wire(app: &Rc<App>, i: usize) {
     let w = &app.cards[i];
     let g = w.ui.global::<Esther>();
@@ -940,7 +1012,7 @@ fn wire(app: &Rc<App>, i: usize) {
                 if !st.store.shared { return; } // nothing is added until the tasks are shared with the Esther app
                 let lists = &st.store.data.lists;
                 let list_id = if st.tab != "all" && lists.iter().any(|l| l.id == st.tab) { st.tab.clone() } else { lists[st.add_list % lists.len()].id.clone() };
-                let date = st.day.map(iso);
+                let date = st.add_date.take().or(st.day).map(iso);
                 st.store.data.tasks.insert(0, Task { id: new_id("t"), list_id, title: text, done: false, date, subtasks: vec![], done_at: None });
             });
         }
@@ -952,6 +1024,18 @@ fn wire(app: &Rc<App>, i: usize) {
     });
     on!(on_set_date, |a, id, when| {
         let t0 = today();
+        if id.as_str() == "-new-" {
+            // (The add row's date, for the next task.)
+            let d = match when.as_str() {
+                "today" => Some(t0),
+                "tomorrow" => Some(t0 + Duration::days(1)),
+                "next-week" => Some(t0 + Duration::days(7 - t0.weekday().number_days_from_monday() as i64)),
+                "none" | "" => None,
+                s => parse_date(s),
+            };
+            change(a, |st| st.add_date = d);
+            return;
+        }
         let date = match when.as_str() {
             "today" => Some(iso(t0)),
             "tomorrow" => Some(iso(t0 + Duration::days(1))),
@@ -1018,6 +1102,46 @@ fn wire(app: &Rc<App>, i: usize) {
     });
     on!(on_clear_day, |a| change(a, |st| st.day = None));
     on!(on_month_step, |a, n| change(a, |st| st.month = if n == 0 { first_of_month(today()) } else { add_months(st.month, n) }));
+    // The table: sorting, your own order (drag ⠿), column widths, undo, the new task's list.
+    on!(on_sort_by, |a, col| change(a, |st| {
+        if st.sort_col == col.as_str() { st.sort_asc = !st.sort_asc } else { st.sort_col = col.to_string(); st.sort_asc = true }
+    }));
+    on!(on_unsort, |a| change(a, |st| st.sort_col.clear()));
+    on!(on_move_task, |a, id, target, after| change(a, |st| {
+        let ts = &mut st.store.data.tasks;
+        let Some(from) = ts.iter().position(|t| t.id == id.as_str()) else { return };
+        let t = ts.remove(from);
+        let Some(to) = ts.iter().position(|t| t.id == target.as_str()) else { ts.insert(from, t); return };
+        ts.insert(if after { to + 1 } else { to }, t);
+    }));
+    on!(on_move_list, |a, id, target, after| change(a, |st| {
+        let ls = &mut st.store.data.lists;
+        let Some(from) = ls.iter().position(|l| l.id == id.as_str()) else { return };
+        let l = ls.remove(from);
+        let Some(to) = ls.iter().position(|l| l.id == target.as_str()) else { ls.insert(from, l); return };
+        ls.insert(if after { to + 1 } else { to }, l);
+    }));
+    {
+        let wk = wk.clone();
+        g.on_cols_changed(move || {
+            let Some(a) = wk.upgrade() else { return };
+            let g = a.card("tasks").ui.global::<Esther>();
+            a.prefs.borrow_mut().cols = (g.get_col_list(), g.get_col_subs(), g.get_col_date());
+            save_places(&a);
+        });
+    }
+    on!(on_undo, |a| {
+        let Some(prev) = a.undo.borrow_mut().pop() else { return };
+        {
+            let mut st = a.state.borrow_mut();
+            st.store.data = prev;
+            st.store.save();
+        }
+        refresh(a);
+    });
+    on!(on_set_add_list, |a, id| change(a, |st| {
+        if let Some(i) = st.store.data.lists.iter().position(|l| l.id == id.as_str()) { st.add_list = i; }
+    }));
     // This week: a task's name points it out on the Tasks card.
     {
         let wk = wk.clone();
@@ -1167,12 +1291,22 @@ mod spots {
         }
         y + 5.0 + 18.0 + 2.0 + line as f32 * 28.0 + 13.0
     }
-    /// The Tasks card: where the "Add a task" field is, and the middle of the first task's line.
+    /// The Tasks card (unscaled px): the middle of the "Add a task" row, of the column headings, and of the first
+    /// task's line; and where each column starts, from the card's width (the columns sit at the right, at their
+    /// widths: list, subtasks, date).
     pub fn add_field(compact: bool) -> f32 {
-        if compact { 116.0 } else { 150.0 }
+        14.0 + 32.0 + 10.0 + 30.0 + 10.0 + if compact { 0.0 } else { 26.0 + 10.0 } + 22.0
     }
+    pub const HEADINGS: f32 = 14.0 + 32.0 + 10.0 + 30.0 + 10.0 + 13.0;
     pub fn first_row(compact: bool) -> f32 {
-        14.0 + 32.0 + 10.0 + 30.0 + 10.0 + if compact { 0.0 } else { 24.0 + 10.0 } + 40.0 + 10.0 + 21.0
+        add_field(compact) + 22.0 + 10.0 + 21.0
+    }
+    pub const ROW: f32 = 42.0;
+    /// (list, subtasks, date) columns' left edges, for a card `w` wide with columns (l, s, d) wide.
+    pub fn columns(w: f32, (l, s, d): (f32, f32, f32)) -> (f32, f32, f32) {
+        let date = w - 14.0 - 8.0 - d;
+        let subs = date - 8.0 - s;
+        (subs - 8.0 - l, subs, date)
     }
 }
 
@@ -1241,6 +1375,11 @@ impl Smoke {
     }
     fn first_row_id(&self) -> SharedString {
         self.g("tasks").get_rows().row_data(0).map(|r| r.id).unwrap_or_default()
+    }
+    /// Where the Tasks card's list, subtasks and date columns start (unscaled px from its left).
+    fn cols(&self) -> (f32, f32, f32) {
+        let g = self.g("tasks");
+        spots::columns(self.size("tasks").0, (g.get_col_list(), g.get_col_subs(), g.get_col_date()))
     }
     fn all_cards(&self, shown: bool) -> bool {
         self.app.cards.iter().filter(|w| w.kind != "bubble").all(|w| visible(w) == shown)
@@ -1344,19 +1483,18 @@ fn smoke_steps() -> Vec<Step> {
         let (w, _) = x.size("tasks");
         if x.real.get() {
             x.later(100, move |m, dir| { m.insert("list_menu_open".into(), wait_menu().into()); shot_to(dir, "list-menu.png"); m.insert("list_menu_item_clicked".into(), click_menu_item(1).into()); });
-            x.click("list pill", "tasks", x.at("tasks", w - 338.0 + 30.0, row(x)));
+            x.click("list pill", "tasks", x.at("tasks", x.cols().0 + 30.0, row(x)));
         } else { x.g("tasks").invoke_move_to(x.first_row_id(), "seround".into()) }
     });
     step!(50, |x| x.note("list_after_pill_menu", x.first_task()["listId"].clone()));
     // Subtasks: click the subtasks column (opens them, the field takes the keyboard), type, Enter; close them again.
-    step!(400, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("subtasks", "tasks", x.at("tasks", w - 198.0 + 12.0, row(x))) } });
+    step!(400, |x| { if x.real.get() { x.click("subtasks", "tasks", x.at("tasks", x.cols().1 + 12.0, row(x))) } });
     step!(150, |x| { if x.real.get() { win_input::type_text("Sub on Windows") } });
     step!(450, |x| { if x.real.get() { win_input::enter() } else { x.g("tasks").invoke_sub_add(x.first_row_id(), "Sub on Windows".into()) } });
     step!(50, |x| { x.note("subtask_added", x.first_task()["subtasks"][0]["text"] == "Sub on Windows"); x.shot("subtasks.png"); });
     step!(600, |x| {
         x.note("open_before_closing", x.g("tasks").get_open_task().to_string());
-        let (w, _) = x.size("tasks");
-        if x.real.get() { x.click("subtasks again", "tasks", x.at("tasks", w - 198.0 + 12.0, row(x))) } else { x.g("tasks").set_open_task("".into()) }
+        if x.real.get() { x.click("subtasks again", "tasks", x.at("tasks", x.cols().1 + 12.0, row(x))) } else { x.g("tasks").set_open_task("".into()) }
     });
     step!(400, |x| {
         x.note("subtasks_closed_by_click", x.g("tasks").get_open_task().is_empty());
@@ -1370,11 +1508,12 @@ fn smoke_steps() -> Vec<Step> {
     fn picker_at(x: &Smoke, px: f32, py: f32) -> (i32, i32) {
         let (w, _) = x.size("tasks");
         let compact = x.g("tasks").get_compact();
-        let left = if compact { w - 22.0 - 200.0 } else { w - 22.0 - 96.0 - 170.0 };
+        let d = x.g("tasks").get_col_date();
+        let left = if compact { w - 22.0 - 200.0 } else { x.cols().2 + (d - 264.0).min(0.0) };
         let top = spots::first_row(compact) - 21.0 + 9.0 + 24.0 + 4.0;
         x.at("tasks", left + px, top + py)
     }
-    step!(700, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("date", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x))) } });
+    step!(700, |x| { if x.real.get() { x.click("date", "tasks", x.at("tasks", x.cols().2 + 24.0, row(x))) } });
     step!(500, |x| {
         x.shot("date-picker.png");
         if let Ok(buf) = x.w("tasks").ui.window().take_snapshot() {
@@ -1383,14 +1522,14 @@ fn smoke_steps() -> Vec<Step> {
         if x.real.get() { x.click("picker: Tomorrow", "tasks", picker_at(x, 108.0, 60.0)) } else { x.g("tasks").invoke_set_date(x.first_row_id(), "tomorrow".into()) }
     });
     step!(50, |x| x.note("date_from_picker_quick", x.first_task()["date"].clone()));
-    step!(700, |x| { let (w, _) = x.size("tasks"); if x.real.get() { x.click("date again", "tasks", x.at("tasks", w - 22.0 - 96.0 + 24.0, row(x))) } });
+    step!(700, |x| { if x.real.get() { x.click("date again", "tasks", x.at("tasks", x.cols().2 + 24.0, row(x))) } });
     step!(500, |x| {
         // The 25th: October 2026 starts on a Thursday, so it's the 28th cell (row 4, column 7).
         if x.real.get() { x.click("picker: the 25th", "tasks", picker_at(x, 12.0 + 6.5 * 240.0 / 7.0, 102.0 + 3.5 * 182.0 / 5.0)) } else { x.g("tasks").invoke_set_date(x.first_row_id(), "2026-10-25".into()) }
     });
     step!(50, |x| x.note("date_from_picker_day", x.first_task()["date"].clone()));
     // A list tab: double-click to rename, type, Enter.
-    step!(300, |x| { if x.real.get() { let p = x.at("tasks", 14.0 + 58.0 + 6.0 + 22.0, 14.0 + 16.0); x.click("list tab", "tasks", p); win_input::down(); win_input::up(); } });
+    step!(300, |x| { if x.real.get() { let p = x.at("tasks", 14.0 + 58.0 + 6.0 + 50.0, 14.0 + 16.0); x.click("list tab", "tasks", p); win_input::down(); win_input::up(); } });
     step!(150, |x| { if x.real.get() { win_input::type_text("Everyday") } });
     step!(450, |x| { if x.real.get() { win_input::enter() } else { x.g("tasks").invoke_rename_list("general".into(), "Everyday".into()) } });
     step!(50, |x| x.note("list_renamed", x.file()["lists"][0]["name"].clone()));
@@ -1401,6 +1540,71 @@ fn smoke_steps() -> Vec<Step> {
     step!(50, |x| { x.note("list_added", x.file()["lists"].as_array().and_then(|l| l.last()).map(|l| l["name"].clone()).unwrap_or_default()); x.shot("tasks-edited.png"); });
     // Back to All.
     step!(200, |x| x.g("tasks").invoke_pick_tab("all".into()));
+
+    // ---- The table: right-click a task, Delete task; Ctrl+Z brings it back; sort by date; drag a task and a tab to
+    // new places; widen the LIST column. ----
+    fn has_task(x: &Smoke, id: &str) -> bool {
+        x.file()["tasks"].as_array().is_some_and(|ts| ts.iter().any(|t| t["id"] == id))
+    }
+    fn noted(x: &Smoke, key: &str) -> String {
+        x.notes.borrow().get(key).and_then(|v| v.as_str().map(String::from)).unwrap_or_default()
+    }
+    fn row_ids(x: &Smoke) -> Vec<String> {
+        x.g("tasks").get_rows().iter().map(|r| r.id.to_string()).collect()
+    }
+    step!(1800, |x| {
+        let id = x.first_row_id().to_string();
+        x.note("right_clicked_task", id.clone());
+        x.note("right_clicked_task_there", has_task(x, &id));
+        if x.real.get() {
+            // (Its menu: subtasks, —, Today, Tomorrow, Next week, No date, —, Move to, —, Delete task.)
+            x.later(100, move |m, dir| { m.insert("task_menu_open".into(), wait_menu().into()); shot_to(dir, "task-menu.png"); m.insert("task_menu_delete_clicked".into(), click_menu_item(9).into()); });
+            x.point("task (right-click)", "tasks", x.at("tasks", 104.0, row(x)));
+            win_input::right_click();
+        } else { x.g("tasks").invoke_delete(id.into()) }
+    });
+    step!(50, |x| { let id = noted(x, "right_clicked_task"); x.note("deleted_by_right_click", !id.is_empty() && !has_task(x, &id)); });
+    step!(300, |x| { shell::focus(x.w("tasks").hwnd.get()); if x.real.get() { win_input::keys(&[0x11, 0x5A]) } else { x.g("tasks").invoke_undo() } }); // Ctrl+Z
+    step!(50, |x| { let id = noted(x, "right_clicked_task"); x.note("undo_brought_it_back", has_task(x, &id)); });
+    // Click DATE: sorted by date, earliest first.
+    step!(400, |x| { if x.real.get() { x.click("DATE heading", "tasks", x.at("tasks", x.cols().2 + 14.0, spots::HEADINGS)) } else { x.g("tasks").invoke_sort_by("date".into()) } });
+    step!(50, |x| {
+        x.note("sorted_by", x.g("tasks").get_sort_col().to_string());
+        let isos: Vec<String> = x.g("tasks").get_rows().iter().map(|r| r.iso.to_string()).filter(|d| !d.is_empty()).collect();
+        x.note("dates_in_order", isos.len() > 1 && isos.windows(2).all(|p| p[0] <= p[1]));
+        x.shot("sorted.png");
+    });
+    step!(300, |x| x.g("tasks").invoke_unsort());
+    // Drag the first task by its ⠿ to below the second.
+    step!(50, |x| x.note("rows_before_drag", row_ids(x)));
+    drag(&mut s, "task grip", "tasks", |x| x.at("tasks", 14.0 + 8.0, spots::first_row(x.g("tasks").get_compact())), |x| (0, (spots::ROW * 1.3 * x.k()) as i32), 6, |x| x.shot("dragging-task.png"));
+    step!(50, |x| {
+        let before: Vec<String> = x.notes.borrow().get("rows_before_drag").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default();
+        if !x.real.get() && before.len() > 1 { x.g("tasks").invoke_move_task(before[0].clone().into(), before[1].clone().into(), true) }
+        let after = row_ids(x);
+        x.note("task_dragged_below_next", before.len() > 1 && after.len() > 1 && after[0] == before[1] && after[1] == before[0]);
+    });
+    // Drag the first list's tab to the right, past the next.
+    step!(50, |x| x.note("first_list_before_drag", x.file()["lists"][0]["id"].clone()));
+    drag(&mut s, "list tab", "tasks", |x| x.at("tasks", 14.0 + 58.0 + 6.0 + 50.0, 14.0 + 16.0), |x| ((150.0 * x.k()) as i32, 0), 6, |x| x.shot("dragging-tab.png"));
+    step!(50, |x| {
+        if !x.real.get() {
+            let ids: Vec<String> = x.g("tasks").get_tabs().iter().map(|l| l.id.to_string()).collect();
+            x.g("tasks").invoke_move_list(ids[0].clone().into(), ids[1].clone().into(), true);
+        }
+        let first = x.file()["lists"][0]["id"].clone();
+        x.note("tab_dragged", first != x.notes.borrow()["first_list_before_drag"] && first.is_string());
+        x.note("tab_order", x.file()["lists"].as_array().map(|l| l.iter().map(|l| l["name"].clone()).collect::<Vec<_>>()).unwrap_or_default());
+    });
+    // Widen LIST by dragging its heading's left edge 40 px to the left.
+    step!(50, |x| x.note("list_column_before", x.g("tasks").get_col_list()));
+    drag(&mut s, "LIST edge", "tasks", |x| x.at("tasks", x.cols().0 - 4.0, spots::HEADINGS), |x| ((-40.0 * x.k()) as i32, 0), 4, |x| x.shot("widening-list.png"));
+    step!(100, |x| {
+        if !x.real.get() { let g = x.g("tasks"); g.set_col_list(g.get_col_list() + 40.0); g.invoke_cols_changed(); }
+        x.note("list_column_after", x.g("tasks").get_col_list());
+        x.note("columns_saved", std::fs::read_to_string(place_path()).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).map(|v| v["columns"][0].clone()).unwrap_or_default());
+        x.shot("table.png");
+    });
 
     // ---- The calendar: pick the 23rd (one task that day), then pick it again (every day). ----
     fn day23(x: &Smoke) -> (i32, i32) {
@@ -1575,7 +1779,7 @@ fn smoke_report(x: &Smoke) {
         let (corner, tool, owned) = (0u32, false, false);
         cards.insert(w.kind.into(), serde_json::json!({
             "screenshot": shot.unwrap_or(false),
-            "rounded_corners_asked": corner == 2,
+            "corners_as_meant": corner == if w.kind == "bubble" { 1 } else { 2 },
             "tool_window": tool,
             "on_the_desktop": owned,
             "visible": visible(w),
@@ -1637,6 +1841,7 @@ mod win_input {
     pub fn to(x: i32, y: i32) { crate::win::set_cursor(x, y) }
     pub fn down() { crate::win::mouse(true) }
     pub fn up() { crate::win::mouse(false) }
+    pub fn right_click() { crate::win::right_click() }
     pub fn type_text(s: &str) { crate::win::clear_consoles(); crate::win::type_text(s) }
     pub fn enter() { crate::win::enter() }
     pub fn keys(vks: &[u16]) { crate::win::keys(vks) }
@@ -1648,6 +1853,7 @@ mod win_input {
     pub fn to(_x: i32, _y: i32) {}
     pub fn down() {}
     pub fn up() {}
+    pub fn right_click() {}
     pub fn type_text(_s: &str) {}
     pub fn enter() {}
     pub fn keys(_vks: &[u16]) {}
@@ -1671,6 +1877,7 @@ fn main() {
         .map(|kind| {
             let ui = Card::new().expect("a card window");
             ui.set_kind((*kind).into());
+            undo_key(&ui);
             Win { kind, ui, hwnd: Cell::new(0), styled: RefCell::new("not yet".into()), acrylic: Cell::new("") }
         })
         .collect();
@@ -1685,6 +1892,9 @@ fn main() {
         highlight: String::new(),
         picker_month: first_of_month(t0),
         picker_day: None,
+        sort_col: String::new(),
+        sort_asc: true,
+        add_date: None,
     };
     if smoke.is_none() { clear_old(&mut state); } // (the test's tasks are fixed; "a week ago" moves on)
     let (places, prefs) = load_saved();
@@ -1697,8 +1907,16 @@ fn main() {
         anims: RefCell::new(vec![]),
         hotkey_ok: Cell::new(false),
         lit: RefCell::new(vec![]),
+        undo: RefCell::new(vec![]),
     });
     for i in 0..app.cards.len() { wire(&app, i); }
+    {
+        let (l, sb, d) = app.prefs.borrow().cols;
+        let g = app.card("tasks").ui.global::<Esther>();
+        g.set_col_list(l);
+        g.set_col_subs(sb);
+        g.set_col_date(d);
+    }
     refresh(&app);
 
     // Following the mouse, and Esther's animations, every 8 ms.
@@ -1771,7 +1989,7 @@ fn main() {
                 match w.ui.window().window_handle().window_handle().map(|h| h.as_raw()) {
                     Ok(RawWindowHandle::Win32(h)) => {
                         w.hwnd.set(h.hwnd.get());
-                        *w.styled.borrow_mut() = win::style(h.hwnd.get());
+                        *w.styled.borrow_mut() = win::style(h.hwnd.get(), w.kind == "bubble");
                         // (The bubble is just the word: no glass behind it.)
                         let acrylic = if w.kind == "bubble" { "" } else { win::acrylic(h.hwnd.get()) };
                         w.acrylic.set(acrylic);
