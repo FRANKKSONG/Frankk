@@ -79,7 +79,7 @@ one show up in the other within a second or so. Running both shows two sets of c
 turn its cards off in Settings → Cards) while you try this.
 
 ## Build and try
-- `cargo run` (Linux needs libxkbcommon-x11). `cargo build --release` for the small, fast build: `esther-native.exe`.
+- `cargo run` (Linux needs libxkbcommon-x11). `cargo build --release` for the small, fast build: `esther-native.exe` (on Windows it carries its version, shown in its Properties → Details; the download on the pre-release is named with it, e.g. `esther-native-0.3.0.exe`).
 - `esther-native --smoke DIR` opens the cards on `DIR/tasks.json` and tries them, on Windows with the real mouse and
   keyboard: adds, renames, moves, dates (menu and picker) a task and gives it a subtask; renames and adds a list; picks a
   day on the calendar; points out and ticks a task from This week; resizes and drags cards with the guides showing and

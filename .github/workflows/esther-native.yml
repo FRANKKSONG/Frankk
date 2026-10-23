@@ -42,6 +42,11 @@ jobs:
           export ESTHER_TODAY=2026-10-21 ESTHER_WALLPAPER="$(cygpath -w "$PWD/tests/fixture/wall.png")"
           timeout 150 ./target/release/esther-native.exe --smoke "$(cygpath -w "$PWD/smoke")"
           echo "exe size: $(stat -c %s target/release/esther-native.exe) bytes"
+          # The version Windows shows in the program's Properties → Details.
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          shown=$(powershell.exe -NoProfile -Command "(Get-Item target/release/esther-native.exe).VersionInfo.ProductVersion" | tr -d '\r')
+          echo "version in the program: $shown (Cargo.toml: $v)"
+          case "$shown" in "$v"*) ;; *) echo "FAIL: the program does not carry its version"; exit 1;; esac
           cat smoke/memory.json; echo
           node -e "
             const m = require('./smoke/memory.json');
@@ -139,9 +144,12 @@ jobs:
         run: |
           # (esther-tasks.exe: the same program under the one-card prototype's name, which the Esther installer
           # build picks up for its "native preview" shortcut.)
+          # The download carries its version in its name (esther-native-0.3.0.exe), as the program does inside.
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          cp target/release/esther-native.exe "smoke/esther-native-$v.exe"
           cp target/release/esther-native.exe smoke/esther-tasks.exe
           gh release delete esther-native --yes --cleanup-tag || true
-          gh release create esther-native target/release/esther-native.exe smoke/esther-tasks.exe smoke/*.png smoke/memory.json \
+          gh release create esther-native "smoke/esther-native-$v.exe" smoke/esther-tasks.exe smoke/*.png smoke/memory.json \
             --target "$GITHUB_SHA" --prerelease \
-            --title "Esther native (preview)" \
-            --notes "Esther's header, calendar, This week and Tasks cards as one native Windows program (Rust + Slint), each card its own window on the desktop. It shares tasks with Esther through %APPDATA%\\Esther\\tasks.json (Esther 2.2 or later writes that file). Just run esther-native.exe; nothing is installed. Ctrl+Alt+E or the tray icon shows and hides it; Quit is in the tray menu. Not in it yet: Settings."
+            --title "Esther native $v (preview)" \
+            --notes "Esther's header, calendar, This week and Tasks cards, and Settings, as one native Windows program (Rust + Slint), each card its own window on the desktop. It shares tasks with Esther through %APPDATA%\\Esther\\tasks.json (Esther 2.2 or later writes that file). Just run esther-native-$v.exe; nothing is installed. Ctrl+Alt+E or the tray icon shows and hides it; the gear on the header opens Settings; Quit is in the tray menu."
