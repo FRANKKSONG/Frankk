@@ -1944,7 +1944,7 @@ fn smoke_run(dir: std::path::PathBuf, app: Rc<App>) -> slint::Timer {
     t.start(slint::TimerMode::Repeated, StdDuration::from_millis(20), move || {
         let ready = x.app.cards.iter().all(|w| w.hwnd.get() != 0);
         if !ready && start.elapsed().as_secs() < 8 { return; } // wait for the windows
-        if next.get() == 0 { x.real.set(cfg!(windows) && x.app.cards.iter().all(|w| w.hwnd.get() > 0)); }
+        if next.get() == 0 { x.real.set(cfg!(windows) && x.app.cards.iter().filter(|w| w.kind != "settings").all(|w| w.hwnd.get() > 0)); }
         if Instant::now() < wait_until.get() { return; }
         let i = next.get();
         if i < steps.len() {
