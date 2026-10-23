@@ -769,6 +769,10 @@ fn resize_rect(r0: (f32, f32, f32, f32), edge: &str, dx: f32, dy: f32, shift: bo
 }
 
 /// A line in esther-native-log.txt next to the tasks file (what happened, for tracking down problems).
+/// When the program started, and how long until the cards were ready (ms), for the log and the test.
+static STARTED: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+static READY_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 fn log(msg: &str) {
     use std::io::Write;
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(data::data_path().with_file_name("esther-native-log.txt")) {
@@ -1929,6 +1933,7 @@ fn smoke_report(x: &Smoke) {
         "windows": a.cards.len(),
         "rows": x.g("tasks").get_rows().row_count(),
         "real_input": x.real.get(),
+        "ready_ms": READY_MS.load(std::sync::atomic::Ordering::Relaxed),
         "header_line": x.g("header").get_line().to_string(),
         "cards": cards,
         "under_the_mouse": x.seen.borrow().clone(),
@@ -1950,7 +1955,7 @@ fn smoke_run(dir: std::path::PathBuf, app: Rc<App>) -> slint::Timer {
     let t = slint::Timer::default();
     t.start(slint::TimerMode::Repeated, StdDuration::from_millis(20), move || {
         let ready = x.app.cards.iter().all(|w| w.hwnd.get() != 0);
-        if !ready && start.elapsed().as_secs() < 8 { return; } // wait for the windows
+        if !ready && start.elapsed().as_secs() < 30 { return; } // wait for the windows
         if next.get() == 0 { x.real.set(cfg!(windows) && x.app.cards.iter().filter(|w| w.kind != "settings").all(|w| w.hwnd.get() > 0)); }
         if Instant::now() < wait_until.get() { return; }
         let i = next.get();
@@ -1994,6 +1999,7 @@ mod win_input {
 }
 
 fn main() {
+    let _ = STARTED.set(Instant::now());
     let args: Vec<String> = std::env::args().collect();
     let smoke = args.iter().position(|a| a == "--smoke").and_then(|i| args.get(i + 1)).map(std::path::PathBuf::from);
     if let Some(dir) = &smoke {
@@ -2122,6 +2128,7 @@ fn main() {
             use raw_window_handle::{HasWindowHandle, RawWindowHandle};
             let Some(a) = wk.upgrade() else { return };
             tries.set(tries.get() + 1);
+            if tries.get() == 1 { log(&format!("first tick after {} ms", STARTED.get().map(|t| t.elapsed().as_millis()).unwrap_or(0))); }
             let mut fresh = vec![];
             for (i, w) in a.cards.iter().enumerate() {
                 if w.hwnd.get() != 0 || !w.ui.window().is_visible() { continue; }
@@ -2146,6 +2153,9 @@ fn main() {
             if !started.get() {
                 if a.cards.iter().all(|w| w.hwnd.get() != 0 || !w.ui.window().is_visible()) {
                     started.set(true);
+                    let ms = STARTED.get().map(|t| t.elapsed().as_millis() as u64).unwrap_or(0);
+                    READY_MS.store(ms, std::sync::atomic::Ordering::Relaxed);
+                    log(&format!("ready after {ms} ms"));
                     paint_glass(&a);
                     show_all(&a);
                 }

@@ -118,6 +118,8 @@ jobs:
             note.push('glass: ' + Object.entries(m.cards).map(([k, c]) => k + ' ' + c.glass).join(', '));
             note.push('the Tasks card takes ' + m.tasks_card_draw_ms + ' ms to draw whole');
             note.push('Task Manager would show ' + m.task_manager_mb + ' MB (private working set), after the whole test');
+            note.push('the cards were ready ' + m.ready_ms + ' ms after starting');
+            want(m.ready_ms > 0 && m.ready_ms < 4000, 'the cards took ' + m.ready_ms + ' ms to be ready (more than 4 s)');
             for (const n of note) console.log('NOTE: ' + n);
             console.log(fail.length ? 'FAIL:\n  ' + fail.join('\n  ') : 'PASS: Task Manager ' + m.task_manager_mb + ' MB; ' + m.private_mb + ' MB private, ' + m.working_set_mb + ' MB working set');
             process.exit(fail.length ? 1 : 0);"
