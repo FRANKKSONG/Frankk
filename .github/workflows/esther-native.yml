@@ -36,6 +36,8 @@ jobs:
         run: cargo build --release
       - name: Try it (smoke test)
         run: |
+          # (Windows' transparency effects on, as on a desktop PC: the test machine may come with them off.)
+          reg add 'HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' //v EnableTransparency //t REG_DWORD //d 1 //f || true
           mkdir -p smoke && cp tests/fixture/tasks.json smoke/
           export ESTHER_TODAY=2026-10-21 ESTHER_WALLPAPER="$(cygpath -w "$PWD/tests/fixture/wall.png")"
           timeout 150 ./target/release/esther-native.exe --smoke "$(cygpath -w "$PWD/smoke")"
@@ -94,6 +96,8 @@ jobs:
             } else note.push('the tray icon is in the overflow on this machine, so it was not clicked');
             want(m.startup_on && m.startup_off, 'Start with Windows did not write and remove its registry value');
             want(m.private_mb <= 40, 'private memory ' + m.private_mb + ' MB is over 40 MB');
+            want(m.task_manager_mb <= 25, 'Task Manager would show ' + m.task_manager_mb + ' MB, over the 25 MB Esther keeps to');
+            note.push('glass: ' + Object.entries(m.cards).map(([k, c]) => k + ' ' + c.glass).join(', '));
             note.push('the Tasks card takes ' + m.tasks_card_draw_ms + ' ms to draw whole');
             note.push('Task Manager would show ' + m.task_manager_mb + ' MB (private working set), after the whole test');
             for (const n of note) console.log('NOTE: ' + n);

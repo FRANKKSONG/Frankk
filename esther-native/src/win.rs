@@ -57,6 +57,45 @@ mod imp {
         }
     }
 
+    /// Windows' own acrylic glass behind the window: it blurs whatever is behind the card, live, and Windows does
+    /// the work (in its compositor, on the graphics card), so it costs Esther nothing. The card draws only its tint
+    /// over it. Windows 11 22H2 and later have a documented way; before that, the way docks and other desktop tools
+    /// use. Returns which one took ("" if neither: then Esther paints its own glass).
+    pub fn acrylic(hwnd: isize) -> &'static str {
+        use windows_sys::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
+        use windows_sys::Win32::UI::Controls::MARGINS;
+        const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
+        const DWMWA_SYSTEMBACKDROP_TYPE: u32 = 38;
+        const DWMSBT_TRANSIENTWINDOW: u32 = 3; // acrylic
+        let h = hwnd as HWND;
+        unsafe {
+            let dark: u32 = 1;
+            DwmSetWindowAttribute(h, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark as *const u32 as _, 4);
+            let m = MARGINS { cxLeftWidth: -1, cxRightWidth: -1, cyTopHeight: -1, cyBottomHeight: -1 };
+            let extended = DwmExtendFrameIntoClientArea(h, &m) == 0;
+            let kind = DWMSBT_TRANSIENTWINDOW;
+            if extended && DwmSetWindowAttribute(h, DWMWA_SYSTEMBACKDROP_TYPE, &kind as *const u32 as _, 4) == 0 {
+                // (Windows says yes even where it can't: older builds ignore the value. Check it took.)
+                let mut got: u32 = 0;
+                if DwmGetWindowAttribute(h, DWMWA_SYSTEMBACKDROP_TYPE, &mut got as *mut u32 as _, 4) == 0 && got == kind {
+                    return "windows 11 acrylic";
+                }
+            }
+            // The older way: SetWindowCompositionAttribute with an acrylic accent (Windows 10 1803 and later).
+            #[repr(C)]
+            struct Accent { state: u32, flags: u32, gradient: u32, animation: u32 }
+            #[repr(C)]
+            struct Data { attrib: u32, data: *mut core::ffi::c_void, size: usize }
+            let user = windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(wide("user32.dll").as_ptr());
+            let Some(f) = windows_sys::Win32::System::LibraryLoader::GetProcAddress(user, c"SetWindowCompositionAttribute".as_ptr() as _) else { return "" };
+            let set: unsafe extern "system" fn(HWND, *mut Data) -> i32 = std::mem::transmute(f);
+            // ACCENT_ENABLE_ACRYLICBLURBEHIND, with a nearly clear tint (AABBGGRR): Esther draws its own.
+            let mut accent = Accent { state: 4, flags: 0, gradient: 0x0113_1619, animation: 0 };
+            let mut data = Data { attrib: 19, data: &mut accent as *mut Accent as _, size: std::mem::size_of::<Accent>() };
+            if set(h, &mut data) != 0 { "acrylic accent" } else { "" }
+        }
+    }
+
     /// Memory, in KB: (private, working set, private working set). The last is what Task Manager's Processes tab
     /// shows in its Memory column.
     pub fn memory_kb() -> (u64, u64, u64) {
@@ -234,6 +273,9 @@ mod imp {
     }
     pub fn screen_size() -> (u32, u32) {
         (1920, 1080)
+    }
+    pub fn acrylic(_hwnd: isize) -> &'static str {
+        ""
     }
     pub fn work_area() -> (i32, i32, i32, i32) {
         (0, 0, 1920, 1040)

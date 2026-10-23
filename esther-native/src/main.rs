@@ -88,6 +88,8 @@ struct Win {
     ui: Card,
     hwnd: Cell<isize>,
     styled: RefCell<String>,
+    /// Which of Windows' acrylic glass took ("" if none: then Esther paints its own glass).
+    acrylic: Cell<&'static str>,
 }
 
 /// A move or resize in progress: which edge (None: moving), where the mouse and the window started (physical px),
@@ -102,7 +104,9 @@ struct Track {
 
 /// Esther's own animations: a window fading in or out, the bubble gliding.
 enum Anim {
-    Fade { i: usize, from: f32, to: f32, start: Instant, ms: f32, hide_after: bool },
+    /// `fly`: (away, home): it also travels, from `away` (towards the bubble) to `home` coming in, the other way
+    /// going out (and is put back at `home` once hidden).
+    Fade { i: usize, from: f32, to: f32, start: Instant, ms: f32, hide_after: bool, fly: Option<(Rect, Rect)> },
     Glide { i: usize, from: Rect, to: Rect, start: Instant, ms: f32 },
 }
 
@@ -494,8 +498,8 @@ fn load_saved() -> (std::collections::HashMap<String, Rect>, Prefs) {
 }
 fn save_places(app: &App) {
     let mut cards = serde_json::Map::new();
-    for w in app.cards.iter().filter(|w| w.kind != "bubble") {
-        let (x, y, cw, ch) = rect_of(w);
+    for (i, w) in app.cards.iter().enumerate().filter(|(_, w)| w.kind != "bubble") {
+        let (x, y, cw, ch) = home_of(app, i);
         cards.insert(w.kind.into(), serde_json::json!({ "x": x, "y": y, "width": cw, "height": ch }));
     }
     let p = app.prefs.borrow();
@@ -675,23 +679,45 @@ fn set_visible(w: &Win, on: bool) {
     if cfg!(windows) && w.hwnd.get() > 0 { shell::show(w.hwnd.get(), on) } else if on { let _ = w.ui.show(); } else { let _ = w.ui.hide(); }
 }
 fn stop_anims(app: &App, i: usize) {
+    // (A card stopped mid-flight goes home first.)
+    let home = app.anims.borrow().iter().find_map(|a| match a { Anim::Fade { i: j, fly: Some((_, home)), .. } if *j == i => Some(*home), _ => None });
     app.anims.borrow_mut().retain(|a| match a { Anim::Fade { i: j, .. } | Anim::Glide { i: j, .. } => *j != i });
+    if let Some(home) = home { set_rect(&app.cards[i], home); }
 }
-/// Fade a window in (shown, from see-through) or out (then hidden), starting after `delay_ms`.
-fn fade(app: &App, i: usize, show: bool, delay_ms: f32) {
+/// Where a card belongs (its place, even while it is flying in or out).
+fn home_of(app: &App, i: usize) -> Rect {
+    app.anims.borrow().iter().find_map(|a| match a { Anim::Fade { i: j, fly: Some((_, home)), .. } if *j == i => Some(*home), _ => None }).unwrap_or_else(|| rect_of(&app.cards[i]))
+}
+/// Where a card flies from (coming out of the bubble) or to (going into it): towards the big bubble in the middle of
+/// the screen, as far as 42 % of its own size (as the app does it).
+fn away_from(app: &App, home: Rect) -> Rect {
+    let b = bubble_rect(true, app.prefs.borrow().bubble_size);
+    let (bx, by) = ((b.0 + b.2 / 2) as f32, (b.1 + b.3 / 2) as f32);
+    let (cx, cy) = ((home.0 + home.2 / 2) as f32, (home.1 + home.3 / 2) as f32);
+    let (dx, dy) = (bx - cx, by - cy);
+    let k = f32::min(1.0, f32::min(home.2 as f32 * 0.42 / dx.abs().max(1.0), home.3 as f32 * 0.42 / dy.abs().max(1.0)));
+    (home.0 + (dx * k).round() as i32, home.1 + (dy * k).round() as i32, home.2, home.3)
+}
+/// Fade a window in (shown, from see-through) or out (then hidden), starting after `delay_ms`; with `fly`, it also
+/// comes out of the bubble or goes into it.
+fn fade(app: &App, i: usize, show: bool, delay_ms: f32, fly: bool) {
     stop_anims(app, i);
     let w = &app.cards[i];
     if !(cfg!(windows) && w.hwnd.get() > 0) {
         set_visible(w, show);
         return;
     }
+    let home = rect_of(w);
+    let fly = fly.then(|| (away_from(app, home), home));
     let from = if show { 0.0 } else { 1.0 };
     if show {
         shell::set_alpha(w.hwnd.get(), 0);
+        if let Some((away, _)) = fly { set_rect(w, away); }
         shell::show(w.hwnd.get(), true);
         shell::raise(w.hwnd.get());
     }
-    app.anims.borrow_mut().push(Anim::Fade { i, from, to: 1.0 - from, start: Instant::now() + StdDuration::from_millis(delay_ms as u64), ms: if show { 170.0 } else { 150.0 }, hide_after: !show });
+    let ms = match (show, fly.is_some()) { (true, true) => 300.0, (true, false) => 170.0, (false, true) => 220.0, (false, false) => 150.0 };
+    app.anims.borrow_mut().push(Anim::Fade { i, from, to: 1.0 - from, start: Instant::now() + StdDuration::from_millis(delay_ms as u64), ms, hide_after: !show, fly });
 }
 fn glide(app: &App, i: usize, to: Rect, ms: f32) {
     stop_anims(app, i);
@@ -709,15 +735,23 @@ fn anim_tick(app: &App) {
     let mut keep = vec![];
     for a in anims {
         match &a {
-            Anim::Fade { i, from, to, start, ms, hide_after } => {
+            Anim::Fade { i, from, to, start, ms, hide_after, fly } => {
                 if now < *start { keep.push(a); continue; }
                 let t = ((now - *start).as_secs_f32() * 1000.0 / ms).min(1.0);
-                let e = 1.0 - (1.0 - t).powi(3);
-                let h = app.cards[*i].hwnd.get();
+                // Coming out: quick, then settling (ease-out). Going in: gathering speed (ease-in).
+                let e = if *hide_after { t * t * t } else { 1.0 - (1.0 - t).powi(3) };
+                let w = &app.cards[*i];
+                let h = w.hwnd.get();
                 if t >= 1.0 {
                     if *hide_after { shell::show(h, false); }
+                    if let Some((_, home)) = fly { set_rect(w, *home); }
                     shell::set_alpha(h, 255);
                 } else {
+                    if let Some((away, home)) = fly {
+                        let (a, b) = if *hide_after { (*home, *away) } else { (*away, *home) };
+                        let lerp = |p: i32, q: i32| (p as f32 + (q - p) as f32 * e).round() as i32;
+                        set_rect(w, (lerp(a.0, b.0), lerp(a.1, b.1), a.2, a.3));
+                    }
                     shell::set_alpha(h, ((from + (to - from) * e) * 255.0).round().clamp(0.0, 254.0) as u8);
                     keep.push(a);
                 }
@@ -739,6 +773,8 @@ fn anim_tick(app: &App) {
 
 /// Show every card that's on, in front, one after another; the bubble goes small to its corner.
 fn show_all(app: &App) {
+    // (Out of the bubble if they were gathered in it.)
+    let from_bubble = app.collapsed.get() && app.prefs.borrow().bubble;
     app.collapsed.set(false);
     let bubble = app.index("bubble");
     if app.prefs.borrow().bubble {
@@ -749,7 +785,7 @@ fn show_all(app: &App) {
     let mut n = 0.0;
     for kind in CALL_ORDER {
         if !app.is_on(kind) { continue; }
-        fade(app, app.index(kind), true, n * 40.0);
+        fade(app, app.index(kind), true, n * 40.0, from_bubble);
         n += 1.0;
     }
     if app.is_on("tasks") { shell::focus(app.card("tasks").hwnd.get()); }
@@ -757,9 +793,10 @@ fn show_all(app: &App) {
 }
 /// Tuck the cards away: they fade, and the bubble grows in the middle of the screen.
 fn hide_all(app: &App) {
+    let into_bubble = app.prefs.borrow().bubble;
     app.collapsed.set(true);
     for (i, w) in app.cards.iter().enumerate() {
-        if w.kind != "bubble" && visible(w) { fade(app, i, false, 0.0); }
+        if w.kind != "bubble" && visible(w) { fade(app, i, false, 0.0, into_bubble); }
     }
     if app.prefs.borrow().bubble {
         let b = app.index("bubble");
@@ -808,7 +845,7 @@ fn on_shell(app: &App, ev: shell::Ev) {
                 if !on { p.hidden.push(kind.to_string()); }
             }
             let i = app.index(kind);
-            if !on { fade(app, i, false, 0.0) } else if !app.collapsed.get() { fade(app, i, true, 0.0) }
+            if !on { fade(app, i, false, 0.0, false) } else if !app.collapsed.get() { fade(app, i, true, 0.0, false) }
             save_places(app);
             update_menu(app);
         }
@@ -821,9 +858,9 @@ fn on_shell(app: &App, ev: shell::Ev) {
             if on {
                 let r = bubble_rect(app.collapsed.get(), app.prefs.borrow().bubble_size);
                 crate::set_rect(&app.cards[b], r);
-                fade(app, b, true, 0.0)
+                fade(app, b, true, 0.0, false)
             } else {
-                fade(app, b, false, 0.0)
+                fade(app, b, false, 0.0, false)
             }
             save_places(app);
             update_menu(app);
@@ -837,6 +874,21 @@ fn on_shell(app: &App, ev: shell::Ev) {
 fn reset_layout(app: &App) {
     for w in app.cards.iter().filter(|w| w.kind != "bubble") { set_rect(w, default_place(w.kind)); }
     save_places(app);
+}
+
+/// Esther's own glass (the wallpaper, blurred, with the tint in it: one picture for every card that needs it), for the
+/// cards Windows' acrylic doesn't reach. When every card has acrylic, no picture is made at all.
+fn paint_glass(app: &App) {
+    let need: Vec<&Win> = app.cards.iter().filter(|w| w.acrylic.get().is_empty()).collect();
+    let (sw, sh) = win::screen_size();
+    let img = if need.is_empty() { None } else { glass::glass(sw, sh, 28.0, [0x19, 0x16, 0x13], 0.72) };
+    for w in &need {
+        match &img {
+            Some(img) => { w.ui.set_glass(img.clone()); w.ui.set_has_glass(true); }
+            None => w.ui.set_has_glass(false),
+        }
+        place_glass(w, rect_of(w));
+    }
 }
 
 // ---- What the cards do ----
@@ -1390,7 +1442,8 @@ fn smoke_steps() -> Vec<Step> {
 
     // ---- Hiding and showing: Ctrl+Alt+E, the bubble, the tray ----
     step!(300, |x| shell::focus(x.w("tasks").hwnd.get()));
-    step!(800, |x| { if x.real.get() { win_input::clear_consoles(); win_input::keys(&[0x11, 0x12, 0x45]) } else { on_shell(&x.app, shell::Ev::Toggle) } }); // Ctrl+Alt+E
+    step!(90, |x| { if x.real.get() { win_input::clear_consoles(); win_input::keys(&[0x11, 0x12, 0x45]) } else { on_shell(&x.app, shell::Ev::Toggle) } }); // Ctrl+Alt+E
+    step!(710, |x| x.shot("flying-in.png")); // (part way into the bubble)
     step!(100, |x| {
         x.note("shortcut_registered", x.app.hotkey_ok.get());
         x.note("shortcut_hid_cards", x.all_cards(false));
@@ -1399,10 +1452,12 @@ fn smoke_steps() -> Vec<Step> {
         x.note("bubble_in_the_middle", ((bx + bw / 2) - (ax + aw / 2)).abs() <= 2 && ((by + bh / 2) - (ay + ah / 2)).abs() <= 2);
         x.shot("hidden.png");
     });
-    step!(900, |x| {
+    step!(500, |x| x.note("hidden_pause", true));
+    step!(110, |x| {
         let (bx, by, bw, bh) = rect_of(x.w("bubble"));
         if x.real.get() { win_input::clear_consoles(); x.click("bubble", "bubble", (bx + bw / 2, by + bh / 2)) } else { x.g("bubble").invoke_bubble_click() }
     });
+    step!(800, |x| x.shot("flying-out.png")); // (part way out of the bubble)
     step!(100, |x| {
         x.note("bubble_showed_cards", x.all_cards(true));
         let (bx, by, _, bh) = rect_of(x.w("bubble"));
@@ -1470,6 +1525,7 @@ fn smoke_report(x: &Smoke) {
             "visible": visible(w),
             "rect": rect_of(w),
             "styled": w.styled.borrow().clone(),
+            "glass": if w.acrylic.get().is_empty() { "Esther's own" } else { w.acrylic.get() },
         }));
     }
     let (private, ws, pws) = win::memory_kb();
@@ -1559,7 +1615,7 @@ fn main() {
         .map(|kind| {
             let ui = Card::new().expect("a card window");
             ui.set_kind((*kind).into());
-            Win { kind, ui, hwnd: Cell::new(0), styled: RefCell::new("not yet".into()) }
+            Win { kind, ui, hwnd: Cell::new(0), styled: RefCell::new("not yet".into()), acrylic: Cell::new("") }
         })
         .collect();
     let t0 = today();
@@ -1600,22 +1656,9 @@ fn main() {
 
     // Glass from the wallpaper (one picture, shared by every card; again whenever the wallpaper changes), tasks
     // changed by the Electron app, and a new day or a new part of the day (the greeting, today on the calendar).
-    let (sw, sh) = win::screen_size();
-    let set_glass = {
-        let wk = Rc::downgrade(&app);
-        move || {
-            let Some(a) = wk.upgrade() else { return };
-            let img = glass::glass(sw, sh, 28.0, [0x19, 0x16, 0x13], 0.72);
-            for w in &a.cards {
-                match &img {
-                    Some(img) => { w.ui.set_glass(img.clone()); w.ui.set_has_glass(true); }
-                    None => w.ui.set_has_glass(false),
-                }
-                place_glass(w, rect_of(w));
-            }
-        }
-    };
-    set_glass();
+    // Esther's own glass, for the cards Windows' acrylic doesn't reach (on Windows that is known once their windows
+    // exist; elsewhere, straight away).
+    if !cfg!(windows) { paint_glass(&app); }
     let watch = slint::Timer::default();
     {
         let wk = Rc::downgrade(&app);
@@ -1630,7 +1673,7 @@ fn main() {
                 refresh(&a);
             }
             let now = glass::stamp();
-            if now != wall { wall = now; set_glass(); }
+            if now != wall { wall = now; paint_glass(&a); }
         });
     }
 
@@ -1673,15 +1716,21 @@ fn main() {
                     Ok(RawWindowHandle::Win32(h)) => {
                         w.hwnd.set(h.hwnd.get());
                         *w.styled.borrow_mut() = win::style(h.hwnd.get());
+                        let acrylic = win::acrylic(h.hwnd.get());
+                        w.acrylic.set(acrylic);
+                        if !acrylic.is_empty() { w.ui.set_has_glass(false); w.ui.set_acrylic(true); }
                         if w.kind != "bubble" { shell::set_alpha(h.hwnd.get(), 0); } // (they fade in below)
-                        log(&format!("{} styled: {}", w.kind, w.styled.borrow()));
+                        log(&format!("{} styled: {}; glass: {}", w.kind, w.styled.borrow(), if acrylic.is_empty() { "Esther's own" } else { acrylic }));
                         fresh = true;
                     }
                     Ok(_) if tries.get() > 40 => { w.hwnd.set(-1); *w.styled.borrow_mut() = "not a Windows window".into(); }
                     _ => {}
                 }
             }
-            if fresh && a.cards.iter().all(|w| w.hwnd.get() != 0 || !w.ui.window().is_visible()) { show_all(&a); }
+            if fresh && a.cards.iter().all(|w| w.hwnd.get() != 0 || !w.ui.window().is_visible()) {
+                paint_glass(&a);
+                show_all(&a);
+            }
         });
     }
 

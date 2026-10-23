@@ -42,6 +42,8 @@ export global Look {
     out property <color> panel: #191613;
     out property <color> pop: #1d1a16;
     out property <color> edge: #ffffff14;
+    // How much of the panel colour lies over Windows' acrylic (the rest is the glass).
+    out property <float> acrylic-tint: 0.5;
     // The colours a list can have (as in the app).
     out property <[Pigment]> pigments: [
         { name: "Vermilion", color: #c8553a }, { name: "Lapis", color: #4c6fb8 }, { name: "Verdigris", color: #3f9a80 },
@@ -977,14 +979,17 @@ export component Card inherits Window {
     in property <string> kind: "tasks";
     title: root.kind == "header" ? "Esther" : root.kind == "calendar" ? "Esther · Calendar" : root.kind == "week" ? "Esther · This week" : root.kind == "bubble" ? "Esther bubble" : "Esther · Tasks";
     no-frame: true;
-    background: Look.panel;
+    // Over Windows' own acrylic the window is see-through, and only the tint is drawn.
+    background: root.acrylic ? transparent : Look.panel;
     default-font-family: "Segoe UI Variable Text";
     default-font-size: 13px;
     min-width: root.kind == "header" ? 420px : root.kind == "week" ? 280px : root.kind == "bubble" ? 40px : 300px;
     min-height: root.kind == "header" ? 96px : root.kind == "calendar" ? 330px : root.kind == "week" ? 220px : root.kind == "bubble" ? 20px : 260px;
 
-    // Glass: the blurred wallpaper with the panel's tint already in it, at the screen's own size, slid into line
-    // with the real wallpaper behind the window (drawn pixel for pixel: smooth, and quick to draw).
+    // Glass. Where Windows can, its own acrylic (live, blurred, done by Windows): `acrylic`. Otherwise Esther's: the
+    // blurred wallpaper with the panel's tint already in it, at the screen's own size, slid into line with the real
+    // wallpaper behind the window (drawn pixel for pixel: smooth, and quick to draw).
+    in property <bool> acrylic;
     in property <bool> has-glass;
     in property <image> glass;
     in property <length> glass-x;
@@ -1002,7 +1007,10 @@ export component Card inherits Window {
             height: root.glass-h;
             image-fit: fill;
         }
-        if !root.has-glass: Rectangle { background: Look.panel; }
+        if root.acrylic: Rectangle { background: Look.panel.with-alpha(Look.acrylic-tint); }
+        if !root.has-glass && !root.acrylic: Rectangle { background: Look.panel; }
+        // A hairline of light along the top, as glass catches it.
+        if root.acrylic: Rectangle { y: 0; height: 1px; background: #ffffff1c; }
         Rectangle { border-width: 1px; border-color: Look.edge; }
     }
 
