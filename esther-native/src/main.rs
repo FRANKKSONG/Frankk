@@ -1821,7 +1821,7 @@ fn smoke_steps() -> Vec<Step> {
         x.note("centre_off_by_px", (l + w / 2) - (ax + aw / 2));
     });
     // The header, by the empty space at its right.
-    drag(&mut s, "header drag", "header", |x| { let (l, t, w, _) = rect_of(x.w("header")); (l + w - (60.0 * x.k()) as i32, t + (20.0 * x.k()) as i32) }, |_| (40, 40), 5, |_| {});
+    drag(&mut s, "header drag", "header", |x| { let (l, t, w, _) = rect_of(x.w("header")); (l + w - (50.0 * x.k()) as i32, t + (70.0 * x.k()) as i32) }, |_| (40, 40), 5, |_| {});
     step!(100, |x| { let before = x.marks.borrow()["header-before"]; x.note("header_moved_px", rect_of(x.w("header")).1 - before.1); });
 
     // ---- Hiding and showing: Ctrl+Alt+E, the bubble, the tray ----

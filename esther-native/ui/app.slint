@@ -1514,6 +1514,8 @@ component KeysButton inherits Rectangle {
     t := Text { text: Settings.recording ? "Press keys…" : Settings.keys; color: Look.text; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; }
     ta := TouchArea { mouse-cursor: pointer; clicked => { Settings.record(true); fs.focus(); } }
     fs := FocusScope {
+        // (The button above takes the click; this only listens for the keys.)
+        focus-on-click: false;
         key-pressed(e) => {
             if !Settings.recording { return reject; }
             if e.text == Key.Escape { Settings.record(false); return accept; }
