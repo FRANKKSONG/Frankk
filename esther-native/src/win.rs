@@ -7,6 +7,7 @@ mod imp {
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::Foundation::{POINT, RECT};
     use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DwmSetWindowAttribute};
+    use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
     use windows_sys::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX2};
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
@@ -14,7 +15,6 @@ mod imp {
 
     const DWMWA_TRANSITIONS_FORCEDISABLED: u32 = 3;
     const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
-    const DWMWCP_ROUND: u32 = 2;
     const DWMWCP_DONOTROUND: u32 = 1;
     const DWMWA_BORDER_COLOR: u32 = 34;
     const DWMWA_COLOR_NONE: u32 = 0xFFFF_FFFE;
@@ -43,15 +43,17 @@ mod imp {
         }
     }
 
-    /// Make the card a desktop widget: on the desktop, rounded, no taskbar button, no Windows animations, and no
-    /// border from Windows (Esther draws its own edge). A bare window (the bubble: just the word) isn't rounded either.
+    /// Make the card a desktop widget: on the desktop, no taskbar button, no Windows animations, and no border, corners
+    /// or shadow from Windows (Esther draws its own edge and rounds its own corners). `bare`: the bubble.
     pub fn style(hwnd: isize, bare: bool) -> String {
         let hwnd = hwnd as HWND;
         unsafe {
             let one: u32 = 1;
             let a = DwmSetWindowAttribute(hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &one as *const u32 as _, 4);
-            let round = if bare { DWMWCP_DONOTROUND } else { DWMWCP_ROUND };
+            // (Not rounded by Windows, which adds a shadow with it: Esther rounds the cards itself, smoothly.)
+            let round = DWMWCP_DONOTROUND;
             let b = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &round as *const u32 as _, 4);
+            let _ = bare;
             // No border from Windows: the cards draw their own edge (a second line beside it looked doubled), and the
             // bubble is just the word.
             let none = DWMWA_COLOR_NONE;
@@ -62,6 +64,15 @@ mod imp {
             SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, desk as isize);
             SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
             format!("transitions-off {} round-corners {} owner {:?}", a == 0, b == 0, desk)
+        }
+    }
+
+    /// The window's shape: a rectangle with corners rounded by `r` px (0: square), so Windows' glass behind it stops at
+    /// the corners Esther draws.
+    pub fn round_window(hwnd: isize, w: i32, h: i32, r: i32) {
+        unsafe {
+            let rgn = if r > 0 { CreateRoundRectRgn(0, 0, w + 1, h + 1, 2 * r, 2 * r) } else { std::ptr::null_mut() };
+            SetWindowRgn(hwnd as HWND, rgn, 1);
         }
     }
 
@@ -290,6 +301,7 @@ mod imp {
         ""
     }
     pub fn acrylic_off(_hwnd: isize) {}
+    pub fn round_window(_hwnd: isize, _w: i32, _h: i32, _r: i32) {}
     pub fn work_area() -> (i32, i32, i32, i32) {
         (0, 0, 1920, 1040)
     }

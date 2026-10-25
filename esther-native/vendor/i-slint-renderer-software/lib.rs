@@ -440,6 +440,51 @@ pub fn draw_whole_next_frame() {
     WHOLE_FRAME.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
 }
 
+/// Esther: how round windows' corners are (logical px; 0 for square), cut smoothly (anti-aliased) by the renderer, so
+/// a card is rounded however Windows draws its frame.
+static CORNER_RADIUS: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+/// Esther: round every window's corners by `r` logical px (0: square).
+pub fn set_window_corner_radius(r: f32) {
+    CORNER_RADIUS.store(r.max(0.0).to_bits(), core::sync::atomic::Ordering::Relaxed);
+}
+
+/// Esther: make the pixels outside the rounded corners see-through, smoothly: each corner pixel keeps the part of it
+/// that lies inside the curve. Only pixels drawn this frame (in `dirty`) are touched, so none is cut twice. Works on
+/// 4-byte premultiplied pixels (as Windows windows have), where scaling every byte by the coverage is exact.
+#[allow(unsafe_code)]
+fn cut_round_corners<B: target_pixel_buffer::TargetPixelBuffer>(buffer: &mut B, dirty: &PhysicalRegion, w: i32, h: i32, factor: f32) {
+    let r = f32::from_bits(CORNER_RADIUS.load(core::sync::atomic::Ordering::Relaxed)) * factor;
+    if r < 0.5 || core::mem::size_of::<B::TargetPixel>() != 4 {
+        return;
+    }
+    let n = (r.ceil() as i32).min(w / 2).min(h / 2);
+    let drawn = |x: i32, y: i32| dirty.iter_box().any(|b| x >= b.min.x as i32 && x < b.max.x as i32 && y >= b.min.y as i32 && y < b.max.y as i32);
+    for y in 0..n {
+        for x in 0..n {
+            // (How much of this pixel, in the top-left corner, lies inside the curve.)
+            let (dx, dy) = (r - (x as f32 + 0.5), r - (y as f32 + 0.5));
+            let d = (dx * dx + dy * dy).sqrt();
+            let keep = (r - d + 0.5).clamp(0.0, 1.0);
+            if keep >= 1.0 {
+                continue;
+            }
+            for (px, py) in [(x, y), (w - 1 - x, y), (x, h - 1 - y), (w - 1 - x, h - 1 - y)] {
+                if px < 0 || py < 0 || px >= w || py >= h || !drawn(px, py) {
+                    continue;
+                }
+                let line = buffer.line_slice(py as usize);
+                if let Some(p) = line.get_mut(px as usize) {
+                    // SAFETY: the pixel is 4 bytes (checked above); premultiplied, so every byte scales alike.
+                    let bytes = unsafe { &mut *(p as *mut B::TargetPixel as *mut [u8; 4]) };
+                    for b in bytes.iter_mut() {
+                        *b = (*b as f32 * keep).round() as u8;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// A Renderer that do the rendering in software
 ///
 /// The renderer can remember what items needs to be redrawn from the previous iteration.
@@ -718,6 +763,9 @@ impl SoftwareRenderer {
                 } else {
                     post_render(&mut renderer.actual_renderer);
                 }
+
+                // Esther: the window's rounded corners.
+                cut_round_corners(renderer.actual_renderer.processor.buffer, &dirty_region, size.width as i32, size.height as i32, factor.get());
 
                 self.measure_frame_rendered(&mut renderer);
 

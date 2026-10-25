@@ -109,6 +109,9 @@ jobs:
             want(m.bubble_in_the_middle, 'the bubble did not move to the middle of the screen');
             want(m.bubble_showed_cards, 'clicking the bubble did not bring the cards back');
             want(m.bubble_in_the_corner, 'the bubble did not go back to the bottom left');
+            want(m.bubble_dragged_px && m.bubble_dragged_px[0] > 80 && m.bubble_dragged_px[1] < -40, 'dragging the bubble moved it by ' + JSON.stringify(m.bubble_dragged_px));
+            want(m.bubble_drag_kept_cards, 'letting go of the dragged bubble hid the cards (it counted as a click)');
+            want(m.bubble_place_saved, 'where the bubble was dragged to was not remembered');
             if (m.tray_icon_rect) {
               want(m.tray_menu_opened, 'right-clicking the tray icon did not open its menu');
               want(m.tray_menu_closed_by_clicking_elsewhere, 'the tray menu stayed open after clicking elsewhere');

@@ -1,6 +1,6 @@
 # Slint's software renderer, as Esther uses it
 
-This is Slint's `i-slint-renderer-software` 1.18.1, unchanged except for two things, marked "Esther:".
+This is Slint's `i-slint-renderer-software` 1.18.1, unchanged except for three things, marked "Esther:".
 
 How letters are drawn (`fonts/vectorfont.rs`):
 
@@ -12,5 +12,9 @@ How letters are drawn (`fonts/vectorfont.rs`):
 Drawing a window whole when asked (`lib.rs`, `draw_whole_next_frame`): Windows throws a layered window's picture away
 when it starts or stops being see-through (Esther's fades), and the renderer, which draws only what changed, can't
 know; Esther asks for the whole window to be drawn at those moments.
+
+Rounded window corners (`lib.rs`, `set_window_corner_radius`): the renderer cuts each window's corners smoothly
+(anti-aliased), so Esther's cards are round however Windows draws its frame, and without the shadow Windows adds
+to the windows it rounds itself.
 
 Slint is used under its royalty-free licence (see `LICENSES/`).

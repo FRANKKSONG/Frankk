@@ -34,7 +34,7 @@ own installer and updater.
     Mac, what you drag lifts and follows the mouse, the others slide aside to make room, and it settles into its
     place when you let go.
   - Ctrl+Z undoes the last change (a delete, a move, a tick, a rename…), up to 100 back; in a field with text in it,
-    it undoes the typing instead.
+    it undoes the typing instead. It's known by the Z key's place, so it works with any keyboard layout.
   - Click a task's name to edit it (Enter or clicking away saves, Esc cancels).
   - Click its list to move it to another list; click › or its subtasks (or "+ sub") to open them: tick, click to edit,
     right-click to delete, and "Add a subtask"; click its date for the date picker (Today, Tomorrow, Next week, any
@@ -61,7 +61,9 @@ Windows blurs whatever is behind the card, live, in its own compositor, and Esth
 That costs Esther nothing. Where Windows won't give acrylic, Esther paints its own glass instead: your wallpaper,
 blurred, with the tint, made once at the screen's own size (made again when the wallpaper changes). On Windows each
 card sits on the desktop like the Electron cards (owned by the desktop window), is a tool window (no taskbar button),
-has Windows' rounded corners, and no Windows window animations: Esther's own instead.
+and has no Windows window animations: Esther's own instead. Its corners are rounded by Esther itself, smoothly, as the
+look has them (16 px for Gilded, 14 for Modern, square for Nocturne and Illuminated, as in the app), with no frame or
+shadow from Windows.
 
 ## Settings
 The gear on the header (or right-click the header, or the tray menu's Settings…) opens Settings, a card of its own: drag
@@ -83,9 +85,10 @@ loading a saved copy.
 ## Showing and hiding
 - **Ctrl+Alt+E** (or the keys set in Settings), or a click on the tray icon (the "E"): if the cards are in front, they fly into the bubble as they
   fade; otherwise they fly out of it, one after another. Alt+F4 on a card hides Esther too.
-- **The bubble**: the word "Esther", on nothing (no card, no glass, no Windows border or corners). While the cards are away it sits big in the middle of the screen (the mouse wheel
-  over it makes it bigger or smaller); click it and they come back, and it goes small to the bottom left (click it
-  there to hide them again).
+- **The bubble**: the word "Esther", on nothing (no card, no glass, no Windows border or corners), with its soft
+  shadow. While the cards are away it sits big (at first in the middle of the screen); click it and they come back,
+  and it goes small (at first to the bottom left; click it there to hide them again). Big or small, drag it anywhere
+  and turn the mouse wheel over it to make it bigger or smaller: each remembers its own place and size.
 - **The tray menu** (right-click the "E"; Windows' own menu, light or dark with Windows): Show / Hide, Settings…, Cards (which are
   on), Put the cards back, Snap to the grid and guides, The Esther bubble, Start with Windows, Quit Esther.
 

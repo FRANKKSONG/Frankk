@@ -48,6 +48,8 @@ export global Look {
     in-out property <color> edge: #ffffff14;
     // How much of the panel colour lies over Windows' acrylic (the rest is the glass).
     in-out property <float> acrylic-tint: 0.5;
+    // How round the cards' corners are (the look's).
+    in-out property <length> radius: 16px;
     // The colours a list can have (as in the app).
     out property <[Pigment]> pigments: [
         { name: "Vermilion", color: #c8553a }, { name: "Lapis", color: #4c6fb8 }, { name: "Verdigris", color: #3f9a80 },
@@ -1470,10 +1472,16 @@ component BubbleBody inherits Rectangle {
     // Just the word, as in the app: no box, a soft shadow under it so it reads on any wallpaper.
     property <length> size: self.height * 0.74;
     property <length> top: (self.height - self.size * 1.25) / 2 - self.height * 0.03;
+    // Click: the cards out or away. Drag: put it anywhere. Mouse wheel: bigger or smaller.
     ta := TouchArea {
-        mouse-cursor: pointer;
+        mouse-cursor: self.pressed ? MouseCursor.grabbing : MouseCursor.pointer;
         clicked => { Esther.bubble-click(); }
         scroll-event(e) => { Esther.bubble-wheel(e.delta-y / 1px); accept }
+        pointer-event(e) => {
+            if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { Esther.drag-start(); }
+            if e.kind == PointerEventKind.up { Esther.drag-end(); }
+        }
+        moved => { if self.pressed { Esther.drag-by(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y); } }
     }
     for o in [
         { x: 0px, y: 4px, a: 0.10 }, { x: -2px, y: 3px, a: 0.08 }, { x: 2px, y: 3px, a: 0.08 }, { x: 0px, y: 6px, a: 0.06 },
@@ -1793,7 +1801,7 @@ component SettingsBody inherits Rectangle {
                         }
                         if Settings.bubble: SetRow {
                             label: "Bubble size";
-                            hint: "How big “Esther” is in the middle of the screen. The mouse wheel over it changes it too.";
+                            hint: "How big “Esther” is while the cards are away. The mouse wheel over it changes it too (big or small), and you can drag it anywhere.";
                             Slider {
                                 value: Settings.bubble-size;
                                 min: 0.3;
@@ -1955,8 +1963,8 @@ export component Card inherits Window {
         if !root.has-glass && !root.acrylic: Rectangle { background: Look.panel; }
         // A hairline of light along the top, as glass catches it, and the card's edge: both follow the corners Windows
         // rounds (8 px, as Windows 11 does).
-        if root.acrylic: Rectangle { x: 8px; y: 0; width: parent.width - 16px; height: 1px; background: #ffffff1c; }
-        Shape { width: 100%; height: 100%; radius: 8px; fill: transparent; stroke: Look.edge; }
+        if root.acrylic: Rectangle { x: Look.radius; y: 0; width: parent.width - 2 * Look.radius; height: 1px; background: #ffffff1c; }
+        Shape { width: 100%; height: 100%; radius: Look.radius; fill: transparent; stroke: Look.edge; }
     }
 
     if root.kind == "tasks": TasksBody { }

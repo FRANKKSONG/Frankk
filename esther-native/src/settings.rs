@@ -4,10 +4,22 @@
 //! free). What's set is kept with the cards' places (`esther-native.json`).
 
 use super::*;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 
 /// Days a finished task stays crossed out before it clears itself (0: never). Read by `clears` and `clear_old`.
 pub static CLEAR_DAYS: AtomicI64 = AtomicI64::new(7);
+/// How round the cards' corners are now (logical px, as f32 bits).
+static CORNER: AtomicU32 = AtomicU32::new(0);
+
+/// Shape a card's window to its rounded corners (so Windows' glass doesn't show past them).
+pub fn shape(w: &Win) {
+    if w.kind == "bubble" || w.hwnd.get() <= 0 {
+        return;
+    }
+    let (_, _, pw, ph) = rect_of(w);
+    let r = f32::from_bits(CORNER.load(Ordering::Relaxed)) * w.ui.window().scale_factor();
+    win::round_window(w.hwnd.get(), pw, ph, r.round() as i32);
+}
 
 /// One of the Esther app's looks (its colours as the app has them).
 pub struct LookDef {
@@ -23,13 +35,15 @@ pub struct LookDef {
     accent: u32,
     gold: u32,
     light: bool,
+    /// How round the cards' corners are (logical px), as in the app.
+    radius: f32,
 }
 
 pub const LOOKS: [LookDef; 4] = [
-    LookDef { id: "gilded", label: "Gilded", blurb: "Readable dashboard, art and gold", panel: 0x191613, panel_2: 0x221e1a, pop: 0x1d1a16, text: 0xf2ede3, muted: 0xb9af9d, faint: 0x82796a, accent: 0xd9a63a, gold: 0xd9a63a, light: false },
-    LookDef { id: "nocturne", label: "Nocturne", blurb: "Black ink, bone and red", panel: 0x1a1714, panel_2: 0x221e1a, pop: 0x1d1a16, text: 0xebe3d1, muted: 0xb3a78f, faint: 0x7f7564, accent: 0xc9473b, gold: 0xd9a63a, light: false },
-    LookDef { id: "modern", label: "Modern", blurb: "Plain warm charcoal", panel: 0x1f1f1e, panel_2: 0x262625, pop: 0x2a2927, text: 0xece8e1, muted: 0x9a958b, faint: 0x6f6b63, accent: 0xe5935a, gold: 0xe6b04d, light: false },
-    LookDef { id: "illuminated", label: "Illuminated", blurb: "Vellum, ink and gold leaf", panel: 0xf2e9d2, panel_2: 0xe7dbbd, pop: 0xf4ecd6, text: 0x2a1e14, muted: 0x5b4733, faint: 0x8a7558, accent: 0xb8382a, gold: 0xc49a33, light: true },
+    LookDef { id: "gilded", label: "Gilded", blurb: "Readable dashboard, art and gold", panel: 0x191613, panel_2: 0x221e1a, pop: 0x1d1a16, text: 0xf2ede3, muted: 0xb9af9d, faint: 0x82796a, accent: 0xd9a63a, gold: 0xd9a63a, light: false, radius: 16.0 },
+    LookDef { id: "nocturne", label: "Nocturne", blurb: "Black ink, bone and red", panel: 0x1a1714, panel_2: 0x221e1a, pop: 0x1d1a16, text: 0xebe3d1, muted: 0xb3a78f, faint: 0x7f7564, accent: 0xc9473b, gold: 0xd9a63a, light: false, radius: 0.0 },
+    LookDef { id: "modern", label: "Modern", blurb: "Plain warm charcoal", panel: 0x1f1f1e, panel_2: 0x262625, pop: 0x2a2927, text: 0xece8e1, muted: 0x9a958b, faint: 0x6f6b63, accent: 0xe5935a, gold: 0xe6b04d, light: false, radius: 14.0 },
+    LookDef { id: "illuminated", label: "Illuminated", blurb: "Vellum, ink and gold leaf", panel: 0xf2e9d2, panel_2: 0xe7dbbd, pop: 0xf4ecd6, text: 0x2a1e14, muted: 0x5b4733, faint: 0x8a7558, accent: 0xb8382a, gold: 0xc49a33, light: true, radius: 0.0 },
 ];
 /// Panel colours to choose from (after the look's own).
 const PANELS: [u32; 7] = [0x121110, 0x1b2230, 0x1c2620, 0x281d24, 0x2b2118, 0xe9e4da, 0xf2e9d2];
@@ -83,6 +97,14 @@ pub fn apply_look(app: &App) {
         l.set_accent_ink(if lightness(accent) > 0.35 { rgb(0x15110c) } else { rgb(0xf6eedb) });
         l.set_edge(if light { Color::from_argb_u8(0x24, 0, 0, 0) } else { Color::from_argb_u8(0x14, 0xff, 0xff, 0xff) });
         l.set_acrylic_tint(p.opacity);
+        l.set_radius(look.radius);
+    }
+    // The cards' corners: cut smoothly by the renderer, and the window shaped to match (for Windows' glass).
+    i_slint_renderer_software::set_window_corner_radius(look.radius);
+    CORNER.store(look.radius.to_bits(), Ordering::Relaxed);
+    for w in app.cards.iter().filter(|w| w.kind != "bubble") {
+        shape(w);
+        draw_whole(w);
     }
 }
 
@@ -169,11 +191,17 @@ pub fn open(app: &App) {
     fill(app);
     let i = app.index("settings");
     let w = &app.cards[i];
+    // (Somewhere it can be seen: back in the middle if its place is off the screen, say after a monitor went.)
+    let r = rect_of(w);
+    let fits = { let (ax, ay, aw, ah) = win::work_area(); r.0 >= ax - 8 && r.1 >= ay - 8 && r.0 + r.2 <= ax + aw + 8 && r.1 + 40 <= ay + ah };
+    if !fits { set_rect(w, default_place("settings")); }
+    log(&format!("settings: opening at {:?} (was {:?}{}), window {}", rect_of(w), r, if fits { "" } else { ", off the screen" }, w.hwnd.get()));
     if w.hwnd.get() == 0 {
         // (The first time: the window is made now; it fades in once Windows has it, like the cards at the start.)
         let _ = w.ui.show();
     } else {
         fade(app, i, true, 0.0, false);
+        shell::raise(w.hwnd.get());
         shell::focus(w.hwnd.get());
     }
 }
@@ -276,7 +304,7 @@ pub fn set(app: &App, key: &str, value: &str) {
             if app.collapsed.get() && app.prefs.borrow().bubble {
                 let b = app.index("bubble");
                 stop_anims(app, b);
-                set_rect(&app.cards[b], bubble_rect(true, k));
+                set_rect(&app.cards[b], bubble_rect(&app.prefs.borrow(), true));
             }
         }
         "snap" => on_shell(app, shell::Ev::Command(shell::CMD_SNAP)),

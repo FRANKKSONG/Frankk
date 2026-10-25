@@ -87,6 +87,10 @@ struct Prefs {
     snap: bool,
     bubble: bool,
     bubble_size: f32,
+    /// The small bubble's size, and where each was put (its middle, as a share of the screen; None: where it starts).
+    bubble_small_size: f32,
+    bubble_big_at: Option<(f32, f32)>,
+    bubble_small_at: Option<(f32, f32)>,
     /// The Tasks table's column widths (unscaled px): list, subtasks, date.
     cols: (f32, f32, f32),
     /// The show/hide shortcut: (modifiers, virtual key), as Windows takes them.
@@ -153,6 +157,8 @@ struct App {
     copy_note: RefCell<String>,
     /// Updates: where they stand.
     update: RefCell<update::State>,
+    /// When a move last ended (a click just after it is the button being let go, not a click).
+    dragged_at: Cell<Option<Instant>>,
 }
 
 impl App {
@@ -558,6 +564,9 @@ fn load_saved() -> (std::collections::HashMap<String, Rect>, Prefs) {
         snap: true,
         bubble: true,
         bubble_size: 0.6,
+        bubble_small_size: 1.0,
+        bubble_big_at: None,
+        bubble_small_at: None,
         cols: (150.0, 110.0, 120.0),
         keys: (3, 'E' as u32), // Ctrl+Alt+E
         look: "gilded".into(),
@@ -580,6 +589,10 @@ fn load_saved() -> (std::collections::HashMap<String, Rect>, Prefs) {
     if let Some(b) = v["snap"].as_bool() { prefs.snap = b; }
     if let Some(b) = v["bubble"].as_bool() { prefs.bubble = b; }
     if let Some(k) = v["bubbleSize"].as_f64() { prefs.bubble_size = (k as f32).clamp(0.3, 1.5); }
+    if let Some(k) = v["bubbleSmallSize"].as_f64() { prefs.bubble_small_size = (k as f32).clamp(0.6, 2.5); }
+    let at = |k: &str| v[k].as_array().and_then(|a| Some(((a.first()?.as_f64()? as f32).clamp(0.0, 1.0), (a.get(1)?.as_f64()? as f32).clamp(0.0, 1.0))));
+    prefs.bubble_big_at = at("bubbleAt");
+    prefs.bubble_small_at = at("bubbleSmallAt");
     if let Some(k) = v["shortcut"].as_str().and_then(settings::parse_keys) { prefs.keys = k; }
     if let Some(l) = v["look"].as_str() { prefs.look = settings::look_def(l).id.into(); }
     let hex = |k: &str| v[k].as_str().and_then(|s| u32::from_str_radix(s.trim_start_matches('#'), 16).ok());
@@ -606,6 +619,8 @@ fn save_places(app: &App) {
         place_path(),
         serde_json::json!({
             "cards": cards, "hidden": p.hidden, "snap": p.snap, "bubble": p.bubble, "bubbleSize": p.bubble_size,
+            "bubbleSmallSize": p.bubble_small_size,
+            "bubbleAt": p.bubble_big_at.map(|(x, y)| [x, y]), "bubbleSmallAt": p.bubble_small_at.map(|(x, y)| [x, y]),
             "columns": [p.cols.0, p.cols.1, p.cols.2],
             "shortcut": settings::keys_name(p.keys), "look": p.look,
             "panel": p.panel.map(|c| format!("#{c:06x}")), "accent": p.accent.map(|c| format!("#{c:06x}")),
@@ -646,13 +661,29 @@ fn default_place(kind: &str) -> Rect {
     (ax + snap(x), ay + snap(y), snap(pw.max(mw)), snap(ph.max(mh)))
 }
 
-/// The bubble's place: big in the middle of the screen, or small at the bottom left.
-fn bubble_rect(big: bool, size: f32) -> Rect {
+/// The bubble's place: big (while the cards are away) or small (while they're out), each at its own size and where
+/// it was last put (at first: big in the middle of the screen, small at the bottom left), and always on the screen.
+fn bubble_rect(p: &Prefs, big: bool) -> Rect {
     let (ax, ay, aw, ah) = win::work_area();
     let k = win::dpi_scale();
-    let (w, h) = if big { (BUBBLE_BIG.0 * size * k, BUBBLE_BIG.1 * size * k) } else { (BUBBLE_SMALL.0 * k, BUBBLE_SMALL.1 * k) };
+    let (w, h) = if big { (BUBBLE_BIG.0 * p.bubble_size * k, BUBBLE_BIG.1 * p.bubble_size * k) } else { (BUBBLE_SMALL.0 * p.bubble_small_size * k, BUBBLE_SMALL.1 * p.bubble_small_size * k) };
     let (w, h) = (w.round() as i32, h.round() as i32);
-    if big { (ax + (aw - w) / 2, ay + (ah - h) / 2, w, h) } else { (ax + (GAP * k) as i32, ay + ah - h - (GAP * k) as i32, w, h) }
+    let (cx, cy) = match if big { p.bubble_big_at } else { p.bubble_small_at } {
+        Some((fx, fy)) => (ax + (fx * aw as f32) as i32, ay + (fy * ah as f32) as i32),
+        None if big => (ax + aw / 2, ay + ah / 2),
+        None => (ax + (GAP * k) as i32 + w / 2, ay + ah - (GAP * k) as i32 - h / 2),
+    };
+    let x = (cx - w / 2).clamp(ax, (ax + aw - w).max(ax));
+    let y = (cy - h / 2).clamp(ay, (ay + ah - h).max(ay));
+    (x, y, w, h)
+}
+/// Remember where the bubble was put (its middle, as a share of the screen), for the state it's in.
+fn remember_bubble(app: &App) {
+    let (ax, ay, aw, ah) = win::work_area();
+    let (x, y, w, h) = rect_of(app.card("bubble"));
+    let at = Some((((x + w / 2 - ax) as f32 / aw.max(1) as f32).clamp(0.0, 1.0), ((y + h / 2 - ay) as f32 / ah.max(1) as f32).clamp(0.0, 1.0)));
+    let mut p = app.prefs.borrow_mut();
+    if app.collapsed.get() { p.bubble_big_at = at } else { p.bubble_small_at = at }
 }
 
 /// Is enough of it on the screen to grab? (A monitor may have been unplugged since.)
@@ -676,7 +707,9 @@ fn rect_of(w: &Win) -> Rect {
 fn set_rect(w: &Win, r: Rect) {
     let (x, y, pw, ph) = r;
     if cfg!(windows) && w.hwnd.get() > 0 {
-        if rect_of(w) != r { shell::set_rect(w.hwnd.get(), x, y, pw, ph); }
+        let was = rect_of(w);
+        if was != r { shell::set_rect(w.hwnd.get(), x, y, pw, ph); }
+        if (was.2, was.3) != (pw, ph) { settings::shape(w); }
     } else {
         w.ui.window().set_position(PhysicalPosition::new(x, y));
         w.ui.window().set_size(PhysicalSize::new(pw as u32, ph as u32));
@@ -814,7 +847,7 @@ fn home_of(app: &App, i: usize) -> Rect {
 /// Where a card flies from (coming out of the bubble) or to (going into it): towards the big bubble in the middle of
 /// the screen, as far as 42 % of its own size (as the app does it).
 fn away_from(app: &App, home: Rect) -> Rect {
-    let b = bubble_rect(true, app.prefs.borrow().bubble_size);
+    let b = bubble_rect(&app.prefs.borrow(), true);
     let (bx, by) = ((b.0 + b.2 / 2) as f32, (b.1 + b.3 / 2) as f32);
     let (cx, cy) = ((home.0 + home.2 / 2) as f32, (home.1 + home.3 / 2) as f32);
     let (dx, dy) = (bx - cx, by - cy);
@@ -922,7 +955,7 @@ fn show_all(app: &App) {
     let bubble = app.index("bubble");
     if app.prefs.borrow().bubble {
         if !visible(&app.cards[bubble]) { set_visible(&app.cards[bubble], true); }
-        let to = bubble_rect(false, app.prefs.borrow().bubble_size);
+        let to = bubble_rect(&app.prefs.borrow(), false);
         glide(app, bubble, to, 300.0);
     }
     let mut n = 0.0;
@@ -945,7 +978,7 @@ fn hide_all(app: &App) {
     if app.prefs.borrow().bubble {
         let b = app.index("bubble");
         if !visible(&app.cards[b]) { set_visible(&app.cards[b], true); }
-        let to = bubble_rect(true, app.prefs.borrow().bubble_size);
+        let to = bubble_rect(&app.prefs.borrow(), true);
         glide(app, b, to, 340.0);
     }
     update_menu(app);
@@ -1004,7 +1037,7 @@ fn on_shell(app: &App, ev: shell::Ev) {
             app.prefs.borrow_mut().bubble = on;
             let b = app.index("bubble");
             if on {
-                let r = bubble_rect(app.collapsed.get(), app.prefs.borrow().bubble_size);
+                let r = bubble_rect(&app.prefs.borrow(), app.collapsed.get());
                 crate::set_rect(&app.cards[b], r);
                 fade(app, b, true, 0.0, false)
             } else {
@@ -1045,7 +1078,8 @@ fn paint_glass(app: &App) {
 
 // ---- What the cards do ----
 /// Ctrl+Z on any card undoes Esther's last change (unless a text field with text in it has the keyboard: then it's
-/// the text's). Caught as the window gets it, so it works wherever the keyboard is on the card.
+/// the text's). Caught as the window gets it, so it works wherever the keyboard is on the card, and known by the Z
+/// key's place, so it works with any keyboard layout.
 fn undo_key(ui: &Card) {
     use slint::winit_030::{winit::event::WindowEvent, winit::keyboard::{Key, KeyCode, PhysicalKey}, EventResult, WinitWindowAccessor};
     let ctrl = Cell::new(false);
@@ -1063,6 +1097,14 @@ fn undo_key(ui: &Card) {
                     let g = ui.global::<Esther>();
                     if !g.get_typing() {
                         g.invoke_undo();
+                        return EventResult::PreventDefault;
+                    }
+                    // Typing: the text box takes it back. On a keyboard whose Z key types another letter (Khmer,
+                    // Russian…), the text box is told it's Ctrl+Z all the same (it knows Ctrl+Z by the letter).
+                    if !matches!(&event.logical_key, Key::Character(c) if c.eq_ignore_ascii_case("z")) {
+                        let w = ui.window();
+                        w.dispatch_event(slint::platform::WindowEvent::KeyPressed { text: "z".into() });
+                        w.dispatch_event(slint::platform::WindowEvent::KeyReleased { text: "z".into() });
                         return EventResult::PreventDefault;
                     }
                 }
@@ -1261,14 +1303,27 @@ fn wire(app: &Rc<App>, i: usize) {
         s.on_close(move || if let Some(a) = wk2.upgrade() { settings::close(&a) });
     }
     g.on_quit(|| { let _ = slint::quit_event_loop(); });
-    on!(on_bubble_click, |a| if a.collapsed.get() { show_all(a) } else { hide_all(a) });
+    on!(on_bubble_click, |a| {
+        // (Let go after dragging it: that was a move, not a click.)
+        if a.dragged_at.get().is_some_and(|t| t.elapsed() < StdDuration::from_millis(400)) { return; }
+        if a.tracking.borrow().as_ref().is_some_and(|(_, t)| t.started) { return; }
+        if a.collapsed.get() { show_all(a) } else { hide_all(a) }
+    });
+    // The mouse wheel over the bubble: bigger or smaller (big or small, whichever it is now), about its middle.
     on!(on_bubble_wheel, |a, dy| {
-        if !a.collapsed.get() { return; }
-        let k = (a.prefs.borrow().bubble_size + dy / 1200.0).clamp(0.3, 1.5);
-        a.prefs.borrow_mut().bubble_size = (k * 100.0).round() / 100.0;
         let b = a.index("bubble");
         stop_anims(a, b);
-        set_rect(&a.cards[b], bubble_rect(true, k));
+        remember_bubble(a);
+        {
+            let mut p = a.prefs.borrow_mut();
+            if a.collapsed.get() {
+                p.bubble_size = ((p.bubble_size + dy / 1200.0).clamp(0.3, 1.5) * 100.0).round() / 100.0;
+            } else {
+                p.bubble_small_size = ((p.bubble_small_size + dy / 600.0).clamp(0.6, 2.5) * 100.0).round() / 100.0;
+            }
+        }
+        let r = bubble_rect(&a.prefs.borrow(), a.collapsed.get());
+        set_rect(&a.cards[b], r);
         save_places(a);
     });
     // Closing any card (Alt+F4) hides Esther (the tray and the shortcut bring it back; Quit is in the tray menu).
@@ -1305,7 +1360,10 @@ fn wire(app: &Rc<App>, i: usize) {
         let (r, _) = resize_rect((x as f32, y as f32, cw as f32, ch as f32), edge.as_str(), dx * k, dy * k, false, false, k, min_size(w.kind), &grid, &grid);
         set_rect(w, (r.0 as i32, r.1 as i32, r.2 as i32, r.3 as i32));
     });
-    on!(on_drag_end, |a| save_places(a));
+    on!(on_drag_end, |a| {
+        if a.cards[i].kind == "bubble" { remember_bubble(a); }
+        save_places(a)
+    });
     on!(on_resize_end, |a| save_places(a));
 }
 
@@ -1325,13 +1383,19 @@ fn track_tick(app: &App) {
         let was = t.started;
         *tr = None;
         drop(tr);
-        if was { guides::hide(); save_places(app); }
+        if was {
+            guides::hide();
+            if w.kind == "bubble" { remember_bubble(app); }
+            app.dragged_at.set(Some(Instant::now()));
+            save_places(app);
+        }
         return;
     }
     let (cx, cy) = win::cursor();
     let (dx, dy) = ((cx - t.c0.0) as f32, (cy - t.c0.1) as f32);
     if !t.started && dx.abs() + dy.abs() < 4.0 { return; } // a click (or a double-click), not a drag
-    let snap_on = app.prefs.borrow().snap;
+    // (The bubble goes anywhere: no grid or guides for it.)
+    let snap_on = app.prefs.borrow().snap && w.kind != "bubble";
     let k = w.ui.window().scale_factor();
     let area = win::work_area();
     if !t.started {
@@ -1867,6 +1931,18 @@ fn smoke_steps() -> Vec<Step> {
         let (ax, ay, _, ah) = win::work_area();
         x.note("bubble_in_the_corner", bx - ax < 40 && (ay + ah) - (by + bh) < 40);
         x.shot("shown.png");
+        x.marks.borrow_mut().insert("bubble-before", rect_of(x.w("bubble")));
+    });
+    // Drag the small bubble up and to the right: it goes there (and stays), and letting go isn't a click (the cards
+    // stay out).
+    drag(&mut s, "bubble drag", "bubble", |x| { let (bx, by, bw, bh) = rect_of(x.w("bubble")); (bx + bw / 2, by + bh / 2) }, |x| ((160.0 * x.k()) as i32, (-90.0 * x.k()) as i32), 6, |_| {});
+    step!(600, |x| {
+        if !x.real.get() { let b = x.app.index("bubble"); let (bx, by, bw, bh) = rect_of(x.w("bubble")); set_rect(&x.app.cards[b], (bx + 160, by - 90, bw, bh)); remember_bubble(&x.app); }
+        let before = x.marks.borrow().get("bubble-before").copied().unwrap_or_default();
+        let now = rect_of(x.w("bubble"));
+        x.note("bubble_dragged_px", serde_json::json!([now.0 - before.0, now.1 - before.1]));
+        x.note("bubble_drag_kept_cards", x.all_cards(true));
+        x.note("bubble_place_saved", x.app.prefs.borrow().bubble_small_at.is_some());
     });
     // The tray icon. (The test machine's Windows tucks new icons into the overflow, so the clicks are sent to Esther
     // the way Windows sends them, straight to its hidden window.) Right-click: Windows' own menu shows; click
@@ -1928,7 +2004,8 @@ fn smoke_report(x: &Smoke) {
         let (corner, tool, owned) = (0u32, false, false);
         cards.insert(w.kind.into(), serde_json::json!({
             "screenshot": shot.unwrap_or(false),
-            "corners_as_meant": corner == if w.kind == "bubble" { 1 } else { 2 },
+            // (Windows' own rounding off for every window: Esther rounds the cards itself.)
+            "corners_as_meant": corner == 1,
             "tool_window": tool,
             "on_the_desktop": owned,
             "visible": visible(w),
@@ -2076,6 +2153,7 @@ fn main() {
         settings_open: Cell::new(false),
         copy_note: RefCell::new(String::new()),
         update: RefCell::new(update::State::Idle),
+        dragged_at: Cell::new(None),
         undo: RefCell::new(vec![]),
     });
     for i in 0..app.cards.len() { wire(&app, i); }
@@ -2145,7 +2223,7 @@ fn main() {
     // Where they were last time (or the Electron app's starting layout). The cards that are on show; the bubble sits
     // small in its corner.
     for w in &app.cards {
-        let r = if w.kind == "bubble" { bubble_rect(false, app.prefs.borrow().bubble_size) } else { places.get(w.kind).copied().filter(|r| on_screen(*r)).unwrap_or_else(|| default_place(w.kind)) };
+        let r = if w.kind == "bubble" { bubble_rect(&app.prefs.borrow(), false) } else { places.get(w.kind).copied().filter(|r| on_screen(*r)).unwrap_or_else(|| default_place(w.kind)) };
         set_rect(w, r);
         // (Settings too on Windows, so it is made and styled with the rest; it stays hidden until asked for.)
         if (w.kind == "bubble" && app.prefs.borrow().bubble) || app.is_on(w.kind) || (w.kind == "settings" && cfg!(windows)) {
@@ -2189,6 +2267,7 @@ fn main() {
                         let acrylic = if w.kind == "bubble" || a.prefs.borrow().glass_own { "" } else { win::acrylic(h.hwnd.get()) };
                         w.acrylic.set(acrylic);
                         if !acrylic.is_empty() { w.ui.set_has_glass(false); w.ui.set_acrylic(true); }
+                        settings::shape(w);
                         if w.kind != "bubble" { shell::set_alpha(h.hwnd.get(), 0); } // (they fade in below)
                         if w.kind == "settings" && !a.settings_open.get() { shell::show(h.hwnd.get(), false); }
                         log(&format!("{} styled: {}; glass: {}", w.kind, w.styled.borrow(), if acrylic.is_empty() { "Esther's own" } else { acrylic }));
