@@ -12,6 +12,7 @@ mod glass;
 mod guides;
 mod settings;
 mod shell;
+mod update;
 mod win;
 
 use data::{new_id, List, Store, Subtask, Task};
@@ -150,6 +151,8 @@ struct App {
     settings_open: Cell<bool>,
     /// What saving a copy of the tasks last said.
     copy_note: RefCell<String>,
+    /// Updates: where they stand.
+    update: RefCell<update::State>,
 }
 
 impl App {
@@ -964,6 +967,7 @@ fn update_menu(app: &App) {
         bubble: p.bubble,
         startup: shell::startup(),
         keys: settings::keys_name(p.keys),
+        update: match &*app.update.borrow() { update::State::Ready { version, .. } => Some(version.clone()), _ => None },
     });
 }
 
@@ -977,6 +981,7 @@ fn on_shell(app: &App, ev: shell::Ev) {
     use shell::*;
     match ev {
         Ev::Toggle => toggle(app),
+        Ev::Show => show_all(app),
         Ev::TrayClick => if app.collapsed.get() { show_all(app) } else { hide_all(app) },
         Ev::Command(CMD_SHOW_HIDE) => if app.collapsed.get() { show_all(app) } else { hide_all(app) },
         Ev::Command(c) if (CMD_CARD..CMD_CARD + 4).contains(&c) => {
@@ -1010,6 +1015,7 @@ fn on_shell(app: &App, ev: shell::Ev) {
         }
         Ev::Command(CMD_STARTUP) => { shell::set_startup(!shell::startup()); update_menu(app) }
         Ev::Command(CMD_SETTINGS) => settings::open(app),
+        Ev::Command(CMD_UPDATE) => settings::set(app, "update-restart", ""),
         Ev::Command(CMD_QUIT) => { let _ = slint::quit_event_loop(); }
         Ev::Command(_) => {}
     }
@@ -2008,9 +2014,24 @@ mod win_input {
 fn main() {
     let _ = STARTED.set(Instant::now());
     let args: Vec<String> = std::env::args().collect();
+    // For the test machine: check for an update (and download it), say what was found, and end.
+    if args.iter().any(|a| a == "--check-update") {
+        let s = update::check(&|_| {});
+        println!("{}", match &s {
+            update::State::Ready { version, setup } => format!("ready {version} {}", setup.display()),
+            update::State::Current => "current".into(),
+            update::State::Portable(v) => format!("portable {v}"),
+            other => format!("error {}", other.text()),
+        });
+        std::process::exit(if matches!(s, update::State::Error(_)) { 1 } else { 0 });
+    }
     let smoke = args.iter().position(|a| a == "--smoke").and_then(|i| args.get(i + 1)).map(std::path::PathBuf::from);
     if let Some(dir) = &smoke {
         std::env::set_var("ESTHER_DATA", dir.join("tasks.json"));
+    }
+    // One Esther at a time: opened again, it brings the running one's cards forward instead.
+    if smoke.is_none() && !shell::first_instance() {
+        return;
     }
     // The light renderer (drawn by the processor) unless asked otherwise with SLINT_BACKEND (e.g. winit-femtovg).
     if std::env::var("SLINT_BACKEND").is_err() {
@@ -2054,6 +2075,7 @@ fn main() {
         lit: RefCell::new(vec![]),
         settings_open: Cell::new(false),
         copy_note: RefCell::new(String::new()),
+        update: RefCell::new(update::State::Idle),
         undo: RefCell::new(vec![]),
     });
     for i in 0..app.cards.len() { wire(&app, i); }
@@ -2066,6 +2088,26 @@ fn main() {
     }
     refresh(&app);
     settings::apply_look(&app);
+
+    // Updates: a check a minute after starting, then every 4 hours (not on the test machine's run).
+    {
+        let wk = Rc::downgrade(&app);
+        update::on_state(move |s| {
+            let Some(a) = wk.upgrade() else { return };
+            log(&format!("update: {}", s.text()));
+            *a.update.borrow_mut() = s;
+            settings::fill(&a);
+            update_menu(&a);
+        });
+    }
+    let update_first = slint::Timer::default();
+    let update_every = slint::Timer::default();
+    if smoke.is_none() {
+        update_first.start(slint::TimerMode::SingleShot, StdDuration::from_secs(60), update::check_in_background);
+        update_every.start(slint::TimerMode::Repeated, StdDuration::from_secs(4 * 3600), || {
+            update::check_in_background();
+        });
+    }
 
     // Following the mouse, and Esther's animations, every 8 ms.
     let ticker = slint::Timer::default();

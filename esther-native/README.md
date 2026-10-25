@@ -4,9 +4,23 @@ Esther's cards as one native Windows program, written in Rust with the [Slint](h
 Esther light. The Electron app uses about 250–300 MB; this keeps under 25 MB in Task Manager (about 9 MB on the test
 machine), and its Windows test fails if it goes over.
 
-Stages 1 to 3 of the move are here: the four cards, each its own window, all showing the one set of tasks; the tray,
-the shortcut, starting with Windows, the bubble, and the grid and guides while you move and resize; and Settings.
-Still to come: stage 4, the installer and updater in place of Electron's.
+All four stages of the move are here: the four cards, each its own window, all showing the one set of tasks; the tray,
+the shortcut, starting with Windows, the bubble, and the grid and guides while you move and resize; Settings; and its
+own installer and updater.
+
+## Installing and updating
+- **Install**: run `EstherNativeSetup-X.Y.Z.exe` from the "Esther native" pre-release. It installs for you only (no
+  administrator needed) into `%LOCALAPPDATA%\Programs\Esther native`, with a Start menu entry, and if you tick them,
+  a desktop shortcut and starting with Windows. Windows may say the file isn't recognised (it isn't signed): More
+  info, then Run anyway.
+- **Updates**: Esther checks a minute after starting and every 4 hours. A newer version is downloaded, checked
+  against the SHA-256 GitHub publishes for it (anything else is refused), and offered in Settings → About and the
+  tray menu as "Restart to update": Esther closes, the new version installs quietly, and Esther opens again.
+- **Uninstall**: Settings → Apps → Installed apps → Esther. Esther goes, with its shortcuts and starting with
+  Windows; your tasks and settings (`%APPDATA%\Esther`) stay, always.
+- `esther-native-X.Y.Z.exe` is the same program without installing: it runs from wherever it is, and can't update
+  itself (About says when a new version is out, with a link to the Setup).
+- Opening Esther again while it runs brings its cards forward (there's only ever one).
 
 ## The cards
 - **Header**: Esther's arch emblem and name, the greeting by the time of day, the date and the day's line (the same line
@@ -60,7 +74,8 @@ it by its name, close it with ×. It comes back with the cards if it was open wh
   the highlight colour, and Reset.
 - **Tasks**: when finished tasks clear themselves (a day to a month, or never), and Save a copy (a new file in your
   Documents folder; it never replaces one).
-- **About**: the version, the memory Esther is using right now as Task Manager counts it, and Quit.
+- **About**: the version and updates (Check now, Restart to update), the memory Esther is using right now as Task
+  Manager counts it, and Quit.
 
 Not in Settings yet: the cards' size (Windows' display scale sets it), where the cards sit (on the desktop only), and
 loading a saved copy.
@@ -90,8 +105,10 @@ turn its cards off in Settings → Cards) while you try this.
   card off and on, changes the shortcut and back, and closes it; hides with Ctrl+Alt+E and comes back with the bubble; opens the tray menu and
   clicks elsewhere to close it; turns Start with Windows on and off. It saves pictures (of each card, and of the whole
   screen at the interesting moments) and the figures (`memory.json`), and quits. The Windows workflow
-  (`.github/workflows/esther-native.yml`) runs this on every push and puts the program, the pictures and the figures on
-  the "Esther native" pre-release.
+  (`.github/workflows/esther-native.yml`) runs this on every push, then builds the Setup (`installer/`, Inno Setup) and
+  tries it: installs it, opens Esther twice (one Esther), has the installed copy find, download and check an update
+  (and refuse a tampered one), uninstalls it, and checks a tasks file is exactly as it was. Then it puts the Setup, the
+  program, the pictures and the figures on the "Esther native" pre-release.
 - `SLINT_BACKEND=winit-femtovg` draws with the graphics card (OpenGL) instead of the processor, for comparison.
 
 ## Text

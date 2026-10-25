@@ -78,6 +78,9 @@ export global Settings {
     in property <string> copy-note;
     in property <string> version;
     in property <string> memory;
+    // Updates: what Settings → About says, and its button ("check", "restart", "page" or none).
+    in property <string> update-text;
+    in property <string> update-action;
     callback set(string, string);
     // Picking new keys: started or stopped, and each key pressed meanwhile.
     callback record(bool);
@@ -1893,7 +1896,10 @@ component SettingsBody inherits Rectangle {
                     if Settings.section == "about": VerticalLayout {
                         SetRow {
                             label: "Esther " + Settings.version;
-                            hint: "A to-do list that lives on your desktop. This build doesn’t update itself yet: new ones come from the Esther native release page.";
+                            hint: Settings.update-text;
+                            if Settings.update-action == "check": Button { text: "Check now"; clicked => { Settings.set("update-check", ""); } }
+                            if Settings.update-action == "restart": Button { text: "Restart to update"; clicked => { Settings.set("update-restart", ""); } }
+                            if Settings.update-action == "page": Button { text: "Get the Setup"; clicked => { Settings.set("update-page", ""); } }
                         }
                         SetRow {
                             label: "Memory";

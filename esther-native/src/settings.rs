@@ -242,6 +242,9 @@ pub fn fill(app: &App) {
         s.set_copy_note(format!("{l} list{} and {t} task{}. Saves a copy in your Documents folder (never over another file).", if l == 1 { "" } else { "s" }, if t == 1 { "" } else { "s" }).into());
     }
     s.set_version(env!("CARGO_PKG_VERSION").into());
+    let u = app.update.borrow();
+    s.set_update_text(u.text().into());
+    s.set_update_action(u.action().into());
     s.set_memory(memory_line().into());
 }
 
@@ -338,6 +341,22 @@ pub fn set(app: &App, key: &str, value: &str) {
         }
         "save-copy" => *app.copy_note.borrow_mut() = save_copy(app),
         "quit" => { let _ = slint::quit_event_loop(); }
+        "update-check" => {
+            // (Not while one is already under way.)
+            if !matches!(*app.update.borrow(), update::State::Checking | update::State::Downloading(_)) { update::check_in_background(); }
+        }
+        "update-restart" => {
+            let setup = match &*app.update.borrow() { update::State::Ready { setup, .. } => Some(setup.clone()), _ => None };
+            if let Some(setup) = setup {
+                if update::install(&setup) {
+                    log("update: installing, Esther closes");
+                    let _ = slint::quit_event_loop();
+                } else {
+                    *app.update.borrow_mut() = update::State::Error("the Setup wouldn't start".into());
+                }
+            }
+        }
+        "update-page" => update::open_page(),
         _ => {}
     }
     save_places(app);

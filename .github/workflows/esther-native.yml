@@ -128,6 +128,65 @@ jobs:
             for (const n of note) console.log('NOTE: ' + n);
             console.log(fail.length ? 'FAIL:\n  ' + fail.join('\n  ') : 'PASS: Task Manager ' + m.task_manager_mb + ' MB; ' + m.private_mb + ' MB private, ' + m.working_set_mb + ' MB working set');
             process.exit(fail.length ? 1 : 0);"
+      - name: Build the Setup
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          iscc="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          [ -x "$iscc" ] || choco install innosetup --no-progress -y > /dev/null
+          "$iscc" //Q "//DAppVersion=$v" installer/esther-native.iss
+          ls -la installer/Output
+      - name: Try the Setup (install, open twice, update, uninstall; your tasks untouched)
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          setup="$PWD/installer/Output/EstherNativeSetup-$v.exe"
+          app="$(cygpath -u "$LOCALAPPDATA")/Programs/Esther native"
+          data="$(cygpath -u "$APPDATA")/Esther"
+          menu="$(cygpath -u "$APPDATA")/Microsoft/Windows/Start Menu/Programs/Esther.lnk"
+          desk="$(cygpath -u "$USERPROFILE")/Desktop/Esther.lnk"
+          run_key='HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
+          fail=()
+          want() { if eval "$1"; then echo "ok: $2"; else echo "FAIL: $2"; fail+=("$2"); fi; }
+          running() { tasklist //FI "IMAGENAME eq esther-native.exe" //NH | grep -ci esther-native || true; }
+          # Someone's tasks, which nothing here may change.
+          mkdir -p "$data"
+          printf '%s' '{"version":1,"lists":[{"id":"general","name":"General","color":"#c8553a"}],"tasks":[{"id":"keep","title":"Keep me","listId":"general","done":false,"subtasks":[]}]}' > "$data/tasks.json"
+          before=$(sha256sum < "$data/tasks.json")
+
+          "$setup" //VERYSILENT //SUPPRESSMSGBOXES //NORESTART '//TASKS=desktopicon,startup'
+          sleep 6
+          want '[ -f "$app/esther-native.exe" ]' "installed in %LOCALAPPDATA%\\Programs\\Esther native"
+          want '[ -f "$app/unins000.exe" ]' "with its uninstaller"
+          want '[ -f "$menu" ]' "a Start menu entry"
+          want '[ -f "$desk" ]' "a desktop shortcut (asked for)"
+          want 'reg query "$run_key" //v "Esther native" > /dev/null 2>&1' "starts with Windows (asked for)"
+          want 'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{6F2C1D7A-4B8E-4E59-9C3A-7E1B5D0A2F64}_is1" > /dev/null 2>&1' "listed in Installed apps"
+          want '[ "$(running)" = 1 ]' "Esther opened after installing"
+          "$app/esther-native.exe" &
+          sleep 4
+          want '[ "$(running)" = 1 ]' "opening it again shows the same Esther (no second one)"
+
+          # The updater, from the installed copy, with a release that has a newer Setup (this one, as 99.0.0).
+          sha=$(sha256sum "$setup" | cut -c1-64)
+          printf '{"assets":[{"name":"EstherNativeSetup-99.0.0.exe","digest":"sha256:%s","browser_download_url":"file:///%s"}]}' "$sha" "$(cygpath -m "$setup")" > feed.json
+          got=$(ESTHER_UPDATE_FEED="file:///$(cygpath -m "$PWD/feed.json")" "$app/esther-native.exe" --check-update || true)
+          echo "update check: $got"
+          want '[[ "$got" == "ready 99.0.0 "* ]]' "the updater finds, downloads and checks a newer Setup"
+          printf '{"assets":[{"name":"EstherNativeSetup-99.0.0.exe","digest":"sha256:%s","browser_download_url":"file:///%s"}]}' "0000${sha:4}" "$(cygpath -m "$setup")" > feed.json
+          got=$(ESTHER_UPDATE_FEED="file:///$(cygpath -m "$PWD/feed.json")" "$app/esther-native.exe" --check-update || true)
+          echo "update check (tampered): $got"
+          want '[[ "$got" == *"didn"*"match"* ]]' "the updater refuses a download that isn't what was published"
+
+          # Uninstall (Esther still open): everything goes but your tasks.
+          "$app/unins000.exe" //VERYSILENT //SUPPRESSMSGBOXES
+          for i in $(seq 1 30); do [ -f "$app/esther-native.exe" ] || break; sleep 1; done
+          sleep 2
+          want '[ ! -f "$app/esther-native.exe" ]' "uninstalling removes Esther"
+          want '[ ! -f "$menu" ] && [ ! -f "$desk" ]' "and its shortcuts"
+          want '! reg query "$run_key" //v "Esther native" > /dev/null 2>&1' "and starting with Windows"
+          want '[ "$(running)" = 0 ]' "and closes it"
+          want '[ "$(sha256sum < "$data/tasks.json")" = "$before" ]' "your tasks are exactly as they were"
+          if [ ${#fail[@]} -gt 0 ]; then printf 'FAIL: %s\n' "${fail[@]}"; exit 1; fi
+          echo "PASS: the Setup installs, updates and uninstalls, and your tasks are untouched"
       - name: Keep the test's pictures (also when it fails)
         if: always()
         env:
@@ -149,7 +208,7 @@ jobs:
           cp target/release/esther-native.exe "smoke/esther-native-$v.exe"
           cp target/release/esther-native.exe smoke/esther-tasks.exe
           gh release delete esther-native --yes --cleanup-tag || true
-          gh release create esther-native "smoke/esther-native-$v.exe" smoke/esther-tasks.exe smoke/*.png smoke/memory.json \
+          gh release create esther-native "installer/Output/EstherNativeSetup-$v.exe" "smoke/esther-native-$v.exe" smoke/esther-tasks.exe smoke/*.png smoke/memory.json \
             --target "$GITHUB_SHA" --prerelease \
             --title "Esther native $v (preview)" \
-            --notes "Esther's header, calendar, This week and Tasks cards, and Settings, as one native Windows program (Rust + Slint), each card its own window on the desktop. It shares tasks with Esther through %APPDATA%\\Esther\\tasks.json (Esther 2.2 or later writes that file). Just run esther-native-$v.exe; nothing is installed. Ctrl+Alt+E or the tray icon shows and hides it; the gear on the header opens Settings; Quit is in the tray menu."
+            --notes "Esther's header, calendar, This week and Tasks cards, and Settings, as one native Windows program (Rust + Slint), each card its own window on the desktop. It shares tasks with Esther through %APPDATA%\\Esther\\tasks.json (Esther 2.2 or later writes that file). Install it with EstherNativeSetup-$v.exe (for you only, no administrator needed; it updates itself from then on, and uninstalling leaves your tasks), or just run esther-native-$v.exe without installing (that copy doesn't update itself). Ctrl+Alt+E or the tray icon shows and hides it; the gear on the header opens Settings; Quit is in the tray menu."

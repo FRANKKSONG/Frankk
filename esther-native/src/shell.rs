@@ -18,6 +18,9 @@ pub enum Ev {
     TrayClick,
     /// A tray menu item (one of the `CMD_` numbers).
     Command(u32),
+    /// Esther was opened again (from the Start menu, say): bring the cards forward.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    Show,
 }
 
 pub const CMD_SHOW_HIDE: u32 = 1;
@@ -27,6 +30,7 @@ pub const CMD_SNAP: u32 = 21;
 pub const CMD_BUBBLE: u32 = 22;
 pub const CMD_STARTUP: u32 = 23;
 pub const CMD_SETTINGS: u32 = 24;
+pub const CMD_UPDATE: u32 = 25;
 pub const CMD_QUIT: u32 = 99;
 
 /// What the tray menu shows (kept up to date by the program).
@@ -40,6 +44,8 @@ pub struct MenuState {
     pub startup: bool,
     /// The show/hide shortcut as shown ("Ctrl+Alt+E").
     pub keys: String,
+    /// A new version downloaded and ready to install.
+    pub update: Option<String>,
 }
 
 /// A string as Windows wants it (UTF-16, ending in 0).
@@ -93,6 +99,9 @@ mod imp {
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
     const WM_TRAY: u32 = WM_APP + 1;
+    /// From a second Esther, started while this one runs: show the cards.
+    const WM_SHOW_CARDS: u32 = WM_APP + 2;
+    const MUTEX: &str = "EstherNativeRunning";
     const HOTKEY_ID: i32 = 1;
     const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     const RUN_NAME: &str = "Esther native";
@@ -205,6 +214,10 @@ mod imp {
                 let t = wide(text);
                 AppendMenuW(menu, MF_STRING | if checked { MF_CHECKED } else { MF_UNCHECKED }, id as usize, t.as_ptr());
             };
+            if let Some(v) = &m.update {
+                add(menu, CMD_UPDATE, &format!("Restart to update to {v}"), false);
+                AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
+            }
             add(menu, CMD_SHOW_HIDE, &format!("{} Esther\t{}", if m.visible { "Hide" } else { "Show" }, m.keys), false);
             add(menu, CMD_SETTINGS, "Settings…", false);
             AppendMenuW(menu, MF_SEPARATOR, 0, std::ptr::null());
@@ -232,6 +245,10 @@ mod imp {
 
     unsafe extern "system" fn host_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
         match msg {
+            WM_SHOW_CARDS => {
+                push(Ev::Show);
+                0
+            }
             WM_TRAY => {
                 match lp as u32 {
                     WM_LBUTTONUP => push(Ev::TrayClick),
@@ -299,6 +316,20 @@ mod imp {
     pub fn stop() {
         notify(NIM_DELETE);
     }
+    /// The only Esther running? (A named mutex: the installer also looks for it, to close Esther before updating.)
+    /// If another is running, it's asked to bring its cards forward, and this one should end.
+    pub fn first_instance() -> bool {
+        unsafe {
+            use windows_sys::Win32::System::Threading::CreateMutexW;
+            let name = wide(MUTEX);
+            CreateMutexW(std::ptr::null(), 0, name.as_ptr()); // (held until Esther ends)
+            if GetLastError() != ERROR_ALREADY_EXISTS { return true; }
+            let other = FindWindowW(wide("EstherHost").as_ptr(), std::ptr::null());
+            if !other.is_null() { PostMessageW(other, WM_SHOW_CARDS, 0, 0); }
+            false
+        }
+    }
+
     /// The hidden window the tray talks to.
     pub fn host() -> isize {
         HOST.with(|h| h.get())
@@ -432,6 +463,7 @@ mod imp {
 #[cfg(not(windows))]
 mod imp {
     pub fn start(_tip: &str, _mods: u32, _vk: u32) -> bool { false }
+    pub fn first_instance() -> bool { true }
     pub fn set_hotkey(_mods: u32, _vk: u32) -> bool { false }
     pub fn clear_hotkey() {}
     pub fn set_tip(_tip: &str) {}
