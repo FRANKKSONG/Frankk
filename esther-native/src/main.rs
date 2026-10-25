@@ -114,6 +114,10 @@ struct Win {
     styled: RefCell<String>,
     /// Which of Windows' acrylic glass took ("" if none: then Esther paints its own glass).
     acrylic: Cell<&'static str>,
+    /// Where Esther's own glass was last made for (it's made again only when the card moves or changes size), and
+    /// whether it's held still (while the card flies in or out of the bubble: it's made again when it lands).
+    glass_at: Cell<Rect>,
+    glass_hold: Cell<bool>,
 }
 
 /// A move or resize in progress: which edge (None: moving), where the mouse and the window started (physical px),
@@ -573,7 +577,7 @@ fn load_saved() -> (std::collections::HashMap<String, Rect>, Prefs) {
         panel: None,
         accent: None,
         opacity: 0.5,
-        glass_own: false,
+        glass_own: true,
         blur: 28.0,
     };
     let Some(v) = std::fs::read_to_string(place_path()).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()) else { return (places, prefs) };
@@ -599,7 +603,8 @@ fn load_saved() -> (std::collections::HashMap<String, Rect>, Prefs) {
     prefs.panel = hex("panel");
     prefs.accent = hex("accent");
     if let Some(o) = v["opacity"].as_f64() { prefs.opacity = (o as f32).clamp(0.2, 1.0); }
-    if let Some(g) = v["glass"].as_str() { prefs.glass_own = g == "esther"; }
+    // ("cardGlass": the old "glass" setting is left alone, as Esther's own glass is now where it starts.)
+    if let Some(g) = v["cardGlass"].as_str() { prefs.glass_own = g == "esther"; }
     if let Some(b) = v["blur"].as_f64() { prefs.blur = (b as f32).clamp(0.0, 60.0); }
     if let Some(d) = v["clearAfterDays"].as_i64() { settings::CLEAR_DAYS.store(d.clamp(0, 365), std::sync::atomic::Ordering::Relaxed); }
     if let Some(c) = v["columns"].as_array() {
@@ -624,7 +629,7 @@ fn save_places(app: &App) {
             "columns": [p.cols.0, p.cols.1, p.cols.2],
             "shortcut": settings::keys_name(p.keys), "look": p.look,
             "panel": p.panel.map(|c| format!("#{c:06x}")), "accent": p.accent.map(|c| format!("#{c:06x}")),
-            "opacity": p.opacity, "glass": if p.glass_own { "esther" } else { "acrylic" }, "blur": p.blur,
+            "opacity": p.opacity, "cardGlass": if p.glass_own { "esther" } else { "acrylic" }, "blur": p.blur,
             "clearAfterDays": settings::CLEAR_DAYS.load(std::sync::atomic::Ordering::Relaxed),
         })
         .to_string(),
@@ -709,7 +714,6 @@ fn set_rect(w: &Win, r: Rect) {
     if cfg!(windows) && w.hwnd.get() > 0 {
         let was = rect_of(w);
         if was != r { shell::set_rect(w.hwnd.get(), x, y, pw, ph); }
-        if (was.2, was.3) != (pw, ph) { settings::shape(w); }
     } else {
         w.ui.window().set_position(PhysicalPosition::new(x, y));
         w.ui.window().set_size(PhysicalSize::new(pw as u32, ph as u32));
@@ -717,14 +721,21 @@ fn set_rect(w: &Win, r: Rect) {
     place_glass(w, r);
 }
 
-/// Line the glass up with the real wallpaper behind the window (and narrow Tasks goes compact).
-fn place_glass(w: &Win, (x, y, pw, _ph): Rect) {
+/// Give the card the glass that sits behind it now (the wallpaper there, made at the card's own size), and narrow
+/// Tasks goes compact.
+fn place_glass(w: &Win, r: Rect) {
+    let (x, y, pw, ph) = r;
     let k = w.ui.window().scale_factor();
-    let (sw, sh) = win::screen_size();
-    w.ui.set_glass_x(-(x as f32) / k);
-    w.ui.set_glass_y(-(y as f32) / k);
-    w.ui.set_glass_w(sw as f32 / k);
-    w.ui.set_glass_h(sh as f32 / k);
+    w.ui.set_glass_x(0.0);
+    w.ui.set_glass_y(0.0);
+    w.ui.set_glass_w(pw as f32 / k);
+    w.ui.set_glass_h(ph as f32 / k);
+    if w.ui.get_has_glass() && !w.glass_hold.get() && w.glass_at.get() != r && pw > 0 && ph > 0 {
+        if let Some(img) = glass::card(x, y, pw as u32, ph as u32) {
+            w.ui.set_glass(img);
+            w.glass_at.set(r);
+        }
+    }
     if w.kind == "tasks" {
         w.ui.global::<Esther>().set_compact((pw as f32 / k) < 560.0);
     }
@@ -865,6 +876,9 @@ fn fade(app: &App, i: usize, show: bool, delay_ms: f32, fly: bool) {
     }
     let home = rect_of(w);
     let fly = fly.then(|| (away_from(app, home), home));
+    // (Flying, the glass stays as it is at home, and is made again where it lands.)
+    if fly.is_some() { place_glass(w, home); }
+    w.glass_hold.set(fly.is_some());
     let from = if show { 0.0 } else { 1.0 };
     // Becoming see-through, the window's picture is thrown away too: so it is drawn again whole straight away (one
     // pixel wider for a moment; the fade's next step, or a redraw, puts it back). The fade waits a frame for that.
@@ -910,6 +924,7 @@ fn anim_tick(app: &App) {
                 let h = w.hwnd.get();
                 if t >= 1.0 {
                     if *hide_after { shell::show(h, false); }
+                    w.glass_hold.set(false);
                     if let Some((_, home)) = fly { set_rect(w, *home); }
                     shell::set_alpha(h, 255);
                     draw_whole(w);
@@ -1059,19 +1074,20 @@ fn reset_layout(app: &App) {
     save_places(app);
 }
 
-/// Esther's own glass (the wallpaper, blurred, with the tint in it: one picture for every card that needs it), for the
-/// cards Windows' acrylic doesn't reach. When every card has acrylic, no picture is made at all.
+/// Esther's own glass (the wallpaper, blurred, with the tint in it), for the cards Windows' acrylic doesn't reach:
+/// a small blurred copy, from which each card gets the part behind it at its own size. When every card has acrylic,
+/// none is made.
 fn paint_glass(app: &App) {
     let need: Vec<&Win> = app.cards.iter().filter(|w| w.acrylic.get().is_empty() && w.kind != "bubble").collect();
     let (sw, sh) = win::screen_size();
-    let p = app.prefs.borrow();
-    let (tint, _) = settings::panel_of(&p);
-    let img = if need.is_empty() { None } else { glass::glass(sw, sh, p.blur, [(tint >> 16) as u8, (tint >> 8) as u8, tint as u8], settings::own_glass_alpha(&p)) };
+    let ok = {
+        let p = app.prefs.borrow();
+        let (tint, _) = settings::panel_of(&p);
+        !need.is_empty() && glass::make_source(sw, sh, p.blur, [(tint >> 16) as u8, (tint >> 8) as u8, tint as u8], settings::own_glass_alpha(&p))
+    };
     for w in &need {
-        match &img {
-            Some(img) => { w.ui.set_glass(img.clone()); w.ui.set_has_glass(true); }
-            None => w.ui.set_has_glass(false),
-        }
+        w.ui.set_has_glass(ok);
+        w.glass_at.set((0, 0, 0, 0));
         place_glass(w, rect_of(w));
     }
 }
@@ -2004,14 +2020,13 @@ fn smoke_report(x: &Smoke) {
         let (corner, tool, owned) = (0u32, false, false);
         cards.insert(w.kind.into(), serde_json::json!({
             "screenshot": shot.unwrap_or(false),
-            // (Windows' own rounding off for every window: Esther rounds the cards itself.)
-            "corners_as_meant": corner == 1,
+            // (Windows' own rounding off, as Esther rounds the cards itself; only under Windows' acrylic does Windows.)
+            "corners_as_meant": corner == 1 || !w.acrylic.get().is_empty(),
             "tool_window": tool,
             "on_the_desktop": owned,
             "visible": visible(w),
             "rect": rect_of(w),
             "styled": w.styled.borrow().clone(),
-            "shape": if w.hwnd.get() > 0 { let (k, b) = win::window_shape(w.hwnd.get()); serde_json::json!([k, [b.0, b.1, b.2, b.3]]) } else { serde_json::Value::Null },
             // (On the screen: the very corner, and just inside it. See-through corners show the desktop there.)
             "corner_on_screen": shell::capture().map(|img| {
                 let (x, y, _, _) = rect_of(w);
@@ -2128,7 +2143,7 @@ fn main() {
             let ui = Card::new().expect("a card window");
             ui.set_kind((*kind).into());
             undo_key(&ui);
-            Win { kind, ui, hwnd: Cell::new(0), styled: RefCell::new("not yet".into()), acrylic: Cell::new("") }
+            Win { kind, ui, hwnd: Cell::new(0), styled: RefCell::new("not yet".into()), acrylic: Cell::new(""), glass_at: Cell::new((0, 0, 0, 0)), glass_hold: Cell::new(false) }
         })
         .collect();
     let t0 = today();

@@ -11,14 +11,20 @@ pub static CLEAR_DAYS: AtomicI64 = AtomicI64::new(7);
 /// How round the cards' corners are now (logical px, as f32 bits).
 static CORNER: AtomicU32 = AtomicU32::new(0);
 
-/// Shape a card's window to its rounded corners (so Windows' glass doesn't show past them).
+/// The corners of a card's window. With Esther's own glass, Esther cuts them itself (smoothly, see-through beyond) and
+/// Windows leaves the window square, with no shadow. Windows' acrylic fills the whole window whatever shape Esther
+/// gives it, so with acrylic Windows rounds the window itself (and adds its shadow with it).
 pub fn shape(w: &Win) {
     if w.kind == "bubble" || w.hwnd.get() <= 0 {
         return;
     }
-    let (_, _, pw, ph) = rect_of(w);
-    let r = f32::from_bits(CORNER.load(Ordering::Relaxed)) * w.ui.window().scale_factor();
-    win::round_window(w.hwnd.get(), pw, ph, r.round() as i32);
+    win::windows_round(w.hwnd.get(), !w.acrylic.get().is_empty() && f32::from_bits(CORNER.load(Ordering::Relaxed)) > 0.0);
+}
+
+/// How round the cards' corners are: the look's own with Esther's glass; Windows' (8 px) with its acrylic, as Windows
+/// rounds those windows itself.
+fn corner_radius(p: &Prefs, look: &LookDef) -> f32 {
+    if look.radius > 0.0 && !p.glass_own && cfg!(windows) { 8.0 } else { look.radius }
 }
 
 /// One of the Esther app's looks (its colours as the app has them).
@@ -97,11 +103,13 @@ pub fn apply_look(app: &App) {
         l.set_accent_ink(if lightness(accent) > 0.35 { rgb(0x15110c) } else { rgb(0xf6eedb) });
         l.set_edge(if light { Color::from_argb_u8(0x24, 0, 0, 0) } else { Color::from_argb_u8(0x14, 0xff, 0xff, 0xff) });
         l.set_acrylic_tint(p.opacity);
-        l.set_radius(look.radius);
+        l.set_radius(corner_radius(&p, look));
     }
-    // The cards' corners: cut smoothly by the renderer, and the window shaped to match (for Windows' glass).
-    i_slint_renderer_software::set_window_corner_radius(look.radius);
-    CORNER.store(look.radius.to_bits(), Ordering::Relaxed);
+    // The cards' corners: cut smoothly by the renderer (and rounded by Windows too, under its acrylic).
+    let r = corner_radius(&p, look);
+    i_slint_renderer_software::set_window_corner_radius(r);
+    CORNER.store(r.to_bits(), Ordering::Relaxed);
+    drop(p);
     for w in app.cards.iter().filter(|w| w.kind != "bubble") {
         shape(w);
         draw_whole(w);
@@ -128,6 +136,7 @@ fn set_glass(app: &App, own: bool) {
             if !a.is_empty() { w.ui.set_has_glass(false); }
         }
     }
+    apply_look(app);
     paint_glass(app);
 }
 

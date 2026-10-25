@@ -56,14 +56,14 @@ screen's centre, middle and quarters dashed and the other cards outlined; the ca
 (the centre, a quarter, another card's edge or centre, or an even gap from it) it snaps to it and the guide lights up
 with its name. Where each card is is remembered (`esther-native.json` next to the tasks).
 
-Esther's glass: Windows' own acrylic behind every card (the acrylic accent docks and other desktop tools use), so
-Windows blurs whatever is behind the card, live, in its own compositor, and Esther draws only its warm tint over it.
-That costs Esther nothing. Where Windows won't give acrylic, Esther paints its own glass instead: your wallpaper,
-blurred, with the tint, made once at the screen's own size (made again when the wallpaper changes). On Windows each
-card sits on the desktop like the Electron cards (owned by the desktop window), is a tool window (no taskbar button),
-and has no Windows window animations: Esther's own instead. Its corners are rounded by Esther itself, smoothly, as the
-look has them (16 px for Gilded, 14 for Modern, square for Nocturne and Illuminated, as in the app), with no frame or
-shadow from Windows.
+Esther's glass: your wallpaper, blurred, with the look's warm tint in it, made for each card at its own size from a
+small blurred copy (so there's never a screen-sized picture in memory), and made again when the card moves or the
+wallpaper changes. Its corners are Esther's own, smooth and see-through beyond (16 px for Gilded, 14 for Modern, square
+for Nocturne and Illuminated, as in the app), with no frame or shadow from Windows: only the bubble has a shadow.
+Settings → Look → Glass can use Windows' own acrylic instead (Windows blurs whatever is behind each card, live); then
+Windows rounds the cards itself, 8 px, and gives them its shadow, as its acrylic fills the whole window whatever shape
+Esther gives it. On Windows each card sits on the desktop like the Electron cards (owned by the desktop window), is a
+tool window (no taskbar button), and has no Windows window animations: Esther's own instead.
 
 ## Settings
 The gear on the header (or right-click the header, or the tray menu's Settings…) opens Settings, a card of its own: drag
@@ -72,7 +72,7 @@ it by its name, close it with ×. It comes back with the cards if it was open wh
   has them, Esther says so and keeps the old ones), the bubble and its size, snapping, Start with Windows.
 - **Cards**: each card on or off, and Put the cards back.
 - **Look**: the Esther app's looks (Gilded, Nocturne, Modern, Illuminated), a panel colour of your own (the text turns
-  light or dark to stay readable), how solid the panels are, Windows' acrylic or Esther's own glass (and how blurred),
+  light or dark to stay readable), how solid the panels are, Esther's own glass (and how blurred) or Windows' acrylic,
   the highlight colour, and Reset.
 - **Tasks**: when finished tasks clear themselves (a day to a month, or never), and Save a copy (a new file in your
   Documents folder; it never replaces one).

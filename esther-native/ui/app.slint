@@ -1860,7 +1860,7 @@ component SettingsBody inherits Rectangle {
                         }
                         if Settings.acrylic-ok: WideRow {
                             label: "Glass";
-                            hint: Settings.glass == "acrylic" ? "Windows blurs whatever is behind each card, live, like its own menus." : "Esther blurs a copy of your wallpaper, and you choose how much.";
+                            hint: Settings.glass == "acrylic" ? "Windows blurs whatever is behind each card, live, like its own menus, and rounds the cards itself (with its shadow)." : "Esther blurs a copy of your wallpaper, and you choose how much. The corners are the look’s own, with no shadow.";
                             Choices {
                                 choices: [{ id: "acrylic", label: "Windows acrylic", on: Settings.glass == "acrylic" }, { id: "esther", label: "Esther’s own", on: Settings.glass == "esther" }];
                                 picked(id) => { Settings.set("glass", id); }
@@ -1961,8 +1961,7 @@ export component Card inherits Window {
         }
         if root.acrylic: Rectangle { background: Look.panel.with-alpha(Look.acrylic-tint); }
         if !root.has-glass && !root.acrylic: Rectangle { background: Look.panel; }
-        // A hairline of light along the top, as glass catches it, and the card's edge: both follow the corners Windows
-        // rounds (8 px, as Windows 11 does).
+        // A hairline of light along the top, as glass catches it, and the card's edge: both follow the card's corners.
         if root.acrylic: Rectangle { x: Look.radius; y: 0; width: parent.width - 2 * Look.radius; height: 1px; background: #ffffff1c; }
         Shape { width: 100%; height: 100%; radius: Look.radius; fill: transparent; stroke: Look.edge; }
     }

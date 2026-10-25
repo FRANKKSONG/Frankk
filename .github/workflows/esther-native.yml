@@ -124,6 +124,7 @@ jobs:
             want(m.tasks_content_contrast >= 15, 'the Tasks card looks blank on the screen (brightness spread ' + m.tasks_content_contrast + ')');
             want(m.header_contrast_flying >= 10, 'the header flies out of the bubble blank (brightness spread ' + m.header_contrast_flying + ')');
             note.push('glass: ' + Object.entries(m.cards).map(([k, c]) => k + ' ' + c.glass).join(', '));
+            note.push('corners on the screen (very corner / inside): ' + Object.entries(m.cards).map(([k, c]) => k + ' ' + JSON.stringify(c.corner_on_screen)).join(', '));
             note.push('the Tasks card takes ' + m.tasks_card_draw_ms + ' ms to draw whole');
             note.push('Task Manager would show ' + m.task_manager_mb + ' MB (private working set), after the whole test');
             note.push('the cards were ready ' + m.ready_ms + ' ms after starting');
