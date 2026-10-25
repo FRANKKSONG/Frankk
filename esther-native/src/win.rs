@@ -7,7 +7,7 @@ mod imp {
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::Foundation::{POINT, RECT};
     use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DwmSetWindowAttribute};
-    use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn};
+    use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, CreateRoundRectRgn, DeleteObject, GetRgnBox, GetWindowRgn, SetWindowRgn};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
     use windows_sys::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX2};
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
@@ -73,6 +73,18 @@ mod imp {
         unsafe {
             let rgn = if r > 0 { CreateRoundRectRgn(0, 0, w + 1, h + 1, 2 * r, 2 * r) } else { std::ptr::null_mut() };
             SetWindowRgn(hwnd as HWND, rgn, 1);
+        }
+    }
+
+    /// For the test machine: the window's shape as Windows has it (its kind: 1 none, 2 simple, 3 complex; and its box).
+    pub fn window_shape(hwnd: isize) -> (i32, (i32, i32, i32, i32)) {
+        unsafe {
+            let rgn = CreateRectRgn(0, 0, 0, 0);
+            let kind = GetWindowRgn(hwnd as HWND, rgn);
+            let mut b = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            GetRgnBox(rgn, &mut b);
+            DeleteObject(rgn as _);
+            (kind, (b.left, b.top, b.right, b.bottom))
         }
     }
 
@@ -302,6 +314,7 @@ mod imp {
     }
     pub fn acrylic_off(_hwnd: isize) {}
     pub fn round_window(_hwnd: isize, _w: i32, _h: i32, _r: i32) {}
+    pub fn window_shape(_hwnd: isize) -> (i32, (i32, i32, i32, i32)) { (0, (0, 0, 0, 0)) }
     pub fn work_area() -> (i32, i32, i32, i32) {
         (0, 0, 1920, 1040)
     }

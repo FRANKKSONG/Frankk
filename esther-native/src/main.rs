@@ -2011,6 +2011,13 @@ fn smoke_report(x: &Smoke) {
             "visible": visible(w),
             "rect": rect_of(w),
             "styled": w.styled.borrow().clone(),
+            "shape": if w.hwnd.get() > 0 { let (k, b) = win::window_shape(w.hwnd.get()); serde_json::json!([k, [b.0, b.1, b.2, b.3]]) } else { serde_json::Value::Null },
+            // (On the screen: the very corner, and just inside it. See-through corners show the desktop there.)
+            "corner_on_screen": shell::capture().map(|img| {
+                let (x, y, _, _) = rect_of(w);
+                let px = |dx: i32, dy: i32| { let (sx, sy) = ((x + dx).max(0) as u32, (y + dy).max(0) as u32); if sx < img.width() && sy < img.height() { let p = img.get_pixel(sx, sy).0; vec![p[0], p[1], p[2]] } else { vec![] } };
+                serde_json::json!({ "corner": px(1, 1), "inside": px(24, 24) })
+            }),
             "glass": if w.kind == "bubble" { "none (just the word)" } else if w.acrylic.get().is_empty() { "Esther's own" } else { w.acrylic.get() },
         }));
     }
