@@ -32,6 +32,8 @@ jobs:
             ~/.cargo/git
             esther-native/target
           key: esther-native-${{ runner.os }}-${{ hashFiles('esther-native/Cargo.toml', 'esther-native/Cargo.lock') }}
+          # (A new version changes Cargo.lock: start from the last build anyway, so only what changed is built again.)
+          restore-keys: esther-native-${{ runner.os }}-
       - name: Build
         run: cargo build --release
       - name: Try it (smoke test)

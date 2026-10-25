@@ -42,6 +42,8 @@ own installer and updater.
     and Delete task.
   - Lists: + (at the right of the tabs) for a new one; double-click a tab to rename it; right-click a tab for Rename,
     its colour, or Delete list (its tasks moved to another list, or deleted with it).
+  - Scrolling shows a thin bar at the right, as on a Mac (no track, no arrows); it fades away a moment after, and
+    can be dragged.
   - Finished tasks stay crossed out, "clears in N days", and clear themselves after a week. Narrower than 560 px it goes
     compact.
 - **Calendar**: the month, Monday first, with open tasks as dots in their lists' colours; today outlined. Click a day

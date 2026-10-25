@@ -2,7 +2,6 @@
 // Esther bubble. Each card is its own window (a `Card`, told which one it is by `kind`); what it shows and what it
 // does goes through the `Esther` global, which the program fills for every window from the one shared set of tasks.
 // The look follows Esther's "Gilded" theme: warm dark panels over the glass, gold highlights, Instrument Serif.
-import { ListView } from "std-widgets.slint";
 import "fonts/InstrumentSerif-Regular.ttf";
 import "fonts/InstrumentSerif-Italic.ttf";
 
@@ -241,24 +240,72 @@ component Dot inherits VerticalLayout {
 component Shape inherits Path {
     in property <length> radius: self.height / 2;
     in property <length> line: 1px;
-    property <float> w: max(1, self.width / 1px);
-    property <float> h: max(1, self.height / 1px);
-    // (The outline runs half its width inside the edge, so none of it is cut off.)
-    property <float> i: self.line / 2px;
-    property <float> r: max(0, min(self.radius / 1px, min(self.w, self.h) / 2));
-    property <float> a: max(0, self.r - self.i);
+    // Slint lays the path's line half its width inside the edge, in a box that much smaller; the path is drawn to that
+    // box exactly (`fill`: not kept to the box's proportions, which drew a wide card's edge a few pixels inside it).
+    property <float> s: self.line / 1px;
+    property <float> w: max(1, self.width / 1px - self.s);
+    property <float> h: max(1, self.height / 1px - self.s);
+    // (The line's middle runs round the same centre as the edge's curve.)
+    property <float> r: max(0, min(self.radius / 1px - self.s / 2, min(self.w, self.h) / 2));
+    fit: fill;
     viewbox-width: self.w;
     viewbox-height: self.h;
     stroke-width: self.line;
-    commands: "M" + self.r + " " + self.i
-        + " L" + (self.w - self.r) + " " + self.i
-        + " A" + self.a + " " + self.a + " 0 0 1 " + (self.w - self.i) + " " + self.r
-        + " L" + (self.w - self.i) + " " + (self.h - self.r)
-        + " A" + self.a + " " + self.a + " 0 0 1 " + (self.w - self.r) + " " + (self.h - self.i)
-        + " L" + self.r + " " + (self.h - self.i)
-        + " A" + self.a + " " + self.a + " 0 0 1 " + self.i + " " + (self.h - self.r)
-        + " L" + self.i + " " + self.r
-        + " A" + self.a + " " + self.a + " 0 0 1 " + self.r + " " + self.i + " Z";
+    commands: "M" + self.r + " 0"
+        + " L" + (self.w - self.r) + " 0"
+        + " A" + self.r + " " + self.r + " 0 0 1 " + self.w + " " + self.r
+        + " L" + self.w + " " + (self.h - self.r)
+        + " A" + self.r + " " + self.r + " 0 0 1 " + (self.w - self.r) + " " + self.h
+        + " L" + self.r + " " + self.h
+        + " A" + self.r + " " + self.r + " 0 0 1 0 " + (self.h - self.r)
+        + " L0 " + self.r
+        + " A" + self.r + " " + self.r + " 0 0 1 " + self.r + " 0 Z";
+}
+
+// A scrolling area with a scroll bar as a Mac has it: a thin rounded bar floating over the content (no track, no
+// arrows), shown while it scrolls or the mouse is on it, and fading away a moment after. Drag the bar to scroll.
+component Scroller inherits Rectangle {
+    in property <length> content-height;
+    property <length> vy: fl.content-y;
+    property <bool> moving;
+    property <length> span: max(1px, root.content-height - root.height);
+    property <length> bar-h: max(32px, (root.height - 8px) * min(1, root.height / max(1px, root.content-height)));
+    property <length> start-y;
+    property <duration> moved-at;
+    changed vy => { root.moving = true; root.moved-at = animation-tick(); }
+    // (Gone 0.9 s after it last moved.)
+    Timer { interval: 150ms; running: root.moving; triggered => { if animation-tick() - root.moved-at > 900ms { root.moving = false; } } }
+    fl := Flickable {
+        width: 100%;
+        height: 100%;
+        content-width: self.width;
+        content-height: max(root.height, root.content-height);
+        @children
+    }
+    if root.content-height > root.height + 1px: Rectangle {
+        x: root.width - 12px;
+        width: 12px;
+        ta := TouchArea {
+            pointer-event(e) => { if e.kind == PointerEventKind.down { root.start-y = fl.content-y; } }
+            moved => {
+                if self.pressed {
+                    fl.content-y = max(-root.span, min(0, root.start-y - (self.mouse-y - self.pressed-y) * root.span / max(1px, root.height - 8px - root.bar-h)));
+                }
+            }
+        }
+        Rectangle {
+            property <bool> wide: ta.has-hover || ta.pressed;
+            x: self.wide ? 3px : 5px;
+            width: self.wide ? 7px : 5px;
+            y: 4px + (root.height - 8px - root.bar-h) * (-fl.content-y / root.span);
+            height: root.bar-h;
+            border-radius: self.width / 2;
+            background: Look.text.with-alpha(self.wide ? 0.42 : 0.3);
+            opacity: root.moving || self.wide ? 1 : 0;
+            animate opacity { duration: 260ms; easing: ease-out; }
+            animate x, width, background { duration: 120ms; }
+        }
+    }
 }
 
 // A pill: list tabs, the To do / Done switch, chips.
@@ -1220,13 +1267,18 @@ component TasksBody inherits Rectangle {
         }
 
         // The tasks.
-        if Esther.can-add && Esther.rows.length > 0: ListView {
+        if Esther.can-add && Esther.rows.length > 0: task-scroll := Scroller {
             vertical-stretch: 1;
-            for t[i] in Esther.rows: Row {
-                task: t;
-                index: i;
-                show-list: Esther.tab == "all";
-                compact: Esther.compact;
+            content-height: task-rows.preferred-height;
+            task-rows := VerticalLayout {
+                width: task-scroll.width;
+                alignment: start;
+                for t[i] in Esther.rows: Row {
+                    task: t;
+                    index: i;
+                    show-list: Esther.tab == "all";
+                    compact: Esther.compact;
+                }
             }
         }
         if Esther.can-add && Esther.rows.length == 0: Rectangle {
@@ -1432,10 +1484,12 @@ component WeekBody inherits Rectangle {
                 Text { horizontal-stretch: 1; text: Esther.week-range; color: Look.faint; font-size: 12.5px; horizontal-alignment: right; vertical-alignment: center; }
             }
         }
-        Flickable {
+        week-scroll := Scroller {
             vertical-stretch: 1;
             content-height: days.preferred-height;
             days := VerticalLayout {
+                width: week-scroll.width;
+                alignment: start;
                 padding-right: 6px;
                 spacing: 2px;
                 for d in Esther.week: Rectangle {
@@ -1780,10 +1834,9 @@ component SettingsBody inherits Rectangle {
                 NavItem { id: "about"; text: "About"; }
             }
             Rectangle { width: 1px; background: Look.edge; }
-            fl := Flickable {
+            fl := Scroller {
                 horizontal-stretch: 1;
-                content-width: self.width;
-                content-height: max(self.height, page.preferred-height);
+                content-height: page.preferred-height;
                 page := VerticalLayout {
                     width: fl.width;
                     padding-right: 6px;
